@@ -32,9 +32,32 @@
 #include <stdbool.h>
 
 #include <json.h>
-
 #include <gpod/itdb.h>
+#include <sqlite3.h>
 
+#include "gpod-db.h"
+
+
+bool  db_create(sqlite3 *hdl_)
+{
+    int  ret;
+    char*  err = NULL;
+
+    const char**  p = db_init_queries;
+    while (*p) {
+        if ((ret = sqlite3_exec(hdl_, *p, NULL, NULL, &err)) != SQLITE_OK) {
+            g_print ("failed to create db objects - %s\n", err);
+            sqlite3_free(err);
+            return false;
+        }
+        ++p;
+    }
+    return true;
+}
+
+int  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
+{
+}
 
 
 static void
@@ -171,11 +194,12 @@ main (int argc, char *argv[])
 {
     GError *error = NULL;
     Itdb_iTunesDB *itdb;
+    sqlite3*  hdl = NULL;
 
-    if (argc != 2)
+    if (argc != 2 && argc != 3)
     {
         char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]\n\n%s%s%s", basename,
+        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [sqlite3 db outfile]\n\n%s%s%s", basename,
                  "    This utility dumps the iTunesDB as a json object listing:\n",
                  "    playlists (iPod, podcasts, internal and user playlists\n",
                  "    with track info per playlist\n");
@@ -200,7 +224,7 @@ main (int argc, char *argv[])
     if (error)
     {
         if (error->message) {
-            g_print("failed to prase iTunesDB via (%s) %s - %s\n", argtype, argv[1], error->message);
+            g_printerr("failed to prase iTunesDB via (%s) %s - %s\n", argtype, argv[1], error->message);
         }
         g_error_free (error);
         error = NULL;
@@ -210,6 +234,18 @@ main (int argc, char *argv[])
     if (itdb == NULL) {
         g_print("failed to open iTunesDB via (%s) %s\n", argtype, argv[1]);
         return -1;
+    }
+
+    if (argc == 3) {
+        if (sqlite3_open(argv[2], &hdl) != SQLITE_OK) {
+            g_printerr("failed to open '%s': %s\n", argv[2], sqlite3_errmsg(hdl));
+            sqlite3_close(hdl);
+            hdl = NULL;
+        }
+        if (!db_create(hdl)) {
+            sqlite3_close(hdl);
+            hdl = NULL;
+        }
     }
 
 
@@ -254,6 +290,9 @@ main (int argc, char *argv[])
     json_object_put(jobj);
 
     itdb_free (itdb);
+    if (hdl) {
+        sqlite3_close(hdl);
+    }
 
     return 0;
 }
