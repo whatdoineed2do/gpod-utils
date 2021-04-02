@@ -20,6 +20,7 @@ AX_CXX_COMPILE_STDCXX([14], [noext], [mandatory])
 PKG_CHECK_MODULES(GLIB, [glib-2.0])
 PKG_CHECK_MODULES(GPOD, [libgpod-1.0 >= 0.8.3])
 PKG_CHECK_MODULES(JSONC, [json-c >= 0.13])
+PKG_CHECK_MODULES(SQLITE3, [sqlite3])
 
 AC_ARG_ENABLE([debug-code],
 	[AS_HELP_STRING([--enable-debug],
