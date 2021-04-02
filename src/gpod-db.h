@@ -1,6 +1,9 @@
 #ifndef GPOD_DB_H
 #define GPOD_DB_H
 
+#define QUERY_DROP \
+  "DROP TABLE IF EXISTS tracks;"
+
 #define QUERY_TBL \
   "CREATE TABLE IF NOT EXISTS tracks (" \
     "  id         INTEGER PRIMARY KEY NOT NULL," \
@@ -74,6 +77,7 @@
   "CREATE INDEX IF NOT EXISTS idx_key_flds ON tracks(title, album, artist, genre);"
  
 const char*  db_init_queries[] = {
+  QUERY_DROP,
   QUERY_TBL,
   QUERY_IDX,
   QUERY_IDX1,

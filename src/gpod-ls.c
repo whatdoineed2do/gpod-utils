@@ -46,7 +46,7 @@ bool  db_create(sqlite3 *hdl_)
     const char**  p = db_init_queries;
     while (*p) {
         if ((ret = sqlite3_exec(hdl_, *p, NULL, NULL, &err)) != SQLITE_OK) {
-            g_print ("failed to create db objects - %s\n", err);
+            g_printerr ("failed to create db objects - %s\n", err);
             sqlite3_free(err);
             return false;
         }
@@ -55,8 +55,55 @@ bool  db_create(sqlite3 *hdl_)
     return true;
 }
 
-int  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
+bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
 {
+#define QADD_TMPL \
+  "INSERT INTO tracks (" \
+    "id, ipod_path," \
+    "title, artist, album, genre, filetype, composer, grouping, albumartist, sort_artist, sort_title, sort_album, sort_albumartist, sort_composer," \
+    "size, tracklen, cd_nr, cds, track_nr, tracks, bitrate, samplerate, year, time_added, time_modified, time_played, rating, playcount, playcount2, recent_playcount" \
+    "    )" \
+    "  VALUES (%d, '%q'," \
+    "          %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q," \
+    "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d" \
+    "         );"
+
+  char*  err;
+  char*  query = sqlite3_mprintf(QADD_TMPL, 
+                                track_->id, track_->ipod_path,
+                                track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer, 
+                                track_->size, track_->tracklen, track_->cd_nr, track_->cds, track_->track_nr, track_->tracks, track_->bitrate, track_->samplerate, track_->year, track_->time_added, track_->time_modified, track_->time_played, track_->rating, track_->playcount, track_->playcount2, track_->recent_playcount);
+
+#undef QADD_TMPL
+
+  sqlite3_stmt*  stmt = NULL;
+
+  int  ret;
+  int  n = 5;
+  while (n--) 
+  {
+      if (sqlite3_prepare_v2(hdl_, query, -1, &stmt, NULL) != SQLITE_OK) {
+          sqlite3_free(query);
+          g_printerr("failed to prepare DB query - %s\n", sqlite3_errmsg(hdl_));
+          return false;
+      }
+
+      while (ret = sqlite3_step(stmt) == SQLITE_ROW) {
+          ;   // keep going...
+      }
+      sqlite3_finalize(stmt);
+
+      if (ret != SQLITE_SCHEMA)
+        break;
+    }
+
+    sqlite3_free(err);
+    sqlite3_free(query);
+    if (ret != SQLITE_OK) {
+        g_printerr("failed to insert data %d - %s\n", ret, sqlite3_errmsg(hdl_));
+        return false;
+    }
+    return true;
 }
 
 
@@ -80,8 +127,9 @@ json_object_add_boolean(json_object* obj_, const char* tag_, const bool data_)
 
 
 static json_object*
-_track (Itdb_Track *track, bool verbose_)
+_track (Itdb_Track *track, bool verbose_, sqlite3* hdl_)
 {
+    static unsigned  inscnt = 0;
     json_object*  jobj = json_object_new_object();
 
     itdb_filename_ipod2fs(track->ipod_path);
@@ -130,20 +178,41 @@ _track (Itdb_Track *track, bool verbose_)
         json_object_add_string(jobj, "albumartist", track->albumartist);
         json_object_add_int(jobj, "rating", track->rating);
     }
+
+    if (hdl_)
+    {
+        char*  err = NULL;
+        if (inscnt == 0) {
+            if (sqlite3_exec(hdl_, "BEGIN TRANSACTION", NULL, NULL, &err) != SQLITE_OK) {
+                g_printerr ("failed to start txn- %s\n", err);
+                sqlite3_free(err);
+            }
+        }
+
+        db_add_track(hdl_, track);
+
+        if (++inscnt == 500) {
+            if (sqlite3_exec(hdl_, "COMMIT TRANSACTION", NULL, NULL, &err) != SQLITE_OK) {
+                g_printerr ("failed to commit txn - %s\n", err);
+                sqlite3_free(err);
+            }
+            inscnt = 0;
+        }
+    }
      
     return jobj;
 }
 
 static json_object*
-_playlist (Itdb_Playlist *playlist)
+_playlist (Itdb_Playlist *playlist, sqlite3* hdl_)
 {
     GList *it;
     const char*  type;
-    bool  verbose = false;
+    bool  master = false;
 
     if (itdb_playlist_is_mpl (playlist)) {
         type = "master";
-        verbose = true;
+        master = true;
     }
     else if (itdb_playlist_is_podcasts (playlist)) type = "podcasts";
     else type = "playlist";
@@ -161,7 +230,7 @@ _playlist (Itdb_Playlist *playlist)
 	Itdb_Track *track;
 	
 	track = (Itdb_Track *)it->data;
-	json_object_array_add(jtracks, _track(track, verbose));
+	json_object_array_add(jtracks, _track(track, master, master ? hdl_ : NULL));
     }
     json_object_object_add(jobj, "tracks", jtracks);
 
@@ -237,6 +306,10 @@ main (int argc, char *argv[])
     }
 
     if (argc == 3) {
+        if (g_file_test(argv[2], G_FILE_TEST_EXISTS)) {
+            g_printerr("requested DB exists, overwritting '%s'\n", argv[2]);
+        }
+
         if (sqlite3_open(argv[2], &hdl) != SQLITE_OK) {
             g_printerr("failed to open '%s': %s\n", argv[2], sqlite3_errmsg(hdl));
             sqlite3_close(hdl);
@@ -282,7 +355,7 @@ main (int argc, char *argv[])
     for (it = itdb->playlists; it != NULL; it = it->next)
     {
         Itdb_Playlist*  playlist = (Itdb_Playlist *)it->data;
-        json_object_array_add(jplylists, _playlist(playlist));
+        json_object_array_add(jplylists, _playlist(playlist, hdl));
     }
     json_object_object_add(jobj, "playlists", jplylists);
 
@@ -291,6 +364,7 @@ main (int argc, char *argv[])
 
     itdb_free (itdb);
     if (hdl) {
+        sqlite3_exec(hdl, "COMMIT TRANSACTION", NULL, NULL, NULL);
         sqlite3_close(hdl);
     }
 
