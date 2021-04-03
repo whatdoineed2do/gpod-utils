@@ -232,10 +232,10 @@ static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
         json_object_add_int(jtrack, "id", ((Itdb_Track*)i->data)->id);
         json_object_add_string(jtrack, "ipod_path", ((Itdb_Track*)i->data)->ipod_path);
 
-        json_object_add_string(jtrack, "title", ((Itdb_Track*)l->data)->title);
-        json_object_add_string(jtrack, "artist", ((Itdb_Track*)l->data)->artist);
-        json_object_add_string(jtrack, "album", ((Itdb_Track*)l->data)->album);
-        json_object_add_string(jtrack, "genre", ((Itdb_Track*)l->data)->genre);
+        json_object_add_string(jtrack, "title", ((Itdb_Track*)i->data)->title);
+        json_object_add_string(jtrack, "artist", ((Itdb_Track*)i->data)->artist);
+        json_object_add_string(jtrack, "album", ((Itdb_Track*)i->data)->album);
+        json_object_add_string(jtrack, "genre", ((Itdb_Track*)i->data)->genre);
 
         gmtime_r(&(((Itdb_Track*)l->data)->time_added), &tm);
         strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
