@@ -30,7 +30,10 @@
 #include <string.h>
 #include <locale.h>
 #include <stdbool.h>
+#include <time.h>
 
+#include <glib.h>
+#include <gmodule.h>
 #include <json.h>
 #include <gpod/itdb.h>
 #include <sqlite3.h>
@@ -126,8 +129,127 @@ json_object_add_boolean(json_object* obj_, const char* tag_, const bool data_)
 }
 
 
+typedef struct _TrkHash {
+    long  high;    // file size/len/artist/title/album
+    long  med;     // file size/len/artist/title
+    long  low;     // file size/len
+} TrkHash;
+
+static TrkHash*  hash_trk_init(const Itdb_Track* track_)
+{
+   TrkHash*  o = malloc(sizeof(TrkHash)); 
+   memset(o, 0, sizeof(TrkHash));
+
+   o->low = track_->size + track_->tracklen + track_->bitrate + track_->samplerate;
+   o->med = o->low + (track_->artist ? g_str_hash(track_->artist) : 0)  + (track_->title ? g_str_hash(track_->title) : 0);
+   o->high = o->med + (track_->album ? g_str_hash(track_->album) : 0);
+
+   return o;
+}
+
+static void  hash_trk_free(gpointer p_)
+{
+    free(p_);
+}
+
+static guint  hask_trk_low(gconstpointer v_)
+{ return ((const TrkHash*)v_)->low; }
+
+static gboolean  hask_trk_low_equals(gconstpointer v0_, gconstpointer v1_)
+{
+    return ((const TrkHash*)v0_)->low == ((const TrkHash*)v1_)->low;
+}
+
+static guint  hask_trk_med(gconstpointer v_)
+{ return ((const TrkHash*)v_)->med; }
+
+static gboolean  hask_trk_med_equals(gconstpointer v0_, gconstpointer v1_)
+{
+    return ((const TrkHash*)v0_)->med == ((const TrkHash*)v1_)->med;
+}
+
+static guint  hask_trk_high(gconstpointer v_)
+{ return ((const TrkHash*)v_)->high; }
+
+static gboolean  hask_trk_high_equals(gconstpointer v0_, gconstpointer v1_)
+{
+    return ((const TrkHash*)v0_)->high == ((const TrkHash*)v1_)->high;
+}
+
+typedef struct _TrkHashes {
+    GHashTable*  high;
+    GHashTable*  med;
+    GHashTable*  low;
+} TrkHashTbl;
+
+static void  hash_tbl_init(TrkHashTbl* o_)
+{
+    o_->high = g_hash_table_new(hask_trk_high, hask_trk_high_equals);
+    o_->med = g_hash_table_new(hask_trk_med, hask_trk_med_equals);
+    o_->low = g_hash_table_new(hask_trk_low, hask_trk_low_equals);
+}
+
+static void  hash_tbl_val_destroy(gpointer k_, gpointer v_, gpointer d_)
+{
+    g_slist_free(v_);
+}
+
+static void  hash_tbl_free(TrkHashTbl* o_)
+{
+    g_hash_table_foreach(o_->high, hash_tbl_val_destroy, NULL);
+    g_hash_table_destroy(o_->high);
+    g_hash_table_foreach(o_->med, hash_tbl_val_destroy, NULL);
+    g_hash_table_destroy(o_->med);
+    g_hash_table_foreach(o_->low, hash_tbl_val_destroy, NULL);
+    g_hash_table_destroy(o_->low);
+    memset(o_, 0, sizeof(TrkHashTbl));
+}
+
+static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
+{
+    GSList*  l = (GSList*)v_;
+    const int  count = g_slist_length(l);
+    if (count < 2) {
+        return;
+    }
+
+    json_object*  jarray = (json_object*)d_;
+
+    json_object*  jobj = json_object_new_object();
+    json_object*  jtracks = json_object_new_array();
+
+    json_object_add_int(jobj, "size", ((Itdb_Track*)l->data)->size);
+    json_object_add_int(jobj, "tracklen", ((Itdb_Track*)l->data)->tracklen);
+    json_object_add_int(jobj, "bitrate", ((Itdb_Track*)l->data)->bitrate);
+    json_object_add_int(jobj, "samplerate", ((Itdb_Track*)l->data)->samplerate);
+
+    struct tm  tm;
+    char dt[20];
+    for (GSList* i=l; i!= NULL; i=i->next) {
+        json_object*  jtrack = json_object_new_object();
+
+        json_object_add_int(jtrack, "id", ((Itdb_Track*)i->data)->id);
+        json_object_add_string(jtrack, "ipod_path", ((Itdb_Track*)i->data)->ipod_path);
+
+        json_object_add_string(jtrack, "title", ((Itdb_Track*)l->data)->title);
+        json_object_add_string(jtrack, "artist", ((Itdb_Track*)l->data)->artist);
+        json_object_add_string(jtrack, "album", ((Itdb_Track*)l->data)->album);
+        json_object_add_string(jtrack, "genre", ((Itdb_Track*)l->data)->genre);
+
+        gmtime_r(&(((Itdb_Track*)l->data)->time_added), &tm);
+        strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
+        json_object_add_string(jtrack, "date_added", dt);
+
+        json_object_array_add(jtracks, jtrack);
+    }
+    json_object_add_int(jobj, "count", count-1);
+    json_object_object_add(jobj, "items", jtracks);
+
+    json_object_array_add(jarray, jobj);
+}
+
 static json_object*
-_track (Itdb_Track *track, bool verbose_, sqlite3* hdl_)
+_track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
 {
     static unsigned  inscnt = 0;
     json_object*  jobj = json_object_new_object();
@@ -199,12 +321,32 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_)
             inscnt = 0;
         }
     }
+
+    if (htbl_)
+    {
+        /* generate the hash info for this track and store it with the track
+         *
+         * store corresponding items with the hash tables
+         */
+        track->userdata = hash_trk_init(track);
+        track->userdata_destroy = hash_trk_free;
+
+        g_hash_table_insert(htbl_->high,
+                            track->userdata,
+                            g_slist_append(g_hash_table_lookup(htbl_->high, track->userdata), track));
+        g_hash_table_insert(htbl_->med,
+                            track->userdata,
+                            g_slist_append(g_hash_table_lookup(htbl_->med, track->userdata), track));
+        g_hash_table_insert(htbl_->low,
+                            track->userdata,
+                            g_slist_append(g_hash_table_lookup(htbl_->low, track->userdata), track));
+    }
      
     return jobj;
 }
 
 static json_object*
-_playlist (Itdb_Playlist *playlist, sqlite3* hdl_)
+_playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_)
 {
     GList *it;
     const char*  type;
@@ -230,7 +372,7 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_)
 	Itdb_Track *track;
 	
 	track = (Itdb_Track *)it->data;
-	json_object_array_add(jtracks, _track(track, master, master ? hdl_ : NULL));
+	json_object_array_add(jtracks, _track(track, master, master ? hdl_ : NULL, master ? htbl_ : NULL));
     }
     json_object_object_add(jobj, "tracks", jtracks);
 
@@ -351,13 +493,56 @@ main (int argc, char *argv[])
 
     jplylists = json_object_new_array();
 
+    TrkHashTbl  htbl;
+    hash_tbl_init(&htbl);
+
     GList *it;
     for (it = itdb->playlists; it != NULL; it = it->next)
     {
         Itdb_Playlist*  playlist = (Itdb_Playlist *)it->data;
-        json_object_array_add(jplylists, _playlist(playlist, hdl));
+        json_object_array_add(jplylists, _playlist(playlist, hdl, &htbl));
     }
     json_object_object_add(jobj, "playlists", jplylists);
+
+    {
+        struct _HtblItems {
+            const char*  name;
+            GHashTable*  htbl;
+        } htblItem[] = {
+            { "high", htbl.high },
+            { "med", htbl.med},
+            { "low", htbl.low},
+            { NULL, NULL }
+        };
+
+        json_object*  janalysis = json_object_new_array();
+        json_object*  jahtbl;
+
+
+        struct _HtblItems*  hp = htblItem;
+        while (hp->name)
+        {
+            jahtbl = json_object_new_object();
+            json_object*  jarray = json_object_new_array();
+            json_object_add_string(jahtbl, "match", hp->name);
+
+            GHashTableIter  hiter;
+            gpointer  key;
+            gpointer  value;
+
+            g_hash_table_iter_init (&hiter, hp->htbl);
+            while (g_hash_table_iter_next(&hiter, &key, &value)) {
+                hash_tbl_json(key, value, jarray);
+            }
+
+            json_object_object_add(jahtbl, "tracks", jarray);
+            json_object_array_add(janalysis, jahtbl);
+
+            ++hp;
+        }
+
+        json_object_object_add(jobj, "duplicates", janalysis);
+    }
 
     g_print("%s\n", json_object_to_json_string(jobj)); 
     json_object_put(jobj);
@@ -367,6 +552,7 @@ main (int argc, char *argv[])
         sqlite3_exec(hdl, "COMMIT TRANSACTION", NULL, NULL, NULL);
         sqlite3_close(hdl);
     }
+    hash_tbl_free(&htbl);
 
     return 0;
 }
