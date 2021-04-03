@@ -49,6 +49,19 @@ _track(const char* file_)
     try
     {
         TagLib::MPEG::File  file(file_);
+
+        const TagLib::AudioProperties*  props = file.audioProperties();
+
+        /* this isn't the best test - the ctr does not know if the file is
+         * really an mp3 or not.  however, it tries to determine the audio
+         * properties .. and if these are junk (all 0) then we're going to
+         * assume either the mp3 file is junk or its not really an mp3
+         * file
+         */
+        if (props == nullptr || (props && props->lengthInSeconds() == 0 && props->bitrate() == 0 && props->sampleRate() == 0)) {
+            return nullptr;
+        }
+
         TagLib::Tag*  tag = file.ID3v2Tag();
         track = itdb_track_new();
         
@@ -57,9 +70,9 @@ _track(const char* file_)
         if (g_stat (file_, &st) == 0) {
             track->size = st.st_size;
         }
-        track->tracklen = file.audioProperties()->lengthInSeconds();
-        track->bitrate = file.audioProperties()->bitrate();
-        track->samplerate = file.audioProperties()->sampleRate();
+        track->tracklen = props->lengthInSeconds();
+        track->bitrate = props->bitrate();
+        track->samplerate = props->sampleRate();
 
         if (tag) {
             track->title = g_strdup(tag->title().toCString(true));
@@ -193,9 +206,9 @@ int main (int argc, char *argv[])
 
         error = NULL;
 
-        Itdb_Track*  track = NULL;
+        Itdb_Track*  track = nullptr;
         bool  ok = true;
-        if ( (track = _track(path)) == NULL) {
+        if ( (track = _track(path)) == nullptr) {
             ok = false;
         }
         else {
@@ -215,6 +228,7 @@ int main (int argc, char *argv[])
                 itdb_playlist_add_track(mpl, track, -1);
                 itdb_track_remove(track);
             }
+            if (error) g_error_free(error);
         }
     }
 
@@ -226,8 +240,8 @@ int main (int argc, char *argv[])
 
         if (error) {
             g_printerr("failed to write iPod database, %d files NOT added- %s\n", requested, error->message ? error->message : "<unknown error>");
-             g_error_free (error);
-             ret = 1;
+            g_error_free (error);
+            ret = 1;
         }
         g_print("updated iPod, new total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
     }
