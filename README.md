@@ -155,3 +155,9 @@ $ gpod-rm /run/media/ray/IPOD   /iPod_Control/Music/F41/ZNUF.mp3
 /iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='9492' time_added=161672437 }
 sync'ing iPod ... removing 1/1
 ```
+
+## `gpod-cp`
+Copies track(s) to iPod.  No automatic conversions made, only accepts mp3 at this time.
+```
+$ gpod-cp /run/media/ray/IPOD   /export/public/music/foo.mp3 /export/public/music/bar.mp3
+```
