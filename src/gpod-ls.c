@@ -486,12 +486,15 @@ main (int argc, char *argv[])
 */
 
     json_object*  jobj = NULL;
+    json_object*  jpodobj = NULL;
     json_object*  jplylists = NULL;
+    json_object*  jplylistitems = NULL;
 
     jobj = json_object_new_object();
-    json_object_object_add(jobj, "count", json_object_new_int(g_list_length(itdb->playlists)));
+    jpodobj = json_object_new_object();
 
-    jplylists = json_object_new_array();
+    jplylists = json_object_new_object();
+    jplylistitems = json_object_new_array();
 
     TrkHashTbl  htbl;
     hash_tbl_init(&htbl);
@@ -500,9 +503,12 @@ main (int argc, char *argv[])
     for (it = itdb->playlists; it != NULL; it = it->next)
     {
         Itdb_Playlist*  playlist = (Itdb_Playlist *)it->data;
-        json_object_array_add(jplylists, _playlist(playlist, hdl, &htbl));
+        json_object_array_add(jplylistitems, _playlist(playlist, hdl, &htbl));
     }
-    json_object_object_add(jobj, "playlists", jplylists);
+    json_object_object_add(jplylists, "items", jplylistitems);
+    json_object_object_add(jplylists, "count", json_object_new_int(g_list_length(itdb->playlists)));
+    json_object_object_add(jpodobj, "playlists", jplylists);
+    json_object_object_add(jobj, "ipod_data", jpodobj);
 
     {
         struct _HtblItems {
@@ -515,7 +521,8 @@ main (int argc, char *argv[])
             { NULL, NULL }
         };
 
-        json_object*  janalysis = json_object_new_array();
+        json_object*  janalysis = json_object_new_object();
+        json_object*  jduplicates = json_object_new_array();
         json_object*  jahtbl;
 
 
@@ -536,12 +543,13 @@ main (int argc, char *argv[])
             }
 
             json_object_object_add(jahtbl, "tracks", jarray);
-            json_object_array_add(janalysis, jahtbl);
+            json_object_array_add(jduplicates, jahtbl);
 
             ++hp;
         }
 
-        json_object_object_add(jobj, "duplicates", janalysis);
+        json_object_object_add(janalysis, "duplicates", jduplicates);
+        json_object_object_add(jobj, "ipod_analysis", janalysis);
     }
 
     g_print("%s\n", json_object_to_json_string(jobj)); 
