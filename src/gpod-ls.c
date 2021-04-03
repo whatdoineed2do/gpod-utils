@@ -31,6 +31,7 @@
 #include <locale.h>
 #include <stdbool.h>
 #include <time.h>
+#include <limits.h>
 
 #include <glib.h>
 #include <gmodule.h>
@@ -404,7 +405,8 @@ int
 main (int argc, char *argv[])
 {
     GError *error = NULL;
-    Itdb_iTunesDB *itdb;
+    Itdb_iTunesDB*  itdb = NULL;
+    Itdb_Device*  itdev = NULL;
     sqlite3*  hdl = NULL;
 
     if (argc != 2 && argc != 3)
@@ -424,11 +426,25 @@ main (int argc, char *argv[])
     if (g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (argv[1], &error);
         argtype = "directroy";
+        itdev = itdb_device_new();
+        itdb_device_set_mountpoint(itdev, argv[1]);
     }
     else {
         if (g_file_test(argv[1], G_FILE_TEST_EXISTS)) {
             itdb = itdb_parse_file(argv[1], &error);
             argtype = "file";
+
+            // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
+            // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
+            char mountpoint[PATH_MAX];
+            strcpy(mountpoint, argv[1]);
+
+            char*  dmp;
+            if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
+                itdev = itdb_device_new();
+                *dmp = '\0';
+                itdb_device_set_mountpoint(itdev, mountpoint);
+            }
         }
     }
 
@@ -507,6 +523,28 @@ main (int argc, char *argv[])
     }
     json_object_object_add(jplylists, "items", jplylistitems);
     json_object_object_add(jplylists, "count", json_object_new_int(g_list_length(itdb->playlists)));
+
+    {
+        json_object*  jdevice = json_object_new_object();
+        if (itdev) {
+            const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
+
+            char*  uuid = itdb_device_get_uuid(itdev);
+
+            json_object_add_string(jdevice, "model_number", ipodinfo->model_number);
+            json_object_add_int(jdevice, "capacity", ipodinfo->capacity);
+            json_object_add_string(jdevice, "model_name", itdb_info_get_ipod_model_name_string(ipodinfo->ipod_model));
+            json_object_add_string(jdevice, "generation", itdb_info_get_ipod_generation_string (ipodinfo->ipod_generation));
+            json_object_add_string(jdevice, "uuid", uuid);
+            g_free(uuid);
+            json_object_add_string(jdevice, "serial_number", itdb_device_get_sysinfo(itdev, "SerialNumber"));
+            json_object_add_string(jdevice, "format", itdb_device_get_sysinfo(itdev, "VolumeFormat"));
+            json_object_add_string(jdevice, "ram", itdb_device_get_sysinfo(itdev, "RAM"));
+            json_object_add_string(jdevice, "itunes_version", itdb_device_get_sysinfo(itdev, "MinITunesVersion"));
+            json_object_add_string(jdevice, "product_type", itdb_device_get_sysinfo(itdev, "ProductType"));
+        }
+        json_object_object_add(jpodobj, "device", jdevice);
+    }
     json_object_object_add(jpodobj, "playlists", jplylists);
     json_object_object_add(jobj, "ipod_data", jpodobj);
 
@@ -555,6 +593,9 @@ main (int argc, char *argv[])
     g_print("%s\n", json_object_to_json_string(jobj)); 
     json_object_put(jobj);
 
+    if (itdev) {
+        itdb_device_free(itdev);
+    }
     itdb_free (itdb);
     if (hdl) {
         sqlite3_exec(hdl, "COMMIT TRANSACTION", NULL, NULL, NULL);
