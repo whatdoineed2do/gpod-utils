@@ -116,6 +116,7 @@ main (int argc, char *argv[])
     // unlink track and remove from all playlists
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
+    const uint32_t  current = g_list_length(mpl->members);
 
     char  path[PATH_MAX];
     Itdb_Track*  track;
@@ -189,7 +190,7 @@ main (int argc, char *argv[])
              g_error_free (error);
              ret = 1;
         }
-
+        g_print("updated iPod, total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
     }
     else {
         g_printerr("failed to remove %d/%d\n", removed, requested);
