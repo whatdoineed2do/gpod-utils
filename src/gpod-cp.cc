@@ -37,6 +37,8 @@
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
+#include "gpod-ffmpeg.h"
+
 // taglib
 #include <id3v2tag.h>
 #include <mpegfile.h>
@@ -45,7 +47,25 @@
 static Itdb_Track*
 _track(const char* file_)
 {
-    Itdb_Track*  track = nullptr;;
+#if 0
+    struct gpod_ff_media_info  mi;
+    gpod_ff_media_info_init(&mi);
+    char*  err = NULL;
+    if (gpod_ff_scan(&mi, file_, &err) < 0) {
+        g_print("failed to ff scan - %s\n", err ? err : "<no err>");
+        free(err);
+    }
+    else {
+#define str_iff_null(x) (x ? x : "")
+        g_print("%s size=%u type=%s codec=%s has_audio=%d supported=%d codecid=%d bitrate=%u samplerate=%u chanels=%u length=%u bps=%u   has_meta=%d [ title=%s artist=%s album=%s ]\n", 
+            mi.path, mi.file_size, mi.type, mi.codectype, mi.has_audio, mi.supported_ipod_fmt, mi.audio.bitrate, mi.audio.samplerate, mi.audio.channels, mi.audio.song_length, mi.audio.bits_per_sample,
+
+            mi.meta.has_meta, mi.meta.title, mi.meta.artist, str_iff_null(mi.meta.album));
+    } 
+    gpod_ff_media_info_free(&mi);
+#endif
+
+    Itdb_Track*  track = nullptr;
     try
     {
         TagLib::MPEG::File  file(file_);
