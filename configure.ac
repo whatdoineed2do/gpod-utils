@@ -22,15 +22,6 @@ PKG_CHECK_MODULES(GPOD, [libgpod-1.0 >= 0.8.3])
 PKG_CHECK_MODULES(JSONC, [json-c >= 0.13])
 PKG_CHECK_MODULES(SQLITE3, [sqlite3])
 
-PKG_CHECK_MODULES(TAGLIB, taglib, have_taglib=yes, have_taglib=no)
-if test x"$have_taglib" = xyes; then
-   AH_TEMPLATE([HAVE_TAGLIB], [Whether TagLib is installed, it's only used in a test program])
-   AC_DEFINE_UNQUOTED(HAVE_TAGLIB, 1)
-fi
-AC_SUBST(TAGLIB_CFLAGS)
-AC_SUBST(TAGLIB_LIBS)
-AM_CONDITIONAL(HAVE_TAGLIB, test x"$have_taglib" = xyes)
-
 PKG_CHECK_MODULES(FFMPEG, libavformat, have_ffmpeg=yes, have_ffmpeg=no)
 if test x"$have_ffmpeg" = xyes; then
    AH_TEMPLATE([HAVE_FFMPEG], [Whether ffmpeg is installed, it's only used in a test program])

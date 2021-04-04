@@ -33,81 +33,54 @@
 #include <sys/stat.h>
 #include <typeinfo>
 #include <unistd.h>
+#include <locale.h>
 
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
 #include "gpod-ffmpeg.h"
 
-// taglib
-#include <id3v2tag.h>
-#include <mpegfile.h>
 
-
+/* parse the track info to make sure its a compatible format, if not supported 
+ * NULL retruned
+ */
 static Itdb_Track*
-_track(const char* file_)
+_track(const char* file_, char** err_)
 {
-#if 0
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
-    char*  err = NULL;
-    if (gpod_ff_scan(&mi, file_, &err) < 0) {
-        g_print("failed to ff scan - %s\n", err ? err : "<no err>");
-        free(err);
-    }
-    else {
-#define str_iff_null(x) (x ? x : "")
-        g_print("%s size=%u type=%s codec=%s has_audio=%d supported=%d codecid=%d bitrate=%u samplerate=%u chanels=%u length=%u bps=%u   has_meta=%d [ title=%s artist=%s album=%s ]\n", 
-            mi.path, mi.file_size, mi.type, mi.codectype, mi.has_audio, mi.supported_ipod_fmt, mi.audio.bitrate, mi.audio.samplerate, mi.audio.channels, mi.audio.song_length, mi.audio.bits_per_sample,
 
-            mi.meta.has_meta, mi.meta.title, mi.meta.artist, str_iff_null(mi.meta.album));
-    } 
-    gpod_ff_media_info_free(&mi);
-#endif
+    if (gpod_ff_scan(&mi, file_, err_) < 0) {
+        gpod_ff_media_info_free(&mi);
+        return nullptr;
+    }
 
     Itdb_Track*  track = nullptr;
-    try
+    if (!mi.supported_ipod_fmt || mi.file_size == 0)
     {
-        TagLib::MPEG::File  file(file_);
-
-        const TagLib::AudioProperties*  props = file.audioProperties();
-
-        /* this isn't the best test - the ctr does not know if the file is
-         * really an mp3 or not.  however, it tries to determine the audio
-         * properties .. and if these are junk (all 0) then we're going to
-         * assume either the mp3 file is junk or its not really an mp3
-         * file
-         */
-        if (props == nullptr || (props && props->lengthInSeconds() == 0 && props->bitrate() == 0 && props->sampleRate() == 0)) {
-            return nullptr;
-        }
-
-        TagLib::Tag*  tag = file.ID3v2Tag();
+        char err[1024];
+        snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s)", mi.file_size, mi.type, mi.codectype);
+        *err_ = g_strdup(err);
+    }
+    else
+    {
         track = itdb_track_new();
         
-        track->filetype = g_strdup ("MPEG audio file");
-        struct stat  st;
-        if (g_stat (file_, &st) == 0) {
-            track->size = st.st_size;
-        }
-        track->tracklen = props->lengthInSeconds();
-        track->bitrate = props->bitrate();
-        track->samplerate = props->sampleRate();
+        track->filetype = g_strdup(mi.description);
+        track->size = mi.file_size;
+        track->tracklen = mi.audio.song_length;
+        track->bitrate = mi.audio.bitrate;
+        track->samplerate = mi.audio.samplerate;
 
-        if (tag) {
-            track->title = g_strdup(tag->title().toCString(true));
-            track->album = g_strdup(tag->album().toCString(true));
-            track->artist = g_strdup(tag->artist().toCString(true));
-            track->genre = g_strdup(tag->genre().toCString(true));
-            track->comment = g_strdup(tag->comment().toCString(true));
-            track->track_nr = tag->track();
-            track->year = tag->year();
-        }
+        track->title = g_strdup(mi.meta.title);
+        track->album = g_strdup(mi.meta.album);
+        track->artist = g_strdup(mi.meta.artist);
+        track->genre = g_strdup(mi.meta.genre);
+        track->comment = g_strdup(mi.meta.comment);
+        track->track_nr = mi.meta.track;
+        track->year = mi.meta.year;
     }
-    catch (const std::exception& ex)
-    {
-        g_printerr("%s: failed to parse MP3 data - %s\n", file_, ex.what());
-    }
+    gpod_ff_media_info_free(&mi);
     return track;
 }
 
@@ -201,6 +174,7 @@ int main (int argc, char *argv[])
     Itdb_Track*  track;
     Itdb_Track*  tmptrack;
     GList*  it;
+    char*  err = NULL;
 
     bool  first = true;
     uint32_t  added = 0;
@@ -228,7 +202,7 @@ int main (int argc, char *argv[])
 
         Itdb_Track*  track = nullptr;
         bool  ok = true;
-        if ( (track = _track(path)) == nullptr) {
+        if ( (track = _track(path, &err)) == nullptr) {
             ok = false;
         }
         else {
@@ -243,11 +217,12 @@ int main (int argc, char *argv[])
             ++added;
         }
         else {
-            g_printerr("[%3u/%u]  %s -> { failed - %s }\n", requested, N, path, error && error->message ? error->message : "<unknown error>");
+            g_printerr("[%3u/%u]  %s -> { FAILED - %s }\n", requested, N, path, err);
             if (track) {
                 itdb_playlist_add_track(mpl, track, -1);
                 itdb_track_remove(track);
             }
+            g_free(err);
             if (error) g_error_free(error);
         }
     }
