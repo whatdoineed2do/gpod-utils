@@ -10,7 +10,7 @@ Optionally an `SQLite3` db can be generated for easier investigation.
 
 This utility can work on a mounted iPod or directly pointing the `iTunesDB` file - the following works on an old iPod Video 5G.
 ```
-$ gpod-ls /run/media/ray/IPOD
+$ gpod-ls /run/media/ray/IPOD | tee ipod.json
 {
   "ipod_data" {
     "playlists": {
@@ -146,6 +146,14 @@ Whilst both `gtkpod` and `Rhythmbox` provide good graphical interfaces for addin
     ]
   }
 }
+```
+To examine the main iPod playlist where all tracks are stored:
+```
+$ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master")'
+```
+Find all tracks for artist _Foo_ but only get filename, title and id
+```
+$ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master") | .tracks[] | select(.artist=="Foo") | {id, ipod_path, title, album}'
 ```
 
 ## `gpod-rm`
