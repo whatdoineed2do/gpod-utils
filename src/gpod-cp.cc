@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <typeinfo>
 #include <unistd.h>
+#include <limits.h>
 #include <locale.h>
 
 #include <glib/gstdio.h>
@@ -42,10 +43,10 @@
 
 
 /* parse the track info to make sure its a compatible format, if not supported 
- * NULL retruned
+ * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -56,13 +57,30 @@ _track(const char* file_, char** err_)
     }
 
     Itdb_Track*  track = nullptr;
-    if (!mi.supported_ipod_fmt || mi.file_size == 0)
+    if (!mi.supported_ipod_fmt)
     {
-        char err[1024];
-        snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s)", mi.file_size, mi.type, mi.codectype);
-        *err_ = g_strdup(err);
+        /* generate a tmp transcoded file name - having this set is also the
+         * indicator a on-the-fly transcoded file
+         */
+        xfrm_->audio_opts.codec_id = AV_CODEC_ID_AAC;  // hack -- force .aac encoding
+        snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.m4a", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL));
+
+        if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
+            char err[1024];
+            snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s) - %s", mi.file_size, mi.type, mi.codectype, *err_ ? *err_ : "");
+            if (*err_) {
+                free(*err_);
+            }
+            *err_ = g_strdup(err);
+        }
+        else {
+            mi.supported_ipod_fmt = true;
+            mi.description = "AAC audio (transcoded)";
+        }
     }
-    else
+
+
+    if (mi.supported_ipod_fmt)
     {
         track = itdb_track_new();
         
@@ -185,6 +203,8 @@ int main (int argc, char *argv[])
     char**  p = &argv[2];
     const uint32_t  N = argc-2;
 
+    struct gpod_ff_transcode_ctx  xfrm;
+
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
     const uint32_t  current = g_list_length(mpl->members);
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
@@ -200,15 +220,20 @@ int main (int argc, char *argv[])
 
         error = NULL;
 
+        gpod_ff_transcode_ctx_init(&xfrm);
+
         Itdb_Track*  track = nullptr;
         bool  ok = true;
-        if ( (track = _track(path, &err)) == nullptr) {
+        if ( (track = _track(path, &xfrm, &err)) == nullptr) {
             ok = false;
         }
         else {
             itdb_track_add(itdb, track, -1);
             itdb_playlist_add_track(mpl, track, -1);
-            ok = itdb_cp_track_to_ipod (track, path, &error);
+            ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
+            if (xfrm.path[0]) {
+                g_unlink(xfrm.path);
+            }
         }
 
         if (ok) {

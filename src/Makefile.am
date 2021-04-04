@@ -19,6 +19,6 @@ if HAVE_FFMPEG
 GPOD_OPT+=gpod-cp
 gpod_cp_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
 gpod_cp_CXXFLAGS = $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
-gpod_cp_SOURCES = gpod-cp.cc gpod-ffmpeg.c
+gpod_cp_SOURCES = gpod-cp.cc gpod-ffmpeg.c gpod-ffmpeg-transcode.c
 gpod_cp_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 endif

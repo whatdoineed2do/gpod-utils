@@ -328,7 +328,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                 {
                     audio_stream = ctx->streams[i];
 
-                    info_->audio_codec_id = audio_codec_id = codec_id;
+                    info_->audio.codec_id = audio_codec_id = codec_id;
                     info_->audio.samplerate = sample_rate;
                     info_->audio.bits_per_sample = 8 * av_get_bytes_per_sample(sample_fmt);
 
@@ -370,7 +370,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_MP3:
             info_->type = "mp3";
             info_->codectype = "mpeg";
-            info_->description = "MPEG audio file";
+            info_->description = "MPEG audio";
 
             info_->supported_ipod_fmt = true;
             break;
@@ -378,7 +378,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_AAC:
             info_->type = "m4a";
             info_->codectype = "mp4a";
-            info_->description = "AAC audio file";
+            info_->description = "AAC audio";
 
             info_->supported_ipod_fmt = true;
             break;
@@ -386,7 +386,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_ALAC:
             info_->type = "m4a";
             info_->codectype = "alac";
-            info_->description = "Apple Lossless audio file";
+            info_->description = "Apple Lossless audio";
 
             info_->supported_ipod_fmt = true;
             break;
@@ -396,7 +396,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_FLAC:
             info_->type = "flac";
             info_->codectype = "flac";
-            info_->description = "FLAC audio file";
+            info_->description = "FLAC audio";
             break;
 
 
@@ -409,7 +409,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_VORBIS:
             info_->type = "ogg";
             info_->codectype = "ogg";
-            info_->description = "Ogg Vorbis audio file";
+            info_->description = "Ogg Vorbis audio";
             break;
 
         case AV_CODEC_ID_WMAV1:
@@ -417,19 +417,19 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         case AV_CODEC_ID_WMAVOICE:
             info_->type = "wma";
             info_->codectype = "wmav";
-            info_->description = "WMA audio file";
+            info_->description = "WMA audio";
             break;
 
         case AV_CODEC_ID_WMAPRO:
             info_->type = "wmap";
             info_->codectype = "wma";
-            info_->description = "WMA audio file";
+            info_->description = "WMA audio";
             break;
 
         case AV_CODEC_ID_WMALOSSLESS:
             info_->type = "wma";
             info_->codectype = "wmal";
-            info_->description = "WMA audio file";
+            info_->description = "WMA audio";
             break;
 
         case AV_CODEC_ID_PCM_S16LE ... AV_CODEC_ID_PCM_F64LE:
@@ -437,14 +437,14 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
             {
                 info_->type = "aif";
                 info_->codectype = "aif";
-                info_->description = "AIFF audio file";
+                info_->description = "AIFF audio";
                 break;
             }
             else if (strcmp(ctx->iformat->name, "wav") == 0)
             {
                 info_->type = "wav";
                 info_->codectype = "wav";
-                info_->description = "WAV audio file";
+                info_->description = "WAV audio";
                 break;
             }
             /* WARNING: will fallthrough to default case, don't move */
@@ -455,7 +455,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         default:
             info_->type = "unkn";
             info_->codectype = "unkn";
-            info_->description = "Unknown audio file format";
+            info_->description = "Unknown audio format";
             break;
     }
 
@@ -466,4 +466,20 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
 
     avformat_close_input(&ctx);
     return 0;
+}
+
+
+
+void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_)
+{
+    memset(obj_, 0, sizeof(struct gpod_ff_transcode_ctx));
+
+    // default the transcode params
+    obj_->audio_opts.channels = 2;
+    obj_->audio_opts.bitrate = 256000;
+    obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
+
+    const char*  tmpdir = getenv("TMPDIR");
+    tmpdir = tmpdir == NULL ? "/tmp" : tmpdir;
+    sprintf(obj_->tmpprfx, "/%s/.gpod-%d", tmpdir, getpid());
 }

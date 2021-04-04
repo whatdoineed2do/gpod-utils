@@ -51,6 +51,16 @@ struct gpod_ff_meta {
     char *composer_sort;
 }; 
 
+struct gpod_ff_audio {
+    enum AVCodecID  codec_id;
+
+    uint32_t  bitrate;
+    uint32_t  samplerate;
+    uint32_t  channels;
+    uint32_t  song_length;
+    uint32_t  bits_per_sample;
+};
+
 struct gpod_ff_media_info
 {
     char  path[PATH_MAX];
@@ -63,17 +73,14 @@ struct gpod_ff_media_info
     bool  has_audio; // is audio file
     bool  supported_ipod_fmt;  // mp3 or m4a
 
-    enum AVCodecID  audio_codec_id;
-
-    struct _audio {
-        uint32_t  bitrate;
-        uint32_t  samplerate;
-        uint32_t  channels;
-        uint32_t  song_length;
-        uint32_t  bits_per_sample;
-    } audio;
-
+    struct gpod_ff_audio  audio;
     struct gpod_ff_meta  meta;
+};
+
+struct gpod_ff_transcode_ctx {
+    struct gpod_ff_audio  audio_opts;
+    char  path[PATH_MAX];
+    char  tmpprfx[PATH_MAX];
 };
 
 void  gpod_ff_meta_free(struct gpod_ff_meta*  obj_);
@@ -81,6 +88,11 @@ void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_);
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_);
 
 int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** err_);
+
+
+void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_);
+
+int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target, char** err_);
 
 
 #ifdef __cplusplus
