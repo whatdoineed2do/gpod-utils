@@ -84,6 +84,8 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
     {
         track = itdb_track_new();
         
+        track->mediatype = mi.has_video ? ITDB_MEDIATYPE_MOVIE : ITDB_MEDIATYPE_AUDIO;
+
         track->filetype = g_strdup(mi.description);
         track->size = mi.file_size;
         track->tracklen = mi.audio.song_length;
