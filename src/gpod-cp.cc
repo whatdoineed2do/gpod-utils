@@ -249,7 +249,7 @@ int main (int argc, char *argv[])
         else {
             g_printerr("[%3u/%u]  %s -> { FAILED - %s }\n", requested, N, path, err);
             if (track) {
-                itdb_playlist_add_track(mpl, track, -1);
+                itdb_playlist_remove_track(mpl, track);
                 itdb_track_remove(track);
             }
             g_free(err);
