@@ -218,8 +218,10 @@ int main (int argc, char *argv[])
         ++requested;
         const char*  path = *p++;
 
+        g_print("[%3u/%u]  %s -> ", requested, N, path);
+
         if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-            g_printerr("[%3u/%u]  %s -> No such file or directory\n", requested, N, path);
+            g_print("{ } No such file or directory\n", path);
             continue;
         }
 
@@ -231,30 +233,34 @@ int main (int argc, char *argv[])
         bool  ok = true;
         if ( (track = _track(path, &xfrm, &err)) == nullptr) {
             ok = false;
+            g_print("{ } track err - %s\n", err ? err : "<>");
+            g_free(err);
         }
-        else {
+        else
+        {
             itdb_track_add(itdb, track, -1);
             itdb_playlist_add_track(mpl, track, -1);
+
+            g_print("{ title='%s' artist='%s' album='%s' ipod_path=", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+
             ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
             if (xfrm.path[0]) {
                 g_unlink(xfrm.path);
             }
-        }
 
-        if (ok) {
-            itdb_filename_ipod2fs(track->ipod_path);
-            g_print("[%3u/%u]  %s -> { ipod_path=%s title='%s' artist='%s' album='%s' }\n", requested, N, path, track->ipod_path ? track->ipod_path : "", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
-            ++added;
-        }
-        else {
-            g_printerr("[%3u/%u]  %s -> { FAILED - %s }\n", requested, N, path, err);
-            if (track) {
+            if (ok) {
+                ++added;
+                itdb_filename_ipod2fs(track->ipod_path);
+                g_print("'%s' }\n", track->ipod_path);
+            }
+            else {
+                g_print("N/A } %s\n", error->message ? error->message : "<???>");
                 itdb_playlist_remove_track(mpl, track);
                 itdb_track_remove(track);
             }
-            g_free(err);
-            if (error) g_error_free(error);
         }
+
+        if (error) g_error_free(error);
     }
 
 
