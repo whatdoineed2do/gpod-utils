@@ -137,6 +137,8 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_);
 int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target, char** err_);
 
 
+void  gpod_ff_init();
+
 #ifdef __cplusplus
 }
 #endif

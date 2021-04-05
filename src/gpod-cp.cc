@@ -145,6 +145,7 @@ int main (int argc, char *argv[])
     }
 
     _setlocale();
+    gpod_ff_init();
 
     char  mountpoint[PATH_MAX];
     strcpy(mountpoint, argv[1]);

@@ -25,7 +25,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
-
+#include <libavutil/log.h>
 
 
 void gpod_ff_meta_free(struct gpod_ff_meta*  obj_)
@@ -630,4 +630,14 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_)
     const char*  tmpdir = getenv("TMPDIR");
     tmpdir = tmpdir == NULL ? "/tmp" : tmpdir;
     sprintf(obj_->tmpprfx, "/%s/.gpod-%d", tmpdir, getpid());
+}
+
+
+static void  _avlog_callback_null(void *ptr, int level, const char *fmt, va_list vl)
+{ }
+
+void  gpod_ff_init()
+{
+    av_log_set_flags(AV_LOG_SKIP_REPEATED);
+    av_log_set_callback(_avlog_callback_null);
 }
