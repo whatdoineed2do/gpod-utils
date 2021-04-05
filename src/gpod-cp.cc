@@ -74,7 +74,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
         }
         else {
             mi.supported_ipod_fmt = true;
-            mi.description = "AAC audio (transcoded)";
+            mi.description = "audio (transcoded)";
         }
     }
 
