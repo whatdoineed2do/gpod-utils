@@ -8,6 +8,7 @@
   "CREATE TABLE IF NOT EXISTS tracks (" \
     "  id         INTEGER PRIMARY KEY NOT NULL," \
     "  ipod_path  VARCHAR(4096) NOT NULL,"       \
+    "  mediatype  INTEGER NOT NULL,"       \
     "  title      VARCHAR(2048)," \
     "  album      VARCHAR(2048)," \
     "  artist     VARCHAR(2048)," \
@@ -66,7 +67,6 @@
     "  last_skipped  INTEGER DEFAULT -1," \
     "  has_artwork  INTEGER DEFAULT -1," \
     "  samplecount  INTEGER DEFAULT -1," \
-    "  mediatype  INTEGER DEFAULT -1," \
     "  season_nr  INTEGER DEFAULT -1," \
     "  episode_nr  INTEGER DEFAULT -1" \
     ");"

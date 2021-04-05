@@ -63,18 +63,18 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
 {
 #define QADD_TMPL \
   "INSERT INTO tracks (" \
-    "id, ipod_path," \
+    "id, ipod_path, mediatype," \
     "title, artist, album, genre, filetype, composer, grouping, albumartist, sort_artist, sort_title, sort_album, sort_albumartist, sort_composer," \
     "size, tracklen, cd_nr, cds, track_nr, tracks, bitrate, samplerate, year, time_added, time_modified, time_played, rating, playcount, playcount2, recent_playcount" \
     "    )" \
-    "  VALUES (%d, '%q'," \
+    "  VALUES (%d, '%q', %d," \
     "          %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q," \
     "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d" \
     "         );"
 
   char*  err;
   char*  query = sqlite3_mprintf(QADD_TMPL, 
-                                track_->id, track_->ipod_path,
+                                track_->id, track_->ipod_path, track_->mediatype,
                                 track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer, 
                                 track_->size, track_->tracklen, track_->cd_nr, track_->cds, track_->track_nr, track_->tracks, track_->bitrate, track_->samplerate, track_->year, track_->time_added, track_->time_modified, track_->time_played, track_->rating, track_->playcount, track_->playcount2, track_->recent_playcount);
 
@@ -231,6 +231,7 @@ static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
 
         json_object_add_int(jtrack, "id", ((Itdb_Track*)i->data)->id);
         json_object_add_string(jtrack, "ipod_path", ((Itdb_Track*)i->data)->ipod_path);
+        json_object_add_int(jtrack, "mediatype", ((Itdb_Track*)i->data)->mediatype);
 
         json_object_add_string(jtrack, "title", ((Itdb_Track*)i->data)->title);
         json_object_add_string(jtrack, "artist", ((Itdb_Track*)i->data)->artist);
@@ -260,6 +261,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
     {
         json_object_add_int(jobj, "id", track->id);
         json_object_add_string(jobj, "ipod_path", track->ipod_path);
+        json_object_add_int(jobj, "mediatype", track->mediatype);
         json_object_add_string(jobj, "title", track->title);
         json_object_add_string(jobj, "artist", track->artist);
         json_object_add_string(jobj, "album", track->album);
@@ -294,6 +296,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
     {
         json_object_add_int(jobj, "id", track->id);
         json_object_add_string(jobj, "ipod_path", track->ipod_path);
+        json_object_add_int(jobj, "mediatype", track->mediatype);
         json_object_add_string(jobj, "title", track->title);
         json_object_add_string(jobj, "artist", track->artist);
         json_object_add_string(jobj, "album", track->album);
