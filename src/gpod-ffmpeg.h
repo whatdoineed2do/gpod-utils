@@ -61,6 +61,17 @@ struct gpod_ff_audio {
     uint32_t  bits_per_sample;
 };
 
+struct gpod_ff_video {
+    enum AVCodecID  codec_id;
+
+    uint32_t  width;
+    uint32_t  height;
+    int       profile;
+    uint32_t  length;
+    uint32_t  bitrate;
+};
+
+
 struct gpod_ff_media_info
 {
     char  path[PATH_MAX];
@@ -70,10 +81,12 @@ struct gpod_ff_media_info
     const char*  codectype;  // alac...
     const char*  description;
 
+    bool  has_video; // is video file
     bool  has_audio; // is audio file
-    bool  supported_ipod_fmt;  // mp3 or m4a
+    bool  supported_ipod_fmt;  // mp3, m4a, mp4/m4v
 
     struct gpod_ff_audio  audio;
+    struct gpod_ff_video  video;
     struct gpod_ff_meta  meta;
 };
 

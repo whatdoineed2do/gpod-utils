@@ -318,6 +318,48 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         channels    = ctx->streams[i]->codecpar->channels;
         switch (codec_type)
         {
+	    case AVMEDIA_TYPE_VIDEO:
+            {
+                // only care about h264
+                if (codec_id == AV_CODEC_ID_H264) {
+                    switch (ctx->streams[i]->codecpar->profile)
+                    {
+                        // only believe in
+                        case FF_PROFILE_H264_BASELINE:
+                        case FF_PROFILE_H264_CONSTRAINED_BASELINE:
+                        case FF_PROFILE_H264_MAIN:
+                        case FF_PROFILE_H264_EXTENDED:
+                        case FF_PROFILE_H264_HIGH:
+                        case FF_PROFILE_H264_HIGH_10:
+                        case FF_PROFILE_H264_HIGH_10_INTRA:
+                        case FF_PROFILE_H264_MULTIVIEW_HIGH:
+                        case FF_PROFILE_H264_HIGH_422:
+                        case FF_PROFILE_H264_HIGH_422_INTRA:
+                        case FF_PROFILE_H264_STEREO_HIGH:
+                        case FF_PROFILE_H264_HIGH_444:
+                        case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
+                        case FF_PROFILE_H264_HIGH_444_INTRA:
+                        case FF_PROFILE_H264_CAVLC_444:
+                        {
+                            info_->has_video = true;
+                            if (!video_stream)
+                            {
+                                video_stream = ctx->streams[i];
+                                info_->video.codec_id = video_codec_id = codec_id;
+                                info_->video.height = video_stream->codecpar->height;
+                                info_->video.width = video_stream->codecpar->width;
+                                info_->video.profile = video_stream->codecpar->profile;
+                                info_->video.bitrate = video_stream->codecpar->bit_rate;
+                                info_->video.length = video_stream->duration/AV_TIME_BASE;
+                            }
+                        } break;
+
+                        default:
+                            break;
+                    }
+                }
+            } break;
+
             /* WARN -- only consider the file's FIRST audio stream - if normal 
              * siutations this is fine
              */
@@ -336,6 +378,14 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                         info_->audio.bits_per_sample = av_get_bits_per_sample(codec_id);
                     }
                     info_->audio.channels = channels;
+                    info_->audio.song_length = ctx->duration / (AV_TIME_BASE / 1000); /* ms */
+                    if (ctx->bit_rate > 0) {
+                        info_->audio.bitrate = ctx->bit_rate / 1000;
+                    }
+                    else if (ctx->duration > AV_TIME_BASE) /* guesstimate */ {
+                        info_->audio.bitrate = ((info_->file_size * 8) / (ctx->duration / AV_TIME_BASE)) / 1000;
+                    }
+
                 } 
             } break;
 
@@ -344,124 +394,177 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         }
     }
 
-    if (audio_codec_id == AV_CODEC_ID_NONE) {
-        info_->has_audio = false;
+    if (video_codec_id == AV_CODEC_ID_NONE && audio_codec_id == AV_CODEC_ID_NONE) {
+        info_->has_audio = info_->has_video = false;
         avformat_close_input(&ctx);
         return -1;
     }
 
-    if (ctx->duration > 0) {
-        info_->audio.song_length = ctx->duration / (AV_TIME_BASE / 1000); /* ms */
-    }
-
-    if (ctx->bit_rate > 0) {
-        info_->audio.bitrate = ctx->bit_rate / 1000;
-    }
-    else if (ctx->duration > AV_TIME_BASE) /* guesstimate */ {
-        info_->audio.bitrate = ((info_->file_size * 8) / (ctx->duration / AV_TIME_BASE)) / 1000;
-    }
-
-
     /* Check codec */
-    codec_id = audio_codec_id;
     info_->supported_ipod_fmt = false;
-    switch (codec_id)
+    if (info_->has_video)
     {
-        case AV_CODEC_ID_MP3:
-            info_->type = "mp3";
-            info_->codectype = "mpeg";
-            info_->description = "MPEG audio";
-
-            info_->supported_ipod_fmt = true;
-            break;
-
-        case AV_CODEC_ID_AAC:
-            info_->type = "m4a";
-            info_->codectype = "mp4a";
-            info_->description = "AAC audio";
-
-            info_->supported_ipod_fmt = true;
-            break;
-
-        case AV_CODEC_ID_ALAC:
-            info_->type = "m4a";
-            info_->codectype = "alac";
-            info_->description = "Apple Lossless audio";
-
-            info_->supported_ipod_fmt = true;
-            break;
-
-// this block of types will needs transcoding to go onto iPod
-
-        case AV_CODEC_ID_FLAC:
-            info_->type = "flac";
-            info_->codectype = "flac";
-            info_->description = "FLAC audio";
-            break;
-
-
-        case AV_CODEC_ID_APE:
-            info_->type = "ape";
-            info_->codectype = "ape";
-            info_->description = "Monkey's audio";
-            break;
-
-        case AV_CODEC_ID_VORBIS:
-            info_->type = "ogg";
-            info_->codectype = "ogg";
-            info_->description = "Ogg Vorbis audio";
-            break;
-
-        case AV_CODEC_ID_WMAV1:
-        case AV_CODEC_ID_WMAV2:
-        case AV_CODEC_ID_WMAVOICE:
-            info_->type = "wma";
-            info_->codectype = "wmav";
-            info_->description = "WMA audio";
-            break;
-
-        case AV_CODEC_ID_WMAPRO:
-            info_->type = "wmap";
-            info_->codectype = "wma";
-            info_->description = "WMA audio";
-            break;
-
-        case AV_CODEC_ID_WMALOSSLESS:
-            info_->type = "wma";
-            info_->codectype = "wmal";
-            info_->description = "WMA audio";
-            break;
-
-        case AV_CODEC_ID_PCM_S16LE ... AV_CODEC_ID_PCM_F64LE:
-            if (strcmp(ctx->iformat->name, "aiff") == 0)
-            {
-                info_->type = "aif";
-                info_->codectype = "aif";
-                info_->description = "AIFF audio";
+        // its a real vid file (not jsut an audio file with cover art)
+        info_->codectype = "h264";
+        info_->description = "H264 video";
+        info_->supported_ipod_fmt = true;
+        switch (info_->video.profile)
+        {
+            case FF_PROFILE_H264_BASELINE:
+                info_->type = "h264 (baseline)";
                 break;
-            }
-            else if (strcmp(ctx->iformat->name, "wav") == 0)
-            {
-                info_->type = "wav";
-                info_->codectype = "wav";
-                info_->description = "WAV audio";
+            case FF_PROFILE_H264_CONSTRAINED_BASELINE:
+                info_->type = "h264 (constrained baseline)";
                 break;
-            }
-            /* WARNING: will fallthrough to default case, don't move */
-            /* FALLTHROUGH */
- 
-// everything we're not supporting even if its a valid audio
+            case FF_PROFILE_H264_MAIN:
+                info_->type = "h264 (main)";
+                break;
+            case FF_PROFILE_H264_EXTENDED:
+                info_->type = "h264 (extended)";
+                break;
+            case FF_PROFILE_H264_HIGH:
+                info_->type = "h264 (high)";
+                break;
+            case FF_PROFILE_H264_HIGH_10:
+                info_->type = "h264 (high 10)";
+                break;
+            case FF_PROFILE_H264_HIGH_10_INTRA:
+                info_->type = "h264 (high 10 intra)";
+                break;
+            case FF_PROFILE_H264_MULTIVIEW_HIGH:
+                info_->type = "h264 (high multiview)";
+                break;
+            case FF_PROFILE_H264_HIGH_422:
+                info_->type = "h264 (high 422)";
+                break;
+            case FF_PROFILE_H264_HIGH_422_INTRA:
+                info_->type = "h264 (high 442 intra)";
+                break;
+            case FF_PROFILE_H264_STEREO_HIGH:
+                info_->type = "h264 (high stereo)";
+                break;
+            case FF_PROFILE_H264_HIGH_444:
+                info_->type = "h264 (high 444)";
+                break;
+            case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
+                info_->type = "h264 (high 444 predictive)";
+                break;
+            case FF_PROFILE_H264_HIGH_444_INTRA:
+                info_->type = "h264 (hgh 444 intra)";
+                break;
+            case FF_PROFILE_H264_CAVLC_444:
+                info_->type = "h264 (high cavlc 444)";
+                break;
 
-        default:
-            info_->type = "unkn";
-            info_->codectype = "unkn";
-            info_->description = "Unknown audio format";
-            break;
+            default:
+                info_->type = "h264 (unknown)";
+        }
+
+        if (video_stream->metadata) {
+            info_->meta.has_meta = true;
+            extract_metadata(info_, ctx, video_stream, md_map_generic);
+        }
     }
+    else
+    {
+        switch (audio_codec_id)
+        {
+            case AV_CODEC_ID_MP3:
+                info_->type = "mp3";
+                info_->codectype = "mpeg";
+                info_->description = "MPEG audio";
 
-    info_->meta.has_meta = ((!ctx->metadata) && (!audio_stream->metadata)) ? false : true;
-    if (info_->meta.has_meta) {
-        ret = extract_metadata(info_, ctx, audio_stream, md_map_generic);
+                info_->supported_ipod_fmt = true;
+                break;
+
+            case AV_CODEC_ID_AAC:
+                info_->type = "m4a";
+                info_->codectype = "mp4a";
+                info_->description = "AAC audio";
+
+                info_->supported_ipod_fmt = true;
+                break;
+
+            case AV_CODEC_ID_ALAC:
+                info_->type = "m4a";
+                info_->codectype = "alac";
+                info_->description = "Apple Lossless audio";
+
+                info_->supported_ipod_fmt = true;
+                break;
+
+    // this block of types will needs transcoding to go onto iPod
+
+            case AV_CODEC_ID_FLAC:
+                info_->type = "flac";
+                info_->codectype = "flac";
+                info_->description = "FLAC audio";
+                break;
+
+
+            case AV_CODEC_ID_APE:
+                info_->type = "ape";
+                info_->codectype = "ape";
+                info_->description = "Monkey's audio";
+                break;
+
+            case AV_CODEC_ID_VORBIS:
+                info_->type = "ogg";
+                info_->codectype = "ogg";
+                info_->description = "Ogg Vorbis audio";
+                break;
+
+            case AV_CODEC_ID_WMAV1:
+            case AV_CODEC_ID_WMAV2:
+            case AV_CODEC_ID_WMAVOICE:
+                info_->type = "wma";
+                info_->codectype = "wmav";
+                info_->description = "WMA audio";
+                break;
+
+            case AV_CODEC_ID_WMAPRO:
+                info_->type = "wmap";
+                info_->codectype = "wma";
+                info_->description = "WMA audio";
+                break;
+
+            case AV_CODEC_ID_WMALOSSLESS:
+                info_->type = "wma";
+                info_->codectype = "wmal";
+                info_->description = "WMA audio";
+                break;
+
+            case AV_CODEC_ID_PCM_S16LE ... AV_CODEC_ID_PCM_F64LE:
+                if (strcmp(ctx->iformat->name, "aiff") == 0)
+                {
+                    info_->type = "aif";
+                    info_->codectype = "aif";
+                    info_->description = "AIFF audio";
+                    break;
+                }
+                else if (strcmp(ctx->iformat->name, "wav") == 0)
+                {
+                    info_->type = "wav";
+                    info_->codectype = "wav";
+                    info_->description = "WAV audio";
+                    break;
+                }
+                /* WARNING: will fallthrough to default case, don't move */
+                /* FALLTHROUGH */
+     
+    // everything we're not supporting even if its a valid audio
+
+            default:
+                info_->type = "unkn";
+                info_->codectype = "unkn";
+                info_->description = "Unknown audio format";
+                break;
+        }
+
+        if (audio_stream->metadata) {
+            info_->meta.has_meta = true;
+            extract_metadata(info_, ctx, audio_stream, md_map_generic);
+        }
     }
 
     avformat_close_input(&ctx);
