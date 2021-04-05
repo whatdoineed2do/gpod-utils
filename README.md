@@ -157,7 +157,7 @@ $ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master") |
 ```
 
 ## `gpod-rm`
-Rmoves track from iPod.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
+Removes track from iPod.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
 ```
 $ gpod-rm /run/media/ray/IPOD   /iPod_Control/Music/F41/ZNUF.mp3
 /iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='9492' time_added=161672437 }
@@ -165,7 +165,30 @@ sync'ing iPod ... removing 1/1
 ```
 
 ## `gpod-cp`
-Copies track(s) to iPod.  No automatic conversions made, only accepts mp3 at this time.
+Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` and automatic conversions to mp3 is made.
 ```
-$ gpod-cp /run/media/ray/IPOD   /export/public/music/foo.mp3 /export/public/music/bar.mp3
+$ gpod-cp /run/media/ray/IPOD   nothere.mp3 foo.flac foo.mp3 
+copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
+[  1/3]  nothere.mp3 -> { } No such file or directory
+[  2/3]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.mp3' }
+[  3/3]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' }
+sync'ing iPod ... adding 2/3
+updated iPod, new total tracks=29 (originally=27)
 ```
+Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to `h264 baseline`, 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not accept video files that have not had a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied and played onto the iPod.
+
+To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile baseline -b:v 1.8M foo.mp4`
+
+## `gpod-tag`
+Simple metadata tool to modify the `iTunesDB`.  The underlying media files on the device are NOT updated.  The internal `id` or `ipod_path` of the files are required and can be determined from `gpod-ls`
+```
+$ gpod-tag -M /run/media/ray/IPOD -A "new album name" -y 2021  \
+    9999 521 /iPod_Control/Music/F01/libgpod211429.mp3
+updating iPod track meta { title='<nul>' artist='<nul>' album='new album name' genre='<nul>' track=-1 year=2021 } ...
+[  1/3]  9999 { } - No such track
+[  2/3]  521 { id=521 ipod_path='/iPod_Control/Music/F02/libgpod886634.m4a' { title='foo bar sings' artist='Foo&Bar' album='' genre='' track=2 year=0 time_modified=2021-04-01T11:43:29 } }
+[  3/3]  /iPod_Control/Music/F01/libgpod211429.mp3 { id=534 ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' { title='A Song' artist='Foo&Bar' album='' genre='' track=2 year=0 time_modified=2021-04-01T13:03:09 } }
+sync'ing iPod ... updated 2/3
+updated iPod, total tracks=29
+```
+The metadata shown for each tracks is the *existing* data - the new metadata is show at the start of processing.
