@@ -90,8 +90,36 @@ struct gpod_ff_media_info
     struct gpod_ff_meta  meta;
 };
 
+enum gpod_ff_transcode_quality { 
+    GPOD_FF_XCODE_VBR0 = 0,
+    GPOD_FF_XCODE_VBR1,
+    GPOD_FF_XCODE_VBR2,
+    GPOD_FF_XCODE_VBR3,
+    GPOD_FF_XCODE_VBR4,
+    GPOD_FF_XCODE_VBR5,
+    GPOD_FF_XCODE_VBR6,
+    GPOD_FF_XCODE_VBR7,
+    GPOD_FF_XCODE_VBR8,
+    GPOD_FF_XCODE_VBR9,
+
+    GPOD_FF_XCODE_CBR96 = 96000,
+    GPOD_FF_XCODE_CBR128 = 128000,
+    GPOD_FF_XCODE_CBR160 = 160000,
+    GPOD_FF_XCODE_CBR192 = 192000,
+    GPOD_FF_XCODE_CBR256 = 256000,
+    GPOD_FF_XCODE_CBR320 = 320000,
+
+    GPOD_FF_XCODE_VBR_MAX = GPOD_FF_XCODE_VBR9
+};
+
 struct gpod_ff_transcode_ctx {
-    struct gpod_ff_audio  audio_opts;
+    struct {
+        enum AVCodecID  codec_id;
+        uint8_t  channels;
+        uint32_t  samplerate;
+        enum gpod_ff_transcode_quality  quality;
+    } audio_opts;
+
     const char*  extn;
     char  path[PATH_MAX];
     char  tmpprfx[PATH_MAX];
