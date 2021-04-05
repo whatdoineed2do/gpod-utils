@@ -4,7 +4,7 @@ AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS)
 AM_CXXFLAGS = $(AM_CFLAGS)
 
 GPOD_OPT=
-bin_PROGRAMS = gpod-ls gpod-rm $(GPOD_OPT)
+bin_PROGRAMS = gpod-ls gpod-rm gpod-tag $(GPOD_OPT)
 
 # using git version instead of the am values in config.h
 gpod_ls_CPPFLAGS = 
@@ -14,6 +14,9 @@ gpod_ls_SOURCES = \
 
 gpod_rm_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
 gpod_rm_SOURCES = gpod-rm.c
+
+gpod_tag_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
+gpod_tag_SOURCES = gpod-tag.c
 
 if HAVE_FFMPEG
 GPOD_OPT+=gpod-cp
