@@ -183,6 +183,40 @@ static const struct metadata_map   md_map_generic[] = {
     {NULL, 0, 0, NULL}
 };
 
+static const struct metadata_map md_map_vorbis[] = {
+    { "albumartist",  0, meta_offsetof(album_artist),      NULL },
+    { "album artist", 0, meta_offsetof(album_artist),      NULL },
+    { "tracknumber",  1, meta_offsetof(track),             NULL },
+    { "tracktotal",   1, meta_offsetof(total_tracks),      NULL },
+    { "totaltracks",  1, meta_offsetof(total_tracks),      NULL },
+    { "discnumber",   1, meta_offsetof(disc),              NULL },
+    { "disctotal",    1, meta_offsetof(total_discs),       NULL },
+    { "totaldiscs",   1, meta_offsetof(total_discs),       NULL },
+
+    { NULL,           0, 0,                               NULL }
+};
+
+static const struct metadata_map  md_map_id3[] = {
+    { "TT1",          0, meta_offsetof(grouping),              NULL },              /* ID3v2.2 */
+    { "TIT1",         0, meta_offsetof(grouping),              NULL },              /* ID3v2.3 */
+    { "GP1",          0, meta_offsetof(grouping),              NULL },              /* unofficial iTunes */
+    { "GRP1",         0, meta_offsetof(grouping),              NULL },              /* unofficial iTunes */
+    { "TCM",          0, meta_offsetof(composer),              NULL },              /* ID3v2.2 */
+    { "TPA",          1, meta_offsetof(disc),                  parse_disc },        /* ID3v2.2 */
+    { "XSOA",         0, meta_offsetof(album_sort),            NULL },              /* ID3v2.3 */
+    { "XSOP",         0, meta_offsetof(artist_sort),           NULL },              /* ID3v2.3 */
+    { "XSOT",         0, meta_offsetof(title_sort),            NULL },              /* ID3v2.3 */
+    { "TS2",          0, meta_offsetof(album_artist_sort),     NULL },              /* ID3v2.2 */
+    { "TSO2",         0, meta_offsetof(album_artist_sort),     NULL },              /* ID3v2.3 */
+    { "ALBUMARTISTSORT",     0, meta_offsetof(album_artist_sort),     NULL },              /* ID3v2.x */
+    { "TSC",          0, meta_offsetof(composer_sort),         NULL },              /* ID3v2.2 */
+    { "TSOC",         0, meta_offsetof(composer_sort),         NULL },              /* ID3v2.3 */
+
+    { NULL,           0, 0,                                   NULL }
+};
+
+
+
 static int
 extract_metadata_core (struct gpod_ff_meta *mfi, AVDictionary * md,
         const struct metadata_map *md_map)
@@ -264,6 +298,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
 {
     AVFormatContext *ctx;
     AVDictionary *options;
+    const struct metadata_map*  extra_md_map = NULL;
     enum AVMediaType codec_type;
     enum AVCodecID codec_id;
     enum AVCodecID video_codec_id;
@@ -475,6 +510,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                 info_->description = "MPEG audio";
 
                 info_->supported_ipod_fmt = true;
+
+                extra_md_map = md_map_id3;
                 break;
 
             case AV_CODEC_ID_AAC:
@@ -499,6 +536,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                 info_->type = "flac";
                 info_->codectype = "flac";
                 info_->description = "FLAC audio";
+
+                extra_md_map = md_map_vorbis;
                 break;
 
 
@@ -512,6 +551,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                 info_->type = "ogg";
                 info_->codectype = "ogg";
                 info_->description = "Ogg Vorbis audio";
+
+                extra_md_map = md_map_vorbis;
                 break;
 
             case AV_CODEC_ID_WMAV1:
@@ -561,8 +602,11 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
                 break;
         }
 
-        if (audio_stream->metadata) {
+        if (ctx->metadata || audio_stream->metadata) {
             info_->meta.has_meta = true;
+            if (extra_md_map) {
+                extract_metadata(info_, ctx, audio_stream, extra_md_map);
+            }
             extract_metadata(info_, ctx, audio_stream, md_map_generic);
         }
     }
