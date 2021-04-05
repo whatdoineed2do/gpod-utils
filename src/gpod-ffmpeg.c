@@ -624,7 +624,8 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_)
     // default the transcode params
     obj_->audio_opts.channels = 2;
     obj_->audio_opts.bitrate = 256000;
-    obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
+    obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
+    obj_->extn = ".mp3";
 
     const char*  tmpdir = getenv("TMPDIR");
     tmpdir = tmpdir == NULL ? "/tmp" : tmpdir;

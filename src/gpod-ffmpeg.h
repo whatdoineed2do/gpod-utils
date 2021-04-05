@@ -92,6 +92,7 @@ struct gpod_ff_media_info
 
 struct gpod_ff_transcode_ctx {
     struct gpod_ff_audio  audio_opts;
+    const char*  extn;
     char  path[PATH_MAX];
     char  tmpprfx[PATH_MAX];
 };

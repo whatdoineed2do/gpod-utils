@@ -62,8 +62,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
         /* generate a tmp transcoded file name - having this set is also the
          * indicator a on-the-fly transcoded file
          */
-        xfrm_->audio_opts.codec_id = AV_CODEC_ID_AAC;  // hack -- force .aac encoding
-        snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.m4a", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL));
+        snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL), xfrm_->extn);
 
         if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
             char err[1024];
