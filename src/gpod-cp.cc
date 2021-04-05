@@ -134,8 +134,9 @@ int main (int argc, char *argv[])
     if (argc < 3)
     {
         char *basename = g_path_get_basename(argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.mp3> ...]\n\n%s%s", basename,
-                 "    This utility adds specified files to iPod/iTunesDB\n");
+        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.flac> ...]\n\n"
+                 "       This utility adds specified files to iPod/iTunesDB\n"
+                 "       Will automatically transcode unsupported audio (flac,wav etc) to .aac\n", basename);
         g_free (basename);
         exit(-1);
     }
