@@ -532,14 +532,11 @@ main (int argc, char *argv[])
         if (itdev) {
             const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
 
-            char*  uuid = itdb_device_get_uuid(itdev);
-
             json_object_add_string(jdevice, "model_number", ipodinfo->model_number);
             json_object_add_int(jdevice, "capacity", ipodinfo->capacity);
             json_object_add_string(jdevice, "model_name", itdb_info_get_ipod_model_name_string(ipodinfo->ipod_model));
             json_object_add_string(jdevice, "generation", itdb_info_get_ipod_generation_string (ipodinfo->ipod_generation));
-            json_object_add_string(jdevice, "uuid", uuid);
-            g_free(uuid);
+            json_object_add_string(jdevice, "uuid", itdb_device_get_uuid(itdev));
             json_object_add_string(jdevice, "serial_number", itdb_device_get_sysinfo(itdev, "SerialNumber"));
             json_object_add_string(jdevice, "format", itdb_device_get_sysinfo(itdev, "VolumeFormat"));
             json_object_add_string(jdevice, "ram", itdb_device_get_sysinfo(itdev, "RAM"));
