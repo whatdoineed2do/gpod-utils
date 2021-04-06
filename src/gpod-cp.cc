@@ -109,6 +109,39 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
 }
 
 
+/* writes the itunedb and clears pending list
+ * if the itunes write fails, rollback all the files listed in pending
+ */
+bool  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending)
+{
+    GError*  error = NULL;
+    itdb_write(itdb, &error);
+
+    bool  ret = true;
+
+    if (error) {
+	g_printerr("failed write iPod database, %u files NOT added- %s\n", g_slist_length(*pending), error->message ? error->message : "<unknown error>");
+	g_error_free(error);
+	error = NULL;
+
+	// try to clean up the copied data that will dangle
+	GSList*  pi = *pending;
+	for (; pi; pi = pi->next) {
+	    char  rollback[PATH_MAX];
+	    sprintf(rollback, "%s%s", mountpoint, pi->data);
+	    g_unlink(rollback);
+	}
+
+	ret = false;
+    }
+
+    g_slist_free_full(*pending, g_free);
+    *pending = NULL;
+
+    return ret;
+}
+
+
 static const char*  _setlocale()
 {
     const char*  attempts[] = {
@@ -210,10 +243,10 @@ int main (int argc, char *argv[])
 
     char**  p = &argv[2];
     const uint32_t  N = argc-2;
-    uint32_t  pending = 0;
 
     struct gpod_ff_transcode_ctx  xfrm;
 
+    GSList*  pending = NULL;
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
     const uint32_t  current = g_list_length(mpl->members);
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
@@ -255,22 +288,14 @@ int main (int argc, char *argv[])
 
             if (ok) {
                 ++added;
-		++pending;
                 itdb_filename_ipod2fs(track->ipod_path);
                 g_print("'%s' }\n", track->ipod_path);
 
+		pending = g_slist_append(pending, g_strdup(track->ipod_path));
+
 		if (added%10 == 0) {
-		    // force a upd of the db
-		    itdb_write(itdb, &error);
-
-		    const uint32_t  tmppending = pending;
-		    pending = 0;
-
-		    if (error) {
-			g_printerr("failed intermediatary write iPod database, %d files NOT added- %s\n", tmppending, error->message ? error->message : "<unknown error>");
-			g_error_free(error);
-			error = NULL;
-			ret = 1;
+		    // force a upd of the db and clear down pending list 
+		    if (!gpod_write_db(itdb, mountpoint, &pending)) {
 			break;
 		    }
 		}
@@ -290,21 +315,14 @@ int main (int argc, char *argv[])
 
 
     if (added) {
-        g_print("sync'ing iPod ...\n");
+        g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
     }
 
-    if (pending)
-    {
-        itdb_write(itdb, &error);
-
-        if (error) {
-            g_printerr("failed to write iPod database, %d files NOT added- %s\n", requested, error->message ? error->message : "<unknown error>");
-            g_error_free (error);
-            ret = 1;
-        }
+    if (g_slist_length(pending)) {
+	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
-    g_print("iPod new total tracks=%u  (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
+    g_print("iPod total tracks=%u  (+%u new items)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
