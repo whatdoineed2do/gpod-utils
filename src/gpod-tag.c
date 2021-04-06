@@ -103,7 +103,7 @@ main (int argc, char *argv[])
     const char*  db  = NULL;
 
     int c;
-    while ( (c=getopt(argc, argv, "M:D:a:t:A:g:T:y:h")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:D:a:t:A:g:T:y:r:h")) != EOF) {
         switch (c) {
             case 'M':  mpt = optarg;  break;
             case 'D':  db = optarg;  break;
@@ -182,13 +182,17 @@ main (int argc, char *argv[])
     }
 
 
-    g_print("updating iPod track meta { title='%s' artist='%s' album='%s' genre='%s' track=%d year=%d rating=%d} ...\n", 
-            opts.title ? opts.title : "<nul>",
-            opts.artist ? opts.artist : "<nul>",
-            opts.album ? opts.album : "<nul>",
-            opts.genre ? opts.genre : "<nul>",
-            opts.track, opts.year, opts.rating);
+    g_print("updating iPod track meta {");
+      if (opts.title)       g_print(" title='%s'",  opts.title);
+      if (opts.artist)      g_print(" artist='%s'", opts.artist);
+      if (opts.album)       g_print(" album='%s'",  opts.album);
+      if (opts.genre)       g_print(" genre='%s'",  opts.genre);
+      if (opts.track  >= 0) g_print(" track=%u",    opts.track);
+      if (opts.year   >= 0) g_print(" year=%u",     opts.year);
+      if (opts.rating >= 0) g_print(" rating=%u",   opts.rating);
+    g_print(" }\n");
 
+    opts.rating *= ITDB_RATING_STEP;
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
     const uint32_t  current = g_list_length(mpl->members);
