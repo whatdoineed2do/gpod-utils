@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <locale.h>
+#include <signal.h>
 
 #include <typeinfo>
 
@@ -166,10 +167,37 @@ static const char*  _setlocale()
     return l;
 }
 
+
+static bool  gpod_stop = false;
+static void  _sighandler(const int sig_)
+{
+    gpod_stop = true;
+}
+
 #define GPOD_CP_LOCKFILE  "/tmp/.gpod-cp.pid"
-int  gpod_lockfd;
+static int  gpod_lockfd;
 int  gpod_cp_init()
 {
+    struct sigaction  act, oact;
+
+    memset(&act,  0, sizeof(struct sigaction));
+    memset(&oact, 0, sizeof(struct sigaction));
+
+    act.sa_handler = _sighandler;
+    sigemptyset(&act.sa_mask);
+
+    const int   sigs[] = { SIGINT, SIGTERM, SIGHUP, -1 };
+    const int*  p = sigs;
+    while (*p != -1) {
+        sigaddset(&act.sa_mask, *p++);
+    }
+
+    p = sigs;
+    while (*p != -1) {
+        sigaction(*p++, &act, &oact);
+    }
+
+
     // this is a cheap attempt to stop multiple updates potentially killing your iTunesDB
     if (access(GPOD_CP_LOCKFILE, F_OK) == 0) {
         return -EEXIST;
@@ -294,7 +322,7 @@ int main (int argc, char *argv[])
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
 
     const guint  then = g_get_monotonic_time();
-    while (*p)
+    while (*p && !gpod_stop)
     {
         ++requested;
         const char*  path = *p++;
@@ -400,7 +428,14 @@ int main (int argc, char *argv[])
         }
     }
 
-    g_print("iPod total tracks=%u  (+%u items  music=%u video=%u other=%u  in %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other, duration);
+    char  userterm[128];
+    if (gpod_stop) {
+	snprintf(userterm, sizeof(userterm), " -- user terminated, %u items ignored", N-added);
+    }
+    else {
+	userterm[0] = '\0';
+    }
+    g_print("iPod total tracks=%u  (+%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other, duration, userterm);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
