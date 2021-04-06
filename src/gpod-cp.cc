@@ -235,6 +235,7 @@ int main (int argc, char *argv[])
             ok = false;
             g_print("{ } track err - %s\n", err ? err : "<>");
             g_free(err);
+	    err = NULL;
         }
         else
         {
@@ -260,7 +261,10 @@ int main (int argc, char *argv[])
             }
         }
 
-        if (error) g_error_free(error);
+        if (error) {
+	    g_error_free(error);
+	    error = NULL;
+	}
     }
 
 
