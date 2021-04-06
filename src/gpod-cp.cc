@@ -189,6 +189,7 @@ int  gpod_cp_init()
 void  gpod_cp_destroy()
 {
     flock(gpod_lockfd, LOCK_UN);
+    close(gpod_lockfd);
     unlink(GPOD_CP_LOCKFILE);
 }
 
@@ -211,7 +212,7 @@ int main (int argc, char *argv[])
     }
 
     if ( (ret = gpod_cp_init() < 0)) {
-        g_printerr("unable to obtain process lock on %s - exitting to avoid concurrent iTunesDB update\n", GPOD_CP_LOCKFILE, strerror(-ret));
+        g_printerr("unable to obtain process lock on %s (%s) - exitting to avoid concurrent iTunesDB update\n", GPOD_CP_LOCKFILE, strerror(-ret));
         return 2;
     }
 
