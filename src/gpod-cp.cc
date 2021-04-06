@@ -193,7 +193,6 @@ int main (int argc, char *argv[])
         return -1;
     }
 
-    // unlink track and remove from all playlists
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
 
