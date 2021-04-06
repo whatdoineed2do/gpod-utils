@@ -210,6 +210,7 @@ int main (int argc, char *argv[])
 
     char**  p = &argv[2];
     const uint32_t  N = argc-2;
+    uint32_t  pending = 0;
 
     struct gpod_ff_transcode_ctx  xfrm;
 
@@ -254,8 +255,25 @@ int main (int argc, char *argv[])
 
             if (ok) {
                 ++added;
+		++pending;
                 itdb_filename_ipod2fs(track->ipod_path);
                 g_print("'%s' }\n", track->ipod_path);
+
+		if (added%10 == 0) {
+		    // force a upd of the db
+		    itdb_write(itdb, &error);
+
+		    const uint32_t  tmppending = pending;
+		    pending = 0;
+
+		    if (error) {
+			g_printerr("failed intermediatary write iPod database, %d files NOT added- %s\n", tmppending, error->message ? error->message : "<unknown error>");
+			g_error_free(error);
+			error = NULL;
+			ret = 1;
+			break;
+		    }
+		}
             }
             else {
                 g_print("N/A } %s\n", error->message ? error->message : "<???>");
@@ -271,9 +289,12 @@ int main (int argc, char *argv[])
     }
 
 
-    if (added)
+    if (added) {
+        g_print("sync'ing iPod ...\n");
+    }
+
+    if (pending)
     {
-        g_print("sync'ing iPod ... adding %d/%d\n", added, requested);
         itdb_write(itdb, &error);
 
         if (error) {
@@ -281,13 +302,12 @@ int main (int argc, char *argv[])
             g_error_free (error);
             ret = 1;
         }
-        g_print("updated iPod, new total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
     }
-    else {
-        g_printerr("failed to add %d\n", requested);
-    }
+
+    g_print("iPod new total tracks=%u  (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
+
     itdb_device_free(itdev);
     itdb_free(itdb);
 
-    return 0;
+    return ret;
 }
