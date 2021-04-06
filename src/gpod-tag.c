@@ -63,6 +63,7 @@ struct gpod_opts {
     const char*  genre;
     int  year;
     int  track;
+    short  rating;
 };
 
 struct gpod_arg {
@@ -75,8 +76,9 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
-    g_print ("usage: %s [ -M <dir ipod mount> | -D <file iTunesDB>]  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>]  <file id/ipod path> [ ...]\n\n"
+    g_print ("usage: %s [ -M <dir ipod mount> | -D <file iTunesDB>]  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  <file id/ipod path> [ ...]\n\n"
              "    update meta tags for files as known in iPod/iTunesDB\n"
+	     "    empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
              "    use gpod-ls to determine ipod path/id\n",
              basename);
     g_free (basename);
@@ -95,6 +97,7 @@ main (int argc, char *argv[])
     memset(&opts, 0, sizeof(opts));
     opts.year = -1;
     opts.track = -1;
+    opts.rating = -1;
 
     const char*  mpt = NULL;
     const char*  db  = NULL;
@@ -111,6 +114,12 @@ main (int argc, char *argv[])
             case 'g':  opts.genre  = optarg;  break;
             case 'y':  opts.year   = atol(optarg);  break;
             case 'T':  opts.track  = atol(optarg);  break;
+            case 'r': 
+		opts.rating = atol(optarg);
+		if (opts.rating > 5) {
+		    opts.rating = 5;
+		}
+	        break;
 
             case 'h':
             default:
@@ -119,7 +128,7 @@ main (int argc, char *argv[])
     }
 
 
-    if (mpt == NULL && db == NULL && opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0) {
+    if (mpt == NULL && db == NULL && opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
         g_printerr("invalid opts\n");
         _usage(argv[0]);
     }
@@ -173,13 +182,12 @@ main (int argc, char *argv[])
     }
 
 
-    g_print("updating iPod track meta { title='%s' artist='%s' album='%s' genre='%s' track=%d year=%d } ...\n", 
+    g_print("updating iPod track meta { title='%s' artist='%s' album='%s' genre='%s' track=%d year=%d rating=%d} ...\n", 
             opts.title ? opts.title : "<nul>",
             opts.artist ? opts.artist : "<nul>",
             opts.album ? opts.album : "<nul>",
             opts.genre ? opts.genre : "<nul>",
-            opts.track,
-            opts.year);
+            opts.track, opts.year, opts.rating);
 
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
@@ -253,9 +261,10 @@ main (int argc, char *argv[])
         gmtime_r(&(track->time_modified), &tm);
         strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
-        g_print("{ id=%u ipod_path='%s' { title='%s' artist='%s' album='%s' genre='%s' track=%u year=%u time_modified=%s } }\n",
+        g_print("{ id=%u ipod_path='%s' { rating=%d title='%s' artist='%s' album='%s' genre='%s' track=%u year=%u time_modified=%s } }\n",
                track->id,
                track->ipod_path,
+               track->rating/ITDB_RATING_STEP,
                track->title ? track->title : "",
                track->artist ? track->artist : "",
                track->album ? track->album : "",
@@ -270,6 +279,7 @@ main (int argc, char *argv[])
         TRACK_ASSIGN(track->album, opts.artist);
         TRACK_ASSIGN(track->genre, opts.genre);
 
+        if (opts.rating >= 0) track->rating = opts.rating; 
         if (opts.track >= 0) track->track_nr = opts.track; 
         if (opts.year >= 0) track->year = opts.year;
 
