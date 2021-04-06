@@ -380,7 +380,7 @@ int main (int argc, char *argv[])
         h = (sec/3600);
         m = (sec -(3600*h))/60;
         s = (sec -(3600*h)-(m*60));
-        if (sec == 0) {
+        if (sec < 60) {
             sprintf(duration, "%.3f secs", (now-then)/1000000.0);
         }
         else
