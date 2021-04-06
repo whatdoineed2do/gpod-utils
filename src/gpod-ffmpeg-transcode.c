@@ -57,11 +57,12 @@
  */
 static int open_input_file(const char *filename,
                            AVFormatContext **input_format_context,
-                           AVCodecContext **input_codec_context, char** err_)
+                           AVCodecContext **input_codec_context, int* audio_stream_idx, char** err_)
 {
     AVCodecContext *avctx;
     AVCodec *input_codec;
     int error;
+    int  i;
 
     /* Open the input file to read from it. */
     if ((error = avformat_open_input(input_format_context, filename, NULL,
@@ -84,10 +85,20 @@ static int open_input_file(const char *filename,
         return error;
     }
 
-    /* Make sure that there is only one stream in the input file. */
-    if ((*input_format_context)->nb_streams != 1) {
+    /* Make sure that there is an audio stream in the input file. */
+    *audio_stream_idx = -1;
+    for (i=0; i<(*input_format_context)->nb_streams; ++i)
+    {
+	if ((*input_format_context)->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+	    *audio_stream_idx = i;
+	    break;
+	}
+    }
+
+    if (*audio_stream_idx < 0)
+    {
         char  err[1024];
-        snprintf(err, 1024,"Expected one audio input stream, but found %d",
+        snprintf(err, 1024,"Expected an audio input stream, but found none in %d streams",
                 (*input_format_context)->nb_streams);
             *err_ = strdup(err);
         avformat_close_input(input_format_context);
@@ -95,7 +106,7 @@ static int open_input_file(const char *filename,
     }
 
     /* Find a decoder for the audio stream. */
-    if (!(input_codec = avcodec_find_decoder((*input_format_context)->streams[0]->codecpar->codec_id))) {
+    if (!(input_codec = avcodec_find_decoder((*input_format_context)->streams[*audio_stream_idx]->codecpar->codec_id))) {
         char  err[1024];
         snprintf(err, 1024,"Could not find input codec");
             *err_ = strdup(err);
@@ -114,7 +125,7 @@ static int open_input_file(const char *filename,
     }
 
     /* Initialize the stream parameters with demuxer information. */
-    error = avcodec_parameters_to_context(avctx, (*input_format_context)->streams[0]->codecpar);
+    error = avcodec_parameters_to_context(avctx, (*input_format_context)->streams[*audio_stream_idx]->codecpar);
     if (error < 0) {
         avformat_close_input(input_format_context);
         avcodec_free_context(&avctx);
@@ -419,6 +430,7 @@ static int write_output_file_header(AVFormatContext *output_format_context, char
 static int decode_audio_frame(AVFrame *frame,
                               AVFormatContext *input_format_context,
                               AVCodecContext *input_codec_context,
+			      const int audio_stream_idx,
                               int *data_present, int *finished, char** err_)
 {
     /* Packet used for temporary storage. */
@@ -430,17 +442,20 @@ static int decode_audio_frame(AVFrame *frame,
         return error;
 
     /* Read one audio frame from the input file into a temporary packet. */
-    if ((error = av_read_frame(input_format_context, input_packet)) < 0) {
-        /* If we are at the end of the file, flush the decoder below. */
-        if (error == AVERROR_EOF)
-            *finished = 1;
-        else {
-            char  err[1024];
-            snprintf(err, 1024, "Could not read frame (error '%s')",
-                    av_err2str(error));
-            *err_ = strdup(err);
-            goto cleanup;
-        }
+    input_packet->stream_index = -1;
+    while (!*finished && input_packet->stream_index != audio_stream_idx) {
+	if ((error = av_read_frame(input_format_context, input_packet)) < 0) {
+	    /* If we are at the end of the file, flush the decoder below. */
+	    if (error == AVERROR_EOF)
+		*finished = 1;
+	    else {
+		char  err[1024];
+		snprintf(err, 1024, "Could not read frame (error '%s')",
+			av_err2str(error));
+		*err_ = strdup(err);
+		goto cleanup;
+	    }
+	}
     }
 
     /* Send the audio frame stored in the temporary packet to the decoder.
@@ -607,6 +622,7 @@ static int add_samples_to_fifo(AVAudioFifo *fifo,
 static int read_decode_convert_and_store(AVAudioFifo *fifo,
                                          AVFormatContext *input_format_context,
                                          AVCodecContext *input_codec_context,
+					 const int audio_stream_idx,
                                          AVCodecContext *output_codec_context,
                                          SwrContext *resampler_context,
                                          int *finished, char** err_)
@@ -623,7 +639,7 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
         goto cleanup;
     /* Decode one frame worth of audio samples. */
     if (decode_audio_frame(input_frame, input_format_context,
-                           input_codec_context, &data_present, finished, err_))
+                           input_codec_context, audio_stream_idx, &data_present, finished, err_))
         goto cleanup;
     /* If we are at the end of the file and there are no more samples
      * in the decoder which are delayed, we are actually finished.
@@ -858,10 +874,11 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     SwrContext  *resample_context = NULL;
     AVAudioFifo  *fifo = NULL;
     int ret = AVERROR_EXIT;
+    int audio_stream_idx;
 
     /* Open the input file for reading. */
     if (open_input_file(info_->path, &input_format_context,
-                        &input_codec_context, err_))
+                        &input_codec_context, &audio_stream_idx, err_))
         goto cleanup;
 
     /* Open the output file for writing. */
@@ -896,6 +913,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
              * output sample format and put it into the FIFO buffer. */
             if (read_decode_convert_and_store(fifo, input_format_context,
                                               input_codec_context,
+					      audio_stream_idx,
                                               output_codec_context,
                                               resample_context, &finished, err_))
                 goto cleanup;
