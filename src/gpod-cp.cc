@@ -256,6 +256,8 @@ int main (int argc, char *argv[])
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
     const uint32_t  current = g_list_length(mpl->members);
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
+
+    const guint  then = g_get_monotonic_time();
     while (*p)
     {
         ++requested;
@@ -335,7 +337,34 @@ int main (int argc, char *argv[])
 	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
-    g_print("iPod total tracks=%u  (+%u  music=%u video=%u other=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other);
+    char duration[32];
+    {
+        const guint  now = g_get_monotonic_time();
+        const unsigned  sec = (now-then)/1000000;
+        unsigned  h, m, s;
+        h = (sec/3600);
+        m = (sec -(3600*h))/60;
+        s = (sec -(3600*h)-(m*60));
+        if (sec == 0) {
+            sprintf(duration, "%.3f secs", (now-then)/1000000.0);
+        }
+        else
+        {
+            if (sec < 3600) {
+                sprintf(duration, "%02d:%02d mins", m,s);
+            }
+            else {
+                if (sec < 3600*60) {
+                    sprintf(duration, "%02d:%02d:%02d", h,m,s);
+                }
+                else {
+                    strcpy(duration, "inf");
+                }
+            }
+        }
+    }
+
+    g_print("iPod total tracks=%u  (+%u items  music=%u video=%u other=%u  in %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other, duration);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
