@@ -27,14 +27,17 @@
 #  include <config.h>
 #endif
 
-#include <stdlib.h>
-#include <string.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <typeinfo>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <locale.h>
+
+#include <typeinfo>
 
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
@@ -163,6 +166,33 @@ static const char*  _setlocale()
     return l;
 }
 
+#define GPOD_CP_LOCKFILE  "/tmp/.gpod-cp.pid"
+int  gpod_lockfd;
+int  gpod_cp_init()
+{
+    // this is a cheap attempt to stop multiple updates potentially killing your iTunesDB
+    if (access(GPOD_CP_LOCKFILE, F_OK) == 0) {
+        return -EEXIST;
+    }
+
+    if ( (gpod_lockfd=open(GPOD_CP_LOCKFILE, O_CREAT|O_TRUNC|O_WRONLY, 0660)) < 0 &&
+         flock(gpod_lockfd, LOCK_EX) < 0) 
+    {
+        return -errno;
+    }
+    char  buf[16];
+    sprintf(buf, "%u\n", getpid());
+    write(gpod_lockfd, buf, strlen(buf));
+    return 0;
+}
+
+void  gpod_cp_destroy()
+{
+    flock(gpod_lockfd, LOCK_UN);
+    unlink(GPOD_CP_LOCKFILE);
+}
+
+
 int main (int argc, char *argv[])
 {
     GError *error = nullptr;
@@ -178,6 +208,11 @@ int main (int argc, char *argv[])
                  "       Will automatically transcode unsupported audio (flac,wav etc) to .aac\n", basename);
         g_free (basename);
         exit(-1);
+    }
+
+    if ( (ret = gpod_cp_init() < 0)) {
+        g_printerr("unable to obtain process lock on %s - exitting to avoid concurrent iTunesDB update\n", GPOD_CP_LOCKFILE, strerror(-ret));
+        return 2;
     }
 
     _setlocale();
@@ -368,6 +403,8 @@ int main (int argc, char *argv[])
 
     itdb_device_free(itdev);
     itdb_free(itdb);
+
+    gpod_cp_destroy();
 
     return ret;
 }
