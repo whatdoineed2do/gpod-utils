@@ -173,6 +173,7 @@ int main (int argc, char *argv[])
             itdb_device_set_mountpoint(itdev, mountpoint);
         }
         else {
+            g_printerr("failed to find iTunesDB structure under %s\n", argv[1]);
             return -1;
         }
     }
