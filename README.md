@@ -1,16 +1,19 @@
 # `gpod utils`
-Command line tools using [libgpod](https://sourceforge.net/p/gtkpod/libgpod/ci/master/tree/) to access iPod data.
+Command line tools using [`libgpod`](https://sourceforge.net/p/gtkpod/libgpod/ci/master/tree/) to access `iPod` data.
 
-Whilst `libgpod` appears to be in sunset mode (last release in 2015) recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the iPod 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
+Whilst `libgpod` appears to be in sunset mode (last release in 2015) recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
+
+### mount points
+Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermout -u /tmp/ipod` when done.
 
 ## `gpod-ls`
-Simple utility that parses an iPod db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.
+Simple utility that parses an `iPod` db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.
 
 Optionally an `SQLite3` db can be generated for easier investigation.
 
-This utility can work on a mounted iPod or directly pointing the `iTunesDB` file - the following works on an old iPod Video 5G.
+This utility can work on a mounted `iPod` or directly pointing the `iTunesDB` file - the following works on an old `iPod Video 5G`.
 ```
-$ gpod-ls /run/media/ray/IPOD | tee ipod.json
+$ gpod-ls /run/media/ray/IPOD | tee ipod.json | jq '.'
 {
   "ipod_data" {
     "playlists": {
@@ -91,7 +94,9 @@ $ gpod-ls /run/media/ray/IPOD | tee ipod.json
 ```
 Directly on the db file and generating a standalone db
 ```
-$ gpod-ls /run/media/ray/IPOD/iPod_Control/iTunes/iTunesDB /tmp/ipod.sqlite3
+$ gpod-ls \
+    /run/media/ray/IPOD/iPod_Control/iTunes/iTunesDB \
+    /tmp/ipod.sqlite3
 ```
 The `json` output is not pretty printed but rather you can use other tools, such as [`jq`](https://stedolan.github.io/jq/) to perform simple queries or to use the generated DB file.
 
@@ -147,7 +152,7 @@ Whilst both `gtkpod` and `Rhythmbox` provide good graphical interfaces for addin
   }
 }
 ```
-To examine the main iPod playlist where all tracks are stored:
+To examine the main `iPod` playlist where all tracks are stored:
 ```
 $ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master")'
 ```
@@ -159,15 +164,17 @@ $ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master") |
 ## `gpod-rm`
 Removes track from iPod.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
 ```
-$ gpod-rm /run/media/ray/IPOD   /iPod_Control/Music/F41/ZNUF.mp3
+$ gpod-rm /run/media/ray/IPOD \
+    /iPod_Control/Music/F41/ZNUF.mp3
 /iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='9492' time_added=161672437 }
 sync'ing iPod ... removing 1/1
 ```
 
 ## `gpod-cp`
-Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` and automatic conversions to mp3 is made.
+Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.
 ```
-$ gpod-cp /run/media/ray/IPOD   nothere.mp3 foo.flac foo.mp3 
+$ gpod-cp /run/media/ray/IPOD \
+    nothere.mp3 foo.flac foo.mp3 
 copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 [  1/3]  nothere.mp3 -> { } No such file or directory
 [  2/3]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.mp3' }
@@ -175,12 +182,24 @@ copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 sync'ing iPod ... adding 2/3
 updated iPod, new total tracks=29 (originally=27)
 ```
-Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to `h264 baseline`, 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not accept video files that have not had a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied and played onto the iPod.
+Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not accept video files that have not had a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied and played onto the iPod.
 
 To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile baseline -b:v 1.8M foo.mp4`
 
+To convert an existing video file for the `iPod` classics, you can use `handbrake` or `ffmpeg` directly:
+```
+# example transcode using a cuda/nvidia enabled ffmpeg
+ffmpeg -hwaccel cuda  -hwaccel_output_format cuda  \
+  -i foo.mp4 \
+    -c:a aac -b:a 128k -ar 44100  \
+    -c:v h264_nvenc -rc vbr_hq -minrate 1M -maxrate 2.5M \
+    -profile:v baseline  \
+    -vf scale_npp=640:-1 \
+  bar.mp4
+```
+
 ## `gpod-tag`
-Simple metadata tool to modify the `iTunesDB`.  The underlying media files on the device are NOT updated.  The internal `id` or `ipod_path` of the files are required and can be determined from `gpod-ls`
+Simple metadata tool to modify the `iTunesDB`.  The underlying media files on the device are NOT updated.  The internal `id` or `ipod_path` of the files are required and can be determined from `gpod-ls`.  Use empty string (`""`) or `-1` to unset the string and int tags respectively
 ```
 $ gpod-tag -M /run/media/ray/IPOD -A "new album name" -y 2021  \
     9999 521 /iPod_Control/Music/F01/libgpod211429.mp3
