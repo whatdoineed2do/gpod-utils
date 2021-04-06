@@ -386,7 +386,7 @@ int main (int argc, char *argv[])
         else
         {
             if (sec < 3600) {
-                sprintf(duration, "%02d:%02d mins", m,s);
+                sprintf(duration, "%02d:%02d mins:secs", m,s);
             }
             else {
                 if (sec < 3600*60) {
