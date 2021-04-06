@@ -244,6 +244,12 @@ int main (int argc, char *argv[])
     char**  p = &argv[2];
     const uint32_t  N = argc-2;
 
+    struct {
+	uint32_t  music;
+	uint32_t  video;
+	uint32_t  other;
+    } stats = { 0, 0, 0 };
+
     struct gpod_ff_transcode_ctx  xfrm;
 
     GSList*  pending = NULL;
@@ -286,12 +292,19 @@ int main (int argc, char *argv[])
                 g_unlink(xfrm.path);
             }
 
-            if (ok) {
+            if (ok)
+	    {
                 ++added;
                 itdb_filename_ipod2fs(track->ipod_path);
                 g_print("'%s' }\n", track->ipod_path);
 
 		pending = g_slist_append(pending, g_strdup(track->ipod_path));
+
+		switch (track->mediatype) {
+		    case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
+		    case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
+		    default: ++stats.other;
+		}
 
 		if (added%10 == 0) {
 		    // force a upd of the db and clear down pending list 
@@ -322,7 +335,7 @@ int main (int argc, char *argv[])
 	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
-    g_print("iPod total tracks=%u  (+%u new items)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added);
+    g_print("iPod total tracks=%u  (+%u  music=%u video=%u other=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
