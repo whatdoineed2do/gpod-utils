@@ -85,6 +85,16 @@ void  _usage(const char* argv_)
     exit(-1);
 }
 
+#define TRACK_ASSIGN(tag_, new_) \
+{\
+    if (new_) {\
+	if (tag_) { \
+	    g_free(tag_);\
+	    tag_ = NULL;\
+	}\
+	tag_ = g_strdup(new_);\
+    }\
+}
 
 int
 main (int argc, char *argv[])
@@ -276,11 +286,9 @@ main (int argc, char *argv[])
                track->track_nr, track->year,
                dt);
  
-#define TRACK_ASSIGN(x,y) { if (x) { free(x); } if (y) { x = strdup(y); } else { x = NULL; } }
-
         TRACK_ASSIGN(track->title, opts.title);
         TRACK_ASSIGN(track->artist, opts.artist);
-        TRACK_ASSIGN(track->album, opts.artist);
+        TRACK_ASSIGN(track->album, opts.album);
         TRACK_ASSIGN(track->genre, opts.genre);
 
         if (opts.rating >= 0) track->rating = opts.rating; 
