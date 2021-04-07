@@ -38,8 +38,6 @@
 #include <locale.h>
 #include <signal.h>
 
-#include <typeinfo>
-
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
@@ -60,10 +58,10 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
 	    *err_ = strdup("no audio");
 	}
         gpod_ff_media_info_free(&mi);
-        return nullptr;
+        return NULL;
     }
 
-    Itdb_Track*  track = nullptr;
+    Itdb_Track*  track = NULL;
     if (!mi.supported_ipod_fmt)
     {
         /* generate a tmp transcoded file name - having this set is also the
@@ -224,9 +222,9 @@ void  gpod_cp_destroy()
 
 int main (int argc, char *argv[])
 {
-    GError *error = nullptr;
-    Itdb_iTunesDB*  itdb = nullptr;
-    Itdb_Device*  itdev = nullptr;
+    GError *error = NULL;
+    Itdb_iTunesDB*  itdb = NULL;
+    Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
     if (argc < 3)
@@ -338,9 +336,9 @@ int main (int argc, char *argv[])
 
         gpod_ff_transcode_ctx_init(&xfrm);
 
-        Itdb_Track*  track = nullptr;
+        Itdb_Track*  track = NULL;
         bool  ok = true;
-        if ( (track = _track(path, &xfrm, &err)) == nullptr) {
+        if ( (track = _track(path, &xfrm, &err)) == NULL) {
             ok = false;
             g_print("{ } track err - %s\n", err ? err : "<>");
             g_free(err);
@@ -380,7 +378,7 @@ int main (int argc, char *argv[])
 		}
             }
             else {
-                g_print("N/A } %s\n", error->message ? error->message : "<???>");
+                g_print("N/A } %s\n", error->message ? error->message : "<unknown err>");
                 itdb_playlist_remove_track(mpl, track);
                 itdb_track_remove(track);
             }
