@@ -468,7 +468,8 @@ main (int argc, char *argv[])
 
     if (argc == 3) {
         if (g_file_test(argv[2], G_FILE_TEST_EXISTS)) {
-            g_printerr("requested DB exists, overwritting '%s'\n", argv[2]);
+            g_printerr("requested DB file exists, NOT overwritting '%s'\n", argv[2]);
+	    return -1;
         }
 
         if (sqlite3_open(argv[2], &hdl) != SQLITE_OK) {
