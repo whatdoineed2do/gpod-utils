@@ -415,10 +415,29 @@ main (int argc, char *argv[])
     if (argc != 2 && argc != 3)
     {
         char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [sqlite3 db outfile]\n\n%s%s%s", basename,
-                 "    This utility dumps the iTunesDB as a json object listing:\n",
-                 "    playlists (iPod, podcasts, internal and user playlists\n",
-                 "    with track info per playlist\n");
+        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [sqlite3 db outfile]\n"
+		 "\n"
+		 "    dumps the iTunesDB as a json object listing internal (iPod,\n"
+		 "    podcasts) and user (smartpl, normal) playlists\n"
+		 "\n"
+		 "    Each playlist will display track information but fully on 'master'\n"
+		 "\n"
+		 "    A sqlite3 file can be generated, with a 'tracks' db, representing\n"
+		 "    all tracks in iTunesDB\n"
+		 "\n"
+		 "    Use 'jq' for basic data mining and sqlite3 for more involved work\n"
+		 "\n"
+		 "    # create a subject json object from data naming artist name \n"
+		 "      jq   '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
+		 "        .tracks[] | select(.artist==\"Foo\") | {id, ipod_path, title}'\\\n"
+		 "      foo.json\n"
+		 "\n"
+		 "    # unquoted json strings of output matching artist name - useful as data\n"
+		 "    # inputs to gpod-rm or gpod-tag\n"
+		 "      jq -r '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
+		 "        .tracks[] | select(.artist==\"Foo\") | .ipod_path, .id'\\\n"
+		 "      foo.json\n"
+		 , basename);
         g_free (basename);
         exit(-1);
     }
