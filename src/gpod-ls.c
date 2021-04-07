@@ -72,7 +72,7 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
     "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d" \
     "         );"
 
-  char*  err;
+  char*  err = NULL;
   char*  query = sqlite3_mprintf(QADD_TMPL, 
                                 track_->id, track_->ipod_path, track_->mediatype,
                                 track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer, 
