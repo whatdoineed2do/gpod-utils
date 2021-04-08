@@ -309,7 +309,7 @@ main (int argc, char *argv[])
              g_error_free (error);
              ret = 1;
         }
-        g_print("updated iPod, total tracks=%u\n", g_list_length(itdb_playlist_mpl(itdb)->members));
+        g_print("updated iPod %u items, total tracks=%u\n", ret == 0 ? updated : 0, g_list_length(itdb_playlist_mpl(itdb)->members));
     }
     else {
         g_printerr("failed to update\n");
