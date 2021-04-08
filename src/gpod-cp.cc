@@ -114,7 +114,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
 /* writes the itunedb and clears pending list
  * if the itunes write fails, rollback all the files listed in pending
  */
-bool  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending)
+int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending)
 {
     GError*  error = NULL;
     itdb_write(itdb, &error);
@@ -140,7 +140,7 @@ bool  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pendin
     g_slist_free_full(*pending, g_free);
     *pending = NULL;
 
-    return ret;
+    return ret ? 0 : -1;
 }
 
 
@@ -433,7 +433,7 @@ int main (int argc, char *argv[])
     else {
 	userterm[0] = '\0';
     }
-    g_print("iPod total tracks=%u  (+%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), added, stats.music, stats.video, stats.other, duration, userterm);
+    g_print("iPod total tracks=%u  (+%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, stats.music, stats.video, stats.other, duration, userterm);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
