@@ -55,7 +55,16 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
 
     if (gpod_ff_scan(&mi, file_, err_) < 0) {
 	if (!mi.has_audio) {
-	    *err_ = strdup("no audio");
+            if (*err_) {
+                const char*  err = "no audio - ";
+                char*  tmp = (char*)malloc(strlen(*err_) + strlen(err) +1);
+                sprintf(tmp, "%s%s", err, *err_);
+                free(*err_);
+                *err_ = tmp;
+            }
+            else {
+                *err_ = strdup("no audio");
+            }
 	}
         gpod_ff_media_info_free(&mi);
         return NULL;
