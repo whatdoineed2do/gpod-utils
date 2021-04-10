@@ -323,7 +323,9 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         av_dict_free(&options);
     }
     if (ret != 0) {
-        *err_ = strdup("failed to avformat_open_input()");
+        char  err[1024];
+        snprintf(err, 1024, "%s", av_err2str(ret));
+        *err_ = strdup(err);
         return -1;
     }
 
