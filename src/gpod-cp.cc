@@ -152,6 +152,36 @@ int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending
     return ret ? 0 : -1;
 }
 
+static void  walk_dir(const gchar *dir, GSList **l) 
+{
+    GDir*  dir_handle;
+    const gchar*  filename;
+    gchar*  path;
+
+    if (!g_file_test(dir, G_FILE_TEST_IS_DIR)) {
+        *l = g_slist_append(*l, g_strdup(dir));
+        return;
+    }
+
+    if ( (dir_handle = g_dir_open(dir, 0, NULL)) == NULL) {
+        return;
+    }
+
+    while ((filename = g_dir_read_name(dir_handle)))
+    {
+        path = g_build_filename(dir, filename, NULL);
+
+        if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
+            walk_dir(path, l);
+            g_free(path);
+        }
+        else {
+            *l = g_slist_append(*l, path);
+        }
+    }
+
+    g_dir_close(dir_handle);
+}
 
 static const char*  _setlocale()
 {
@@ -312,8 +342,12 @@ int main (int argc, char *argv[])
     struct tm  tm;
     char dt[20];
 
-    char**  p = &argv[2];
-    const uint32_t  N = argc-2;
+    GSList*  files = NULL;
+    char**  pa = &argv[2];
+    while (*pa) {
+        walk_dir(*pa++, &files);
+    }
+    const uint32_t  N = g_slist_length(files);
 
     struct {
 	uint32_t  music;
@@ -329,10 +363,12 @@ int main (int argc, char *argv[])
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
 
     const guint  then = g_get_monotonic_time();
-    while (*p && !gpod_stop)
+    GSList*  p = files;
+    while (p && !gpod_stop)
     {
         ++requested;
-        const char*  path = *p++;
+        const char*  path = (const char*)(p->data);
+        p = p->next;
 
         g_print("[%3u/%u]  %s -> ", requested, N, path);
 
@@ -398,6 +434,8 @@ int main (int argc, char *argv[])
 	    error = NULL;
 	}
     }
+    g_slist_free_full(files, g_free);
+    files = NULL;
 
 
     if (added) {
@@ -442,7 +480,7 @@ int main (int argc, char *argv[])
     else {
 	userterm[0] = '\0';
     }
-    g_print("iPod total tracks=%u  (+%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, stats.music, stats.video, stats.other, duration, userterm);
+    g_print("iPod total tracks=%u  (+%u/%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats.music, stats.video, stats.other, duration, userterm);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
