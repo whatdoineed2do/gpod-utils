@@ -276,11 +276,6 @@ int main (int argc, char *argv[])
         exit(-1);
     }
 
-    if ( (ret = gpod_cp_init() < 0)) {
-        g_printerr("unable to obtain process lock on %s (%s) - exitting to avoid concurrent iTunesDB update\n", GPOD_CP_LOCKFILE, strerror(-ret));
-        return 2;
-    }
-
     _setlocale();
     gpod_ff_init();
 
@@ -325,6 +320,12 @@ int main (int argc, char *argv[])
     if (itdb == NULL) {
         g_print("failed to open iTunesDB via (%s) %s\n", argtype, argv[1]);
         return -1;
+    }
+
+    // everything is ok, writes/updates can start so lock
+    if ( (ret = gpod_cp_init() < 0)) {
+        g_printerr("unable to obtain process lock on %s (%s) - exitting to avoid concurrent iTunesDB update\n", GPOD_CP_LOCKFILE, strerror(-ret));
+        return 2;
     }
 
 
