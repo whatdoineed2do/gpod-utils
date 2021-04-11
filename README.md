@@ -3,8 +3,10 @@ Command line tools using [`libgpod`](https://sourceforge.net/p/gtkpod/libgpod/ci
 
 Whilst `libgpod` appears to be in sunset mode (last release in 2015) recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
 
+Note that as of 2021, the `libgpod` last release is at 2.1.5 and their docs suggest the library supports all classic iPods, iPod Touches and early iPhones.  Whilst testing this codebase, only iPods were supported with iPod Touch 1G and onwards not compatible due to the singing requirement of the iTunesDB file on these devices.
+
 ### mount points
-Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermout -u /tmp/ipod` when done.
+Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermoumt -u /tmp/ipod` when done.
 
 ## `gpod-ls`
 Simple utility that parses an `iPod` db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.
