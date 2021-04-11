@@ -64,11 +64,13 @@ main (int argc, char *argv[])
     if (argc < 3)
     {
         char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.mp3> ...]\n\n%s%s%s%s", basename,
-                 "    This utility removes specified file the iPod/iTunesDB\n",
-                 "    Filenames are provided relative to the iPod mountpoint; ie\n",
-                 "      /iPod_Control/Music/F08/NCQQ.mp3\n\n",
-                 "    Filenames <-> tracks cab be determined using gpod-ls\n");
+        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.mp3> ...]\n"
+                 "\n"
+                 "    This utility removes specified file the iPod/iTunesDB\n"
+                 "    Filenames are provided relative to the iPod mountpoint; ie\n"
+                 "      /iPod_Control/Music/F08/NCQQ.mp3\n\n"
+                 "    Filenames <-> tracks cab be determined using gpod-ls\n",
+                 basename);
         g_free (basename);
         exit(-1);
     }
