@@ -10,7 +10,7 @@ bin_PROGRAMS = gpod-ls gpod-rm gpod-tag $(GPOD_OPT)
 gpod_ls_CPPFLAGS = 
 gpod_ls_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
 gpod_ls_SOURCES = \
-	gpod-ls.c
+	gpod-ls.c sha1.c
 
 gpod_rm_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
 gpod_rm_SOURCES = gpod-rm.c

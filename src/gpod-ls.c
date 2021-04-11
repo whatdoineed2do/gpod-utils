@@ -40,6 +40,7 @@
 #include <sqlite3.h>
 
 #include "gpod-db.h"
+#include "sha1.h"
 
 
 bool  db_create(sqlite3 *hdl_)
@@ -131,19 +132,43 @@ json_object_add_boolean(json_object* obj_, const char* tag_, const bool data_)
 
 
 typedef struct _TrkHash {
-    long  high;    // file size/len/artist/title/album
-    long  med;     // artist/title
-    long  low;     // file size/len
+    uint64_t  high;    // file size/len/artist/title/album
+    uint64_t  med;     // artist/title
+    uint64_t  low;     // file size/len
 } TrkHash;
 
-static TrkHash*  hash_trk_init(const Itdb_Track* track_)
+static TrkHash*  hash_trk_init(const Itdb_Track* track_, bool cksum_)
 {
    TrkHash*  o = malloc(sizeof(TrkHash)); 
    memset(o, 0, sizeof(TrkHash));
 
    o->low = track_->size + track_->tracklen + track_->bitrate + track_->samplerate;
    o->med = (track_->artist ? g_str_hash(track_->artist) : 0)  + (track_->title ? g_str_hash(track_->title) : 0);
-   o->high = o->low + o->med + (track_->album ? g_str_hash(track_->album) : 0);
+
+   if (!cksum_) {
+       o->high = o->low + o->med + (track_->album ? g_str_hash(track_->album) : 0);
+   }
+   else
+   {
+       char  path[PATH_MAX];
+       sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
+       itdb_filename_ipod2fs(path);
+
+       FILE*  f;
+       if ( (f=fopen(path, "r")) == NULL) {
+           o->high = o->med;
+       }
+       else
+       {
+           unsigned char  sha1[20];  // hex buffer
+           unsigned char  sha1str[41];
+           sha1_stream(f, sha1);
+           fclose(f);
+
+           sprintf(sha1str, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9], sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
+           o->high = g_str_hash(sha1str);
+       }
+   }
 
    return o;
 }
@@ -251,7 +276,7 @@ static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
 }
 
 static json_object*
-_track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
+_track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum_)
 {
     static unsigned  inscnt = 0;
     json_object*  jobj = json_object_new_object();
@@ -332,7 +357,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
          *
          * store corresponding items with the hash tables
          */
-        track->userdata = hash_trk_init(track);
+        track->userdata = hash_trk_init(track, cksum_);
         track->userdata_destroy = hash_trk_free;
 
         g_hash_table_insert(htbl_->high,
@@ -350,7 +375,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_)
 }
 
 static json_object*
-_playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_)
+_playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum_)
 {
     GList *it;
     const char*  type;
@@ -376,7 +401,7 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_)
 	Itdb_Track *track;
 	
 	track = (Itdb_Track *)it->data;
-	json_object_array_add(jtracks, _track(track, master, master ? hdl_ : NULL, master ? htbl_ : NULL));
+	json_object_array_add(jtracks, _track(track, master, master ? hdl_ : NULL, master ? htbl_ : NULL, cksum_));
     }
     json_object_object_add(jobj, "tracks", jtracks);
 
@@ -407,15 +432,19 @@ static const char*  _setlocale()
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB>  [-Q sqlite3 db outfile]\n"
+    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB>  [-Q sqlite3 db outfile] [-c]\n"
              "\n"
              "    dumps the iTunesDB as a json object listing internal (iPod,\n"
              "    podcasts) and user (smartpl, normal) playlists\n"
              "\n"
              "    Each playlist will display track information but fully on 'master'\n"
              "\n"
-             "    A sqlite3 file can be generated, with a 'tracks' db, representing\n"
-             "    all tracks in iTunesDB\n"
+             "    -M <dir | file>   location of iPod data, as directory mount point or\n"
+             "                      as a iTunesDB file  \n"
+             "    -Q <sqlite3 db>   generate sqlite3 with a 'tracks' db, representing\n"
+             "                      all tracks in iTunesDB\n"
+             "    -c                generate checksum of each file in iTunesDB for \n"
+             "                      analysis - this can be slow\n"
              "\n"
              "\n"
              "    Use 'jq' for basic data mining and sqlite3 for more involved work\n"
@@ -445,14 +474,16 @@ main (int argc, char *argv[])
     struct {
         const char*  itdb_path;
         const char*  db_path;
-    } opts = { NULL, NULL };
+        bool cksum;
+    } opts = { NULL, NULL, false };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:Q:h")) != EOF)
+    while ( (c=getopt(argc, argv, "M:Q:ch")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'Q':  opts.db_path = optarg;  break;
+            case 'c':  opts.cksum = true;  break;
 
             case 'h':
             default:
@@ -564,7 +595,7 @@ main (int argc, char *argv[])
     for (it = itdb->playlists; it != NULL; it = it->next)
     {
         Itdb_Playlist*  playlist = (Itdb_Playlist *)it->data;
-        json_object_array_add(jplylistitems, _playlist(playlist, hdl, &htbl));
+        json_object_array_add(jplylistitems, _playlist(playlist, hdl, &htbl, opts.cksum));
     }
     json_object_object_add(jplylists, "items", jplylistitems);
     json_object_object_add(jplylists, "count", json_object_new_int(g_list_length(itdb->playlists)));
