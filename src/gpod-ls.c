@@ -31,6 +31,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include <glib.h>
 #include <gmodule.h>
@@ -403,6 +404,37 @@ static const char*  _setlocale()
     return l;
 }
 
+void  _usage(char* argv0_)
+{
+    char *basename = g_path_get_basename (argv0_);
+    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB>  [-Q sqlite3 db outfile]\n"
+             "\n"
+             "    dumps the iTunesDB as a json object listing internal (iPod,\n"
+             "    podcasts) and user (smartpl, normal) playlists\n"
+             "\n"
+             "    Each playlist will display track information but fully on 'master'\n"
+             "\n"
+             "    A sqlite3 file can be generated, with a 'tracks' db, representing\n"
+             "    all tracks in iTunesDB\n"
+             "\n"
+             "\n"
+             "    Use 'jq' for basic data mining and sqlite3 for more involved work\n"
+             "\n"
+             "    # create a subject json object from data naming artist name \n"
+             "      jq   '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
+             "        .tracks[] | select(.artist==\"Foo\") | {id, ipod_path, title}'\\\n"
+             "      foo.json\n"
+             "\n"
+             "    # unquoted json strings of output matching artist name - useful as data\n"
+             "    # inputs to gpod-rm or gpod-tag\n"
+             "      jq -r '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
+             "        .tracks[] | select(.artist==\"Foo\") | .ipod_path, .id'\\\n"
+             "      foo.json\n"
+             , basename);
+    g_free (basename);
+    exit(-1);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -410,55 +442,46 @@ main (int argc, char *argv[])
     Itdb_iTunesDB*  itdb = NULL;
     Itdb_Device*  itdev = NULL;
     sqlite3*  hdl = NULL;
+    struct {
+        const char*  itdb_path;
+        const char*  db_path;
+    } opts = { NULL, NULL };
 
-    if (argc != 2 && argc != 3)
+    int  c;
+    while ( (c=getopt(argc, argv, "M:Q:h")) != EOF)
     {
-        char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [sqlite3 db outfile]\n"
-		 "\n"
-		 "    dumps the iTunesDB as a json object listing internal (iPod,\n"
-		 "    podcasts) and user (smartpl, normal) playlists\n"
-		 "\n"
-		 "    Each playlist will display track information but fully on 'master'\n"
-		 "\n"
-		 "    A sqlite3 file can be generated, with a 'tracks' db, representing\n"
-		 "    all tracks in iTunesDB\n"
-		 "\n"
-		 "    Use 'jq' for basic data mining and sqlite3 for more involved work\n"
-		 "\n"
-		 "    # create a subject json object from data naming artist name \n"
-		 "      jq   '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
-		 "        .tracks[] | select(.artist==\"Foo\") | {id, ipod_path, title}'\\\n"
-		 "      foo.json\n"
-		 "\n"
-		 "    # unquoted json strings of output matching artist name - useful as data\n"
-		 "    # inputs to gpod-rm or gpod-tag\n"
-		 "      jq -r '.ipod_data.playlists.items[] | select(.type == \"master\") |\\\n"
-		 "        .tracks[] | select(.artist==\"Foo\") | .ipod_path, .id'\\\n"
-		 "      foo.json\n"
-		 , basename);
-        g_free (basename);
-        exit(-1);
+        switch (c) {
+            case 'M':  opts.itdb_path = optarg;  break;
+            case 'Q':  opts.db_path = optarg;  break;
+
+            case 'h':
+            default:
+                _usage(argv[0]);
+        }
+    }
+
+    if (opts.itdb_path == NULL) {
+        _usage(argv[0]);
     }
 
     _setlocale();
 
     const char*  argtype = "unknown";
-    if (g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
-        itdb = itdb_parse (argv[1], &error);
+    if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
+        itdb = itdb_parse (opts.itdb_path, &error);
         argtype = "directroy";
         itdev = itdb_device_new();
-        itdb_device_set_mountpoint(itdev, argv[1]);
+        itdb_device_set_mountpoint(itdev, opts.itdb_path);
     }
     else {
-        if (g_file_test(argv[1], G_FILE_TEST_EXISTS)) {
-            itdb = itdb_parse_file(argv[1], &error);
+        if (g_file_test(opts.itdb_path, G_FILE_TEST_EXISTS)) {
+            itdb = itdb_parse_file(opts.itdb_path, &error);
             argtype = "file";
 
             // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
             // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
             char mountpoint[PATH_MAX];
-            strcpy(mountpoint, argv[1]);
+            strcpy(mountpoint, opts.itdb_path);
 
             char*  dmp;
             if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
@@ -472,7 +495,7 @@ main (int argc, char *argv[])
     if (error)
     {
         if (error->message) {
-            g_printerr("failed to prase iTunesDB via (%s) %s - %s\n", argtype, argv[1], error->message);
+            g_printerr("failed to prase iTunesDB via (%s) %s - %s\n", argtype, opts.itdb_path, error->message);
         }
         g_error_free (error);
         error = NULL;
@@ -480,18 +503,18 @@ main (int argc, char *argv[])
     }
 
     if (itdb == NULL) {
-        g_print("failed to open iTunesDB via (%s) %s\n", argtype, argv[1]);
+        g_print("failed to open iTunesDB via (%s) %s\n", argtype, opts.itdb_path);
         return -1;
     }
 
-    if (argc == 3) {
-        if (g_file_test(argv[2], G_FILE_TEST_EXISTS)) {
-            g_printerr("requested DB file exists, NOT overwritting '%s'\n", argv[2]);
+    if (opts.db_path) {
+        if (g_file_test(opts.db_path, G_FILE_TEST_EXISTS)) {
+            g_printerr("requested DB file exists, NOT overwritting '%s'\n", opts.db_path);
 	    return -1;
         }
 
-        if (sqlite3_open(argv[2], &hdl) != SQLITE_OK) {
-            g_printerr("failed to open '%s': %s\n", argv[2], sqlite3_errmsg(hdl));
+        if (sqlite3_open(opts.db_path, &hdl) != SQLITE_OK) {
+            g_printerr("failed to open '%s': %s\n", opts.db_path, sqlite3_errmsg(hdl));
             sqlite3_close(hdl);
             hdl = NULL;
         }
