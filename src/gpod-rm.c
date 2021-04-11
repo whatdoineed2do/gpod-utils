@@ -32,6 +32,129 @@
 #include <glib.h>
 #include <gpod/itdb.h>
 
+#include "sha1.h"
+
+
+static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_)
+{
+    struct tm  tm;
+    char dt[20];
+
+    gmtime_r(&(track_->time_added), &tm);
+    strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
+
+    g_print("%s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)\n", track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt);
+
+
+    // remove from all playlists
+    GList*  i;
+    for (i = itdb_->playlists; i!=NULL; i=i->next) {
+        Itdb_Playlist*  playlist = (Itdb_Playlist *)i->data;
+        itdb_playlist_remove_track(playlist, track_);
+    }
+
+    // remove (and free mem)
+    itdb_track_remove(track_);
+    ++(*removed_);
+}
+
+
+// hash creation
+static guint  gpod_rm_hash(Itdb_Track* track_)
+{ 
+    char  path[PATH_MAX];
+    sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
+    itdb_filename_ipod2fs(path);
+
+    FILE*  f;
+    if ( (f=fopen(path, "r")) == NULL) {
+        return 0;
+    }
+
+    unsigned char  sha1[20];  // hex buffer
+    char  sha1str[41];
+    sha1_stream(f, sha1);
+    fclose(f);
+    f = NULL;
+
+    sprintf(sha1str, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9], sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
+
+    const guint  hash = g_str_hash(sha1str);
+    track_->userdata = malloc(sizeof(guint));
+    *((guint*)track_->userdata) = hash;
+    track_->userdata_destroy = free;
+
+    return hash;
+}
+
+static guint  autoclean_hash(gconstpointer v_)
+{ 
+    return *((guint*)(v_));
+}
+
+
+static gboolean  autoclean_hash_equals(gconstpointer v0_, gconstpointer v1_)
+{
+    return *((guint*)v0_) == *((guint*)v1_);
+}
+
+static gint  autoclean_guintp_cmp(gconstpointer a_, gconstpointer b_)
+{
+    const Itdb_Track*  x = (Itdb_Track*)a_;
+    const Itdb_Track*  y = (Itdb_Track*)b_;
+
+    return x->time_added  < y->time_added ? -1 :
+           x->time_added == y->time_added ?  0 : 1;
+}
+
+static void  autoclean_destroy(gpointer k_, gpointer v_, gpointer d_)
+{
+    g_slist_free(v_);
+}
+
+static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
+{
+    // cksum all files and remove the dupl, keeping the oldest
+
+    Itdb_Track*  track;
+
+    GHashTable*  htbl = g_hash_table_new(autoclean_hash, autoclean_hash_equals);
+
+    track = NULL;
+    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
+    for (GList* i=mpl->members; i!=NULL; i=i->next)
+    {
+        track = (Itdb_Track*)i->data;
+        gpod_rm_hash(track);
+
+        g_hash_table_insert(htbl,
+                            track->userdata,
+                            g_slist_insert_sorted(g_hash_table_lookup(htbl, track->userdata),
+                                                  track,
+                                                  autoclean_guintp_cmp));
+    }
+
+
+    gpointer  key;
+    gpointer  value;
+
+    GHashTableIter  i;
+    g_hash_table_iter_init (&i, htbl);
+    while (g_hash_table_iter_next(&i, &key, &value))
+    {
+        GSList*  l = (GSList*)value;
+        if (g_slist_length(l) > 1)
+        {
+            for (GSList* j=l->next; j!=NULL; j=j->next) {
+                _remove_track(itdb_, (Itdb_Track*)j->data, removed_);
+            }
+        }
+    }
+
+    g_hash_table_foreach(htbl, autoclean_destroy, NULL);
+    g_hash_table_destroy(htbl);
+}
+
 
 static const char*  _setlocale()
 {
@@ -64,7 +187,7 @@ main (int argc, char *argv[])
     if (argc < 3)
     {
         char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.mp3> ...]\n"
+        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [--autoclean | <file0.mp3> [<file1.mp3> ...]\n"
                  "\n"
                  "    This utility removes specified file the iPod/iTunesDB\n"
                  "    Filenames are provided relative to the iPod mountpoint; ie\n"
@@ -128,10 +251,12 @@ main (int argc, char *argv[])
     bool  first = true;
     uint64_t  removed = 0;
     uint64_t  requested = 0;
-    struct tm  tm;
-    char dt[20];
 
     char**  p = &argv[2];
+    if (strcmp(*p++, "--autoclean") == 0) {
+        autoclean(itdb, &removed);
+    }
+
     while (*p)
     {
         ++requested;
@@ -160,26 +285,12 @@ main (int argc, char *argv[])
         }
         first = false;
 
-        if (track) {
-            gmtime_r(&(track->time_added), &tm);
-            strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
-
-            g_print("%s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)\n", ipod_path, track->id, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->time_added, dt);
-        }
-        else {
+        if (!track) {
             g_printerr("%s -> { <on iPod filessystem, not in master> } - Ignoring\n", ipod_path);
             continue;
         }
 
-        // remove from all playlists
-        for (it = itdb->playlists; it != NULL; it = it->next) {
-            Itdb_Playlist*  playlist = (Itdb_Playlist *)it->data;
-            itdb_playlist_remove_track(playlist, track);
-        }
-
-        // remove (and free mem)
-        itdb_track_remove(track);
-        ++removed;
+        _remove_track(itdb, track, &removed);
     }
 
     if (removed)

@@ -14,7 +14,7 @@ gpod_ls_SOURCES = \
 	gpod-ls.c sha1.c
 
 gpod_rm_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
-gpod_rm_SOURCES = gpod-rm.c
+gpod_rm_SOURCES = gpod-rm.c sha1.c
 
 gpod_tag_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
 gpod_tag_SOURCES = gpod-tag.c
