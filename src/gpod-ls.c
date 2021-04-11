@@ -131,7 +131,7 @@ json_object_add_boolean(json_object* obj_, const char* tag_, const bool data_)
 
 typedef struct _TrkHash {
     long  high;    // file size/len/artist/title/album
-    long  med;     // file size/len/artist/title
+    long  med;     // artist/title
     long  low;     // file size/len
 } TrkHash;
 
@@ -141,8 +141,8 @@ static TrkHash*  hash_trk_init(const Itdb_Track* track_)
    memset(o, 0, sizeof(TrkHash));
 
    o->low = track_->size + track_->tracklen + track_->bitrate + track_->samplerate;
-   o->med = o->low + (track_->artist ? g_str_hash(track_->artist) : 0)  + (track_->title ? g_str_hash(track_->title) : 0);
-   o->high = o->med + (track_->album ? g_str_hash(track_->album) : 0);
+   o->med = (track_->artist ? g_str_hash(track_->artist) : 0)  + (track_->title ? g_str_hash(track_->title) : 0);
+   o->high = o->low + o->med + (track_->album ? g_str_hash(track_->album) : 0);
 
    return o;
 }
