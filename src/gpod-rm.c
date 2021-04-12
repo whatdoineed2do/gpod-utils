@@ -29,6 +29,7 @@
 #include <limits.h>
 
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
 #include "gpod-utils.h"
@@ -226,7 +227,7 @@ main (int argc, char *argv[])
         sprintf(path, "%s/%s", mountpoint, ipod_path);
 
         if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-            g_printerr("Ignoring '%s' - No such file or directory\n", path);
+            g_printerr("%s -> { No such file or directory }\n", ipod_path);
             continue;
         }
 
@@ -246,12 +247,14 @@ main (int argc, char *argv[])
         }
         first = false;
 
-        if (!track) {
-            g_printerr("%s -> { <on iPod filessystem, not in master> } - Ignoring\n", ipod_path);
-            continue;
+        if (track) {
+            _remove_track(itdb, track, &removed);
         }
-
-        _remove_track(itdb, track, &removed);
+        else {
+            g_print("%s -> { Not in master }\n", ipod_path);
+            g_unlink(path);
+            ++removed;
+        }
     }
 
     if (removed)
