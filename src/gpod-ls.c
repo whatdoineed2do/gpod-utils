@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <locale.h>
 #include <stdbool.h>
 #include <time.h>
 #include <limits.h>
@@ -40,7 +39,7 @@
 #include <sqlite3.h>
 
 #include "gpod-db.h"
-#include "sha1.h"
+#include "gpod-utils.h"
 
 
 bool  db_create(sqlite3 *hdl_)
@@ -148,26 +147,8 @@ static TrkHash*  hash_trk_init(const Itdb_Track* track_, bool cksum_)
    if (!cksum_) {
        o->high = o->low + o->med + (track_->album ? g_str_hash(track_->album) : 0);
    }
-   else
-   {
-       char  path[PATH_MAX];
-       sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
-       itdb_filename_ipod2fs(path);
-
-       FILE*  f;
-       if ( (f=fopen(path, "r")) == NULL) {
-           o->high = o->med;
-       }
-       else
-       {
-           unsigned char  sha1[20];  // hex buffer
-           unsigned char  sha1str[41];
-           sha1_stream(f, sha1);
-           fclose(f);
-
-           sprintf(sha1str, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9], sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
-           o->high = g_str_hash(sha1str);
-       }
+   else {
+       o->high = gpod_hash(track_);
    }
 
    return o;
@@ -408,26 +389,6 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum
     return jobj;
 }
 
-static const char*  _setlocale()
-{
-    const char*  attempts[] = {
-        "en_US.UTF-8",
-        "en_GB.UTF-8",
-        "C.utf8",
-        "C.UTF-8",  // debian specific version
-        NULL
-    };
-
-    const char*  l;
-    const char**  p = attempts;
-    while (*p) {
-        if ( (l = setlocale(LC_ALL, *p))) {
-          break;
-        }
-        ++p;
-    }
-    return l;
-}
 
 void  _usage(char* argv0_)
 {
@@ -495,7 +456,7 @@ main (int argc, char *argv[])
         _usage(argv[0]);
     }
 
-    _setlocale();
+    gpod_setlocale();
 
     const char*  argtype = "unknown";
     if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {

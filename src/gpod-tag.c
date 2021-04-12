@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <locale.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -33,27 +32,8 @@
 #include <glib.h>
 #include <gpod/itdb.h>
 
+#include "gpod-utils.h"
 
-static const char*  _setlocale()
-{
-    const char*  attempts[] = {
-        "en_US.UTF-8",
-        "en_GB.UTF-8",
-        "C.utf8",
-        "C.UTF-8",  // debian specific version
-        NULL
-    };
-
-    const char*  l;
-    const char**  p = attempts;
-    while (*p) {
-        if ( (l = setlocale(LC_ALL, *p))) {
-          break;
-        }
-        ++p;
-    }
-    return l;
-}
 
 
 struct gpod_opts {
@@ -149,7 +129,7 @@ main (int argc, char *argv[])
     }
 
 
-    _setlocale();
+    gpod_setlocale();
 
     char  mountpoint[PATH_MAX];
 

@@ -35,13 +35,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <locale.h>
 #include <signal.h>
 
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
 #include "gpod-ffmpeg.h"
+#include "gpod-utils.h"
 
 
 /* parse the track info to make sure its a compatible format, if not supported 
@@ -183,27 +183,6 @@ static void  walk_dir(const gchar *dir, GSList **l)
     g_dir_close(dir_handle);
 }
 
-static const char*  _setlocale()
-{
-    const char*  attempts[] = {
-        "en_US.UTF-8",
-        "en_GB.UTF-8",
-        "C.utf8",
-        "C.UTF-8",  // debian specific version
-        NULL
-    };
-
-    const char*  l;
-    const char**  p = attempts;
-    while (*p) {
-        if ( (l = setlocale(LC_ALL, *p))) {
-          break;
-        }
-        ++p;
-    }
-    return l;
-}
-
 
 static bool  gpod_stop = false;
 static void  _sighandler(const int sig_)
@@ -276,7 +255,7 @@ int main (int argc, char *argv[])
         exit(-1);
     }
 
-    _setlocale();
+    gpod_setlocale();
     gpod_ff_init();
 
     char  mountpoint[PATH_MAX];
