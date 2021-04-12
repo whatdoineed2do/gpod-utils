@@ -267,11 +267,9 @@ main (int argc, char *argv[])
              g_error_free (error);
              ret = 1;
         }
-        g_print("updated iPod, total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
     }
-    else {
-        g_printerr("failed to remove %d/%d\n", removed, requested);
-    }
+    g_print("iPod total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
+
     itdb_free (itdb);
 
     return ret;
