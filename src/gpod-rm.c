@@ -58,65 +58,15 @@ static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* r
     ++(*removed_);
 }
 
-
-// hash creation
-static guint  gpod_rm_hash(Itdb_Track* track_)
-{ 
-    const guint  hash = gpod_hash(track_);
-    track_->userdata = malloc(sizeof(guint));
-    *((guint*)track_->userdata) = hash;
-    track_->userdata_destroy = free;
-
-    return hash;
-}
-
-static guint  autoclean_hash(gconstpointer v_)
-{ 
-    return *((guint*)(v_));
-}
-
-
-static gboolean  autoclean_hash_equals(gconstpointer v0_, gconstpointer v1_)
-{
-    return *((guint*)v0_) == *((guint*)v1_);
-}
-
-static gint  autoclean_guintp_cmp(gconstpointer a_, gconstpointer b_)
-{
-    const Itdb_Track*  x = (Itdb_Track*)a_;
-    const Itdb_Track*  y = (Itdb_Track*)b_;
-
-    return x->time_added  < y->time_added ? -1 :
-           x->time_added == y->time_added ?  0 : 1;
-}
-
-static void  autoclean_destroy(gpointer k_, gpointer v_, gpointer d_)
-{
-    g_slist_free(v_);
-}
-
 static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
 {
     // cksum all files and remove the dupl, keeping the oldest
 
-    Itdb_Track*  track;
+    struct gpod_track_fs_hash  tfsh;
+    gpod_track_fs_hash_init(&tfsh, itdb_);
 
-    GHashTable*  htbl = g_hash_table_new(autoclean_hash, autoclean_hash_equals);
 
-    track = NULL;
-    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
-    for (GList* i=mpl->members; i!=NULL; i=i->next)
-    {
-        track = (Itdb_Track*)i->data;
-        gpod_rm_hash(track);
-
-        g_hash_table_insert(htbl,
-                            track->userdata,
-                            g_slist_insert_sorted(g_hash_table_lookup(htbl, track->userdata),
-                                                  track,
-                                                  autoclean_guintp_cmp));
-    }
-
+    GHashTable*  htbl = tfsh.tbl;
 
     gpointer  key;
     gpointer  value;
@@ -134,8 +84,7 @@ static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
         }
     }
 
-    g_hash_table_foreach(htbl, autoclean_destroy, NULL);
-    g_hash_table_destroy(htbl);
+    gpod_track_fs_hash_destroy(&tfsh);
 }
 
 
