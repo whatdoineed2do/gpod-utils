@@ -15,7 +15,7 @@ Optionally an `SQLite3` db can be generated for easier investigation.
 
 This utility can work on a mounted `iPod` or directly pointing the `iTunesDB` file - the following works on an old `iPod Video 5G`.
 ```
-$ gpod-ls /run/media/ray/IPOD | tee ipod.json | jq '.'
+$ gpod-ls -M /run/media/ray/IPOD | tee ipod.json | jq '.'
 {
   "ipod_data" {
     "playlists": {
@@ -97,8 +97,8 @@ $ gpod-ls /run/media/ray/IPOD | tee ipod.json | jq '.'
 Directly on the db file and generating a standalone db
 ```
 $ gpod-ls \
-    /run/media/ray/IPOD/iPod_Control/iTunes/iTunesDB \
-    /tmp/ipod.sqlite3
+    -M /run/media/ray/IPOD/iPod_Control/iTunes/iTunesDB \
+    -Q /tmp/ipod.sqlite3
 ```
 The `json` output is not pretty printed but rather you can use other tools, such as [`jq`](https://stedolan.github.io/jq/) to perform simple queries or to use the generated DB file.
 
@@ -175,16 +175,16 @@ iPod total tracks=87 (originally=88)
 The `--autoclean` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
 ## `gpod-cp`
-Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.
+Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
 ```
-$ gpod-cp /run/media/ray/IPOD \
+$ gpod-cp -M /run/media/ray/IPOD -c \
     nothere.mp3 foo.flac foo.mp3 
 copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 [  1/3]  nothere.mp3 -> { } No such file or directory
 [  2/3]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.mp3' }
 [  3/3]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' }
-sync'ing iPod ... adding 2/3
-updated iPod, new total tracks=29 (originally=27)
+sync'ing iPod ... 
+iPod total tracks=29  (+2/3 items music=2 video=0 other=0  in 0.231 secs)
 ```
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not accept video files that have not had a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied and played onto the iPod.
 
