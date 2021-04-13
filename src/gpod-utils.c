@@ -57,8 +57,13 @@ guint  gpod_hash(const Itdb_Track* track_)
     sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
     itdb_filename_ipod2fs(path);
 
+    return gpod_hash_file(path);
+}
+
+guint  gpod_hash_file(const char* path_)
+{
     FILE*  f;
-    if ( (f=fopen(path, "r")) == NULL) {
+    if ( (f=fopen(path_, "r")) == NULL) {
         return 0;
     }
 
