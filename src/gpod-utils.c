@@ -17,6 +17,8 @@
  *
  */
 
+#include "gpod-utils.h"
+
 #include <limits.h>
 #include <locale.h>
 #include <stdio.h>
@@ -70,4 +72,76 @@ guint  gpod_hash(const Itdb_Track* track_)
 
     return g_str_hash(sha1str);
 }
+
+
+
+static guint  _track_mkhash(Itdb_Track* track_)
+{ 
+    const guint  hash = gpod_hash(track_);
+    track_->userdata = malloc(sizeof(guint));
+    *((guint*)track_->userdata) = hash;
+    track_->userdata_destroy = free;
+
+    return hash;
+}
+
+static guint  _track_hash(gconstpointer v_)
+{ 
+    return *((guint*)(v_));
+}
+
+
+static gboolean  _track_hash_equals(gconstpointer v0_, gconstpointer v1_)
+{
+    return *((guint*)v0_) == *((guint*)v1_);
+}
+
+static gint  _track_guintp_cmp(gconstpointer a_, gconstpointer b_)
+{
+    const Itdb_Track*  x = (Itdb_Track*)a_;
+    const Itdb_Track*  y = (Itdb_Track*)b_;
+
+    return x->time_added  < y->time_added ? -1 :
+           x->time_added == y->time_added ?  0 : 1;
+}
+
+static void  _track_destroy(gpointer k_, gpointer v_, gpointer d_)
+{
+    g_slist_free(v_);
+}
+
+
+void  gpod_track_fs_hash_init(struct gpod_track_fs_hash* htbl_, Itdb_iTunesDB* itdb_)
+{
+    memset(htbl_, 0, sizeof(struct gpod_track_fs_hash));
+    htbl_->tbl = g_hash_table_new(_track_hash, _track_hash_equals);
+
+    GHashTable*  htbl = htbl_->tbl;
+
+    Itdb_Track*  track;
+
+    track = NULL;
+    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
+    for (GList* i=mpl->members; i!=NULL; i=i->next)
+    {
+        track = (Itdb_Track*)i->data;
+        _track_mkhash(track);
+
+        g_hash_table_insert(htbl,
+                            track->userdata,
+                            g_slist_insert_sorted(g_hash_table_lookup(htbl, track->userdata),
+                                                  track,
+                                                  _track_guintp_cmp)
+                           );
+    }
+}
+
+void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_)
+{
+    g_hash_table_foreach(htbl_->tbl, _track_destroy, NULL);
+    g_hash_table_destroy(htbl_->tbl);
+
+    memset(htbl_, 0, sizeof(struct gpod_track_fs_hash));
+}
 #endif
+

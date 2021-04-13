@@ -33,6 +33,14 @@ const char*  gpod_setlocale();
 guint  gpod_hash(const Itdb_Track* track_);
 
 
+struct gpod_track_fs_hash {
+    GHashTable*  tbl;
+};
+
+void  gpod_track_fs_hash_init(struct gpod_track_fs_hash* htbl_, Itdb_iTunesDB* itdb_);
+void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_);
+
+
 #ifdef __cplusplus
 }
 #endif
