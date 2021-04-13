@@ -452,7 +452,7 @@ int main (int argc, char *argv[])
 
                     if (added%10 == 0) {
                         // force a upd of the db and clear down pending list 
-                        if (!gpod_write_db(itdb, mountpoint, &pending)) {
+                        if (gpod_write_db(itdb, mountpoint, &pending) < 0) {
                             break;
                         }
                     }
