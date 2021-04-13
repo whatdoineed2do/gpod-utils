@@ -237,6 +237,21 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
+void  _usage(const char* argv0_)
+{
+    char *basename = g_path_get_basename(argv0_);
+    g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.flac> ...]\n\n"
+             "    adds specified files to iPod/iTunesDB\n"
+             "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
+             "\n"
+             "    -M <dir | file>   location of iPod data, as directory mount point or\n"
+             "    -c                generate checksum of each file in iTunesDB for \n"
+             "                      comparison to prevent duplicate\n"
+             ,basename);
+    g_free (basename);
+    exit(-1);
+}
+
 
 int main (int argc, char *argv[])
 {
@@ -245,44 +260,69 @@ int main (int argc, char *argv[])
     Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
-    if (argc < 3)
+    struct {
+        const char*  itdb_path;
+        bool cksum;
+    } opts = { NULL, false };
+
+    int  c;
+    while ( (c=getopt(argc, argv, "M:ch")) != EOF)
     {
-        char *basename = g_path_get_basename(argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.flac> ...]\n\n"
-                 "       This utility adds specified files to iPod/iTunesDB\n"
-                 "       Will automatically transcode unsupported audio (flac,wav etc) to .aac\n", basename);
-        g_free (basename);
-        exit(-1);
+        switch (c) {
+            case 'M':  opts.itdb_path = optarg;  break;
+            case 'c':  opts.cksum = true;  break;
+
+            case 'h':
+            default:
+                _usage(argv[0]);
+        }
     }
+
+    if (opts.itdb_path == NULL) {
+        _usage(argv[0]);
+    }
+
+    if ( !(optind < argc) ) {
+        g_printerr("no inputs\n");
+        _usage(argv[0]);
+    }
+
 
     gpod_setlocale();
     gpod_ff_init();
 
     char  mountpoint[PATH_MAX];
-    strcpy(mountpoint, argv[1]);
 
     itdev = itdb_device_new();
 
     const char*  argtype = "unknown";
-    if (g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
-        itdb = itdb_parse (argv[1], &error);
+    if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
+        itdb = itdb_parse (opts.itdb_path, &error);
         argtype = "directroy";
-        itdb_device_set_mountpoint(itdev, argv[1]);
+        itdev = itdb_device_new();
+        itdb_device_set_mountpoint(itdev, opts.itdb_path);
+        strcpy(mountpoint, opts.itdb_path);
     }
     else {
-        if (g_file_test(argv[1], G_FILE_TEST_EXISTS)) {
-            itdb = itdb_parse_file(argv[1], &error);
+        if (g_file_test(opts.itdb_path, G_FILE_TEST_EXISTS)) {
+            itdb = itdb_parse_file(opts.itdb_path, &error);
             argtype = "file";
-        }
-        // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-        char*  mp;
-        if ( (mp = strstr(mountpoint, "iPod_Control/"))) {
-            *mp = '\0';
-            itdb_device_set_mountpoint(itdev, mountpoint);
-        }
-        else {
-            g_printerr("failed to find iTunesDB structure under %s\n", argv[1]);
-            return -1;
+
+            // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
+            // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
+            char mountpoint[PATH_MAX];
+            strcpy(mountpoint, opts.itdb_path);
+
+            char*  dmp;
+            if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
+                itdev = itdb_device_new();
+                *dmp = '\0';
+                itdb_device_set_mountpoint(itdev, mountpoint);
+            }
+            else {
+                g_printerr("failed to find iTunesDB structure under %s\n", argv[1]);
+                _usage(argv[0]);
+            }
         }
     }
  
@@ -297,7 +337,7 @@ int main (int argc, char *argv[])
     }
 
     if (itdb == NULL) {
-        g_print("failed to open iTunesDB via (%s) %s\n", argtype, argv[1]);
+        g_print("failed to open iTunesDB via (%s) %s\n", argtype, opts.itdb_path);
         return -1;
     }
 
@@ -323,9 +363,9 @@ int main (int argc, char *argv[])
     char dt[20];
 
     GSList*  files = NULL;
-    char**  pa = &argv[2];
-    while (*pa) {
-        walk_dir(*pa++, &files);
+    int  i = optind;
+    while (i < argc) {
+        walk_dir(argv[i++], &files);
     }
     const uint32_t  N = g_slist_length(files);
 
