@@ -53,6 +53,10 @@ static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* r
         itdb_playlist_remove_track(playlist, track_);
     }
 
+    char  path[PATH_MAX];
+    sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
+    g_unlink(path);
+  
     // remove (and free mem)
     itdb_track_remove(track_);
     ++(*removed_);
@@ -164,8 +168,9 @@ main (int argc, char *argv[])
     uint64_t  requested = 0;
 
     char**  p = &argv[2];
-    if (strcmp(*p++, "--autoclean") == 0) {
+    if (strcmp(*p, "--autoclean") == 0) {
         autoclean(itdb, &removed);
+        ++p;
     }
 
     while (*p)
