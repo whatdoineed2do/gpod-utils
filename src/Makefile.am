@@ -22,9 +22,10 @@ gpod_tag_SOURCES = gpod-tag.c gpod-utils.c
 
 if HAVE_FFMPEG
 GPOD_OPT+=gpod-cp
+gpod_cp_CPPFLAGS = -DWANT_GPOD_HASH
 gpod_cp_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
-gpod_cp_CXXFLAGS = $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
-gpod_cp_SOURCES = gpod-cp.cc gpod-ffmpeg.c gpod-ffmpeg-transcode.c gpod-utils.c
+gpod_cp_CXXFLAGS = $(gpod_cp_CPPFLAGS) $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
+gpod_cp_SOURCES = gpod-cp.cc gpod-ffmpeg.c gpod-ffmpeg-transcode.c gpod-utils.c sha1.c
 gpod_cp_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS)

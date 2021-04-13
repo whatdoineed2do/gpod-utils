@@ -183,6 +183,12 @@ static void  walk_dir(const gchar *dir, GSList **l)
     g_dir_close(dir_handle);
 }
 
+static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
+{
+    const guint  hash = track_->itdb ? gpod_hash(track_) : gpod_hash_file(path_);
+    return g_hash_table_lookup(tfsh_->tbl, &hash);
+}
+
 
 static bool  gpod_stop = false;
 static void  _sighandler(const int sig_)
@@ -310,9 +316,6 @@ int main (int argc, char *argv[])
 
             // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
             // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-            char mountpoint[PATH_MAX];
-            strcpy(mountpoint, opts.itdb_path);
-
             char*  dmp;
             if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
                 itdev = itdb_device_new();
@@ -382,6 +385,11 @@ int main (int argc, char *argv[])
     const uint32_t  current = g_list_length(mpl->members);
     g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
 
+    struct gpod_track_fs_hash  tfsh;
+    if (opts.cksum) {
+        gpod_track_fs_hash_init(&tfsh, itdb);
+    }
+
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
     while (p && !gpod_stop)
@@ -411,41 +419,53 @@ int main (int argc, char *argv[])
         }
         else
         {
-            itdb_track_add(itdb, track, -1);
-            itdb_playlist_add_track(mpl, track, -1);
-
             g_print("{ title='%s' artist='%s' album='%s' ipod_path=", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
 
-            ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
+            const bool  dupl = opts.cksum && _track_exists(track, &tfsh, xfrm.path[0] ? xfrm.path : path);
+
+            if (dupl) {
+                g_print(" *** DUPL *** }\n");
+                itdb_track_free(track);
+                track = NULL;
+            }
+            else
+            {
+                itdb_track_add(itdb, track, -1);
+                itdb_playlist_add_track(mpl, track, -1);
+
+                ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
+
+
+                if (ok)
+                {
+                    ++added;
+                    itdb_filename_ipod2fs(track->ipod_path);
+                    g_print("'%s' }\n", track->ipod_path);
+
+                    pending = g_slist_append(pending, g_strdup(track->ipod_path));
+
+                    switch (track->mediatype) {
+                        case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
+                        case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
+                        default: ++stats.other;
+                    }
+
+                    if (added%10 == 0) {
+                        // force a upd of the db and clear down pending list 
+                        if (!gpod_write_db(itdb, mountpoint, &pending)) {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    g_print("N/A } %s\n", error->message ? error->message : "<unknown err>");
+                    itdb_playlist_remove_track(mpl, track);
+                    itdb_track_remove(track);
+                }
+            }
+
             if (xfrm.path[0]) {
                 g_unlink(xfrm.path);
-            }
-
-            if (ok)
-	    {
-                ++added;
-                itdb_filename_ipod2fs(track->ipod_path);
-                g_print("'%s' }\n", track->ipod_path);
-
-		pending = g_slist_append(pending, g_strdup(track->ipod_path));
-
-		switch (track->mediatype) {
-		    case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
-		    case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
-		    default: ++stats.other;
-		}
-
-		if (added%10 == 0) {
-		    // force a upd of the db and clear down pending list 
-		    if (!gpod_write_db(itdb, mountpoint, &pending)) {
-			break;
-		    }
-		}
-            }
-            else {
-                g_print("N/A } %s\n", error->message ? error->message : "<unknown err>");
-                itdb_playlist_remove_track(mpl, track);
-                itdb_track_remove(track);
             }
         }
 
@@ -453,6 +473,9 @@ int main (int argc, char *argv[])
 	    g_error_free(error);
 	    error = NULL;
 	}
+    }
+    if (opts.cksum) {
+        gpod_track_fs_hash_destroy(&tfsh);
     }
     g_slist_free_full(files, g_free);
     files = NULL;
