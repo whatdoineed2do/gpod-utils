@@ -5,6 +5,16 @@ Whilst `libgpod` appears to be in sunset mode (last release in 2015) recent 2021
 
 Note that as of 2021, the `libgpod` last release is at 2.1.5 and their docs suggest the library supports all classic iPods, iPod Touches and early iPhones.  Whilst testing this codebase, only iPods were supported with iPod Touch 1G and onwards not compatible due to the singing requirement of the iTunesDB file on these devices.
 
+### Supported / Tested
+|Model|OS|Supported|Comments
+---|:---:|---:|---
+iPod 5G MA002LL|1.3|Yes|
+iPod 5.5G MA446FB|1.3|Yes|
+iPod Touch 1G|5.1.1|No|tools appear to be success and updates the `iTunesDB`.  Data not reflected one rescan/app.  Remove appears success but next scan file exists, underlying file removed but listing on app exists.  Other tracks continue to be playable
+iPhone 1 MB213B|3.1.3|No|tools appear to be success and updates the `iTunesDB`.  However once a sync has been complete (cp/rm) none of the audio files are playable on the `iPod` app
+
+The underlying support is provided by `libgpod`.
+
 ### mount points
 Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermoumt -u /tmp/ipod` when done.
 
