@@ -243,16 +243,43 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
+static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
+{
+    static const int  supported[] = { 
+	ITDB_IPOD_GENERATION_FIRST,
+	ITDB_IPOD_GENERATION_SECOND,
+	ITDB_IPOD_GENERATION_THIRD,
+	ITDB_IPOD_GENERATION_FOURTH,
+	ITDB_IPOD_GENERATION_PHOTO,
+	ITDB_IPOD_GENERATION_VIDEO_1,
+	ITDB_IPOD_GENERATION_VIDEO_2,
+	ITDB_IPOD_GENERATION_CLASSIC_1,
+	ITDB_IPOD_GENERATION_CLASSIC_2,
+	-1,
+    };
+
+    const int*  p = supported;
+    while (*p)
+    {
+	if (*p == ipi_->ipod_generation) {
+	    return true;
+	}
+	++p;
+    }
+    return false;
+}
+
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s -M [ <dir ipod mount> | <file iTunesDB>]  [-c] [-F] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
              "\n"
              "    -M <dir | file>   location of iPod data, as directory mount point or\n"
              "    -c                generate checksum of each file in iTunesDB for \n"
              "                      comparison to prevent duplicate\n"
+	     "    -F                libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -269,14 +296,16 @@ int main (int argc, char *argv[])
     struct {
         const char*  itdb_path;
         bool cksum;
-    } opts = { NULL, false };
+	bool  force;
+    } opts = { NULL, false, false };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:ch")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFh")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'c':  opts.cksum = true;  break;
+            case 'F':  opts.force = true;  break;
 
             case 'h':
             default:
@@ -382,17 +411,39 @@ int main (int argc, char *argv[])
 
     GSList*  pending = NULL;
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
+
+#define SUPPORT_DEVICE  1 << 1
+#define SUPPORT_FORCED  1 << 2
+
+    const unsigned  support = gpod_cp_supported(ipodinfo) ? SUPPORT_DEVICE : 0 |
+			      opts.force                  ? SUPPORT_FORCED : 0;
+
+    const char*  extra = "";
+    if (support & SUPPORT_DEVICE) {
+	// noop
+    }
+    else if (support & SUPPORT_FORCED) {
+	extra = " - FORCED support for device";
+    }
+    else {
+	extra = " - UNSUPPORTED device";
+	ret = -1;
+    }
+
     const uint32_t  current = g_list_length(mpl->members);
-    g_print("copying %u tracks to iPod %s %s, currently %u tracks\n", N, ipodinfo->model_number, itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), current);
+    g_print("copying %u tracks to iPod %s %s, currently %u tracks%s\n", N,
+		itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
+		ipodinfo->model_number, 
+		current, extra);
 
     struct gpod_track_fs_hash  tfsh;
-    if (opts.cksum) {
+    if (opts.cksum && (support & (SUPPORT_DEVICE|SUPPORT_FORCED) )) {
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
-    while (p && !gpod_stop)
+    while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
     {
         ++requested;
         const char*  path = (const char*)(p->data);
