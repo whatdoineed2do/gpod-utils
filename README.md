@@ -1,17 +1,17 @@
 # `gpod utils`
 Command line tools using [`libgpod`](https://sourceforge.net/p/gtkpod/libgpod/ci/master/tree/) to access `iPod` data.
 
-Whilst `libgpod` appears to be in sunset mode (last release in 2015) recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
+Whilst `libgpod` appears to be in sunset mode (last release in 2015), recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
 
-Note that as of 2021, the `libgpod` last release is at 2.1.5 and their docs suggest the library supports all classic iPods, iPod Touches and early iPhones.  Whilst testing this codebase, only iPods were supported with iPod Touch 1G and onwards not compatible due to the singing requirement of the iTunesDB file on these devices.
+As of 2021, the last `libgpod` release is 0.8.3 - their docs suggests the library supports all classic `iPods`, `iPod Touches` and early `iPhones`.  Whilst testing this codebase, only `iPods` were supported with `iPod Touch 1G` and onwards not compatible due to the singing requirement of the `iTunesDB` file on these devices.
 
 ### Supported / Tested
 |Model|OS|Supported|Comments
 ---|:---:|---:|---
-iPod 5G MA002LL|1.3|Yes|
-iPod 5.5G MA446FB|1.3|Yes|
-iPod Touch 1G|5.1.1|No|tools appear to be success and updates the `iTunesDB`.  Data not reflected one rescan/app.  Remove appears success but next scan file exists, underlying file removed but listing on app exists.  Other tracks continue to be playable
-iPhone 1 MB213B|3.1.3|No|tools appear to be success and updates the `iTunesDB`.  However once a sync has been complete (cp/rm) none of the audio files are playable on the `iPod` app
+`iPod 5G` MA002LL|1.3|Yes|
+`iPod 5.5G` MA446FB|1.3|Yes|
+`iPod Touch 1G`|5.1.1|No|tools appear to be success and updates the `iTunesDB`.  Data not reflected one rescan/app.  Remove appears success but next scan file exists, underlying file removed but listing on app exists.  Other tracks continue to be playable
+`iPhone 1` MB213B|3.1.3|No|tools appear to be success and updates the `iTunesDB`.  However once a sync has been complete (cp/rm) none of the audio files are playable on the `iPod` app
 
 The underlying support is provided by `libgpod`.
 
@@ -166,15 +166,15 @@ Whilst both `gtkpod` and `Rhythmbox` provide good graphical interfaces for addin
 ```
 To examine the main `iPod` playlist where all tracks are stored:
 ```
-$ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master")'
+$ jq '.ipod_data.playlists.items[] | select(.type == "master")' ipod.json
 ```
 Find all tracks for artist _Foo_ but only get filename, title and id
 ```
-$ cat ipod.json | jq '.ipod_data.playlists.items[] | select(.type == "master") | .tracks[] | select(.artist=="Foo") | {id, ipod_path, title, album}'
+$ jq '.ipod_data.playlists.items[] | select(.type == "master") | .tracks[] | select(.artist=="Foo") | {id, ipod_path, title, album}' ipod.json
 ```
 
 ## `gpod-rm`
-Removes track(s) from iPod.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
+Removes track(s) from `iPod`.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
 ```
 $ gpod-rm /run/media/ray/IPOD \
     /iPod_Control/Music/F41/ZNUF.mp3
@@ -185,7 +185,7 @@ iPod total tracks=87 (originally=88)
 The `--autoclean` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
 ## `gpod-cp`
-Copies track(s) to iPod, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
+Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
 ```
 $ gpod-cp -M /run/media/ray/IPOD -c \
     nothere.mp3 foo.flac foo.mp3 
