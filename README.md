@@ -227,3 +227,21 @@ sync'ing iPod ... updated 2/3
 updated iPod, total tracks=29
 ```
 The metadata shown for each tracks is the *existing* data - the new metadata is show at the start of processing.
+
+## `gpod-extract`
+Extracts all or select files from `iPod` and optionally sync'ing metadata (with `-s` flag) on the copied files to the `iTunesDB` values.  No transcoding will be performed on the files, only generic metadata updates (as limited by `ffmpeg`).
+```
+$ gpod-extract -M /run/media/ray/IPOD -o /export/public/music/ -s /iPod_Control/Music/F02/libgpod886634.m4a ...
+extracting 3 tracks from iPod Video (1st Gen.), currently 27 tracks
+[  1/3]  id=521 /iPod_Control/Music/F02/libgpod886634.m4a -> '/export/pubic/music/Foo&Bar - foobar sings.m4a'
+iPod total tracks=27  3/3 items (990.68K) in 0.107 secs
+```
+### `exiftool`
+`exiftool` can be further used to automatically organise files into directory structures if required.
+```
+# rename based on artist
+$ exiftool '-filename<$Artist - $Title.%le' -r -ext mp3 -ext m4a .
+
+# rename based on albums, creating the directory structure as necessary
+$ exiftool '-filename<$Album/$Artist - $Title.%le' -r -ext mp3 -ext m4a .
+```

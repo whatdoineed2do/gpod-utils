@@ -28,6 +28,11 @@ gpod_cp_CXXFLAGS = $(gpod_cp_CPPFLAGS) $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
 gpod_cp_SOURCES = gpod-cp.cc gpod-ffmpeg.c gpod-ffmpeg-transcode.c gpod-utils.c sha1.c
 gpod_cp_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
+GPOD_OPT+=gpod-extract
+gpod_extract_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
+gpod_extract_SOURCES = gpod-extract.c gpod-utils.c
+gpod_extract_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
+
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS)
 test_ff_xcode_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 test_ff_xcode_SOURCES = test-ff-xcode.c gpod-ffmpeg-transcode.c gpod-ffmpeg.c
