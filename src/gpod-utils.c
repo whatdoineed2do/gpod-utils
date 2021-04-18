@@ -22,6 +22,8 @@
 #include <limits.h>
 #include <locale.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 #include <gpod/itdb.h>
 
@@ -48,6 +50,30 @@ const char*  gpod_setlocale()
     }
     return l;
 }
+
+
+char*  gpod_trim(const char* what_)
+{
+    if (what_ == NULL) {
+	return NULL;
+    }
+
+    const char*  p0 = what_;
+    while (*p0 && isspace(*p0)) {
+	++p0;
+    }
+
+    unsigned  p1 = strlen(p0);
+    while (p1 && isspace(p0[p1-1])) { 
+	--p1;
+    }
+
+    char*  buf = malloc(p1+1);
+    buf[p1] = '\0';
+    memcpy(buf , p0, p1);
+    return buf;
+}
+
 
 
 #ifdef WANT_GPOD_HASH

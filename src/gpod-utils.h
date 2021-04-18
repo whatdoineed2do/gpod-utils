@@ -29,6 +29,7 @@ extern "C" {
 
 
 const char*  gpod_setlocale();
+char*  gpod_trim(const char* what_);
 
 // mountpoint is alternative
 guint  gpod_hash(const Itdb_Track* track_);
