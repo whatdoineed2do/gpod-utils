@@ -407,7 +407,8 @@ int main (int argc, char *argv[])
 	uint32_t  music;
 	uint32_t  video;
 	uint32_t  other;
-    } stats = { 0, 0, 0 };
+	size_t    bytes;
+    } stats = { 0, 0, 0, 0 };
 
     struct gpod_ff_transcode_ctx  xfrm;
 
@@ -502,6 +503,7 @@ int main (int argc, char *argv[])
                         case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
                         default: ++stats.other;
                     }
+		    stats.bytes += track->size;
 
                     if (added%10 == 0) {
                         // force a upd of the db and clear down pending list 
@@ -569,14 +571,25 @@ int main (int argc, char *argv[])
         }
     }
 
-    char  userterm[128];
+    char  userterm[128] = { 0 };
     if (gpod_stop) {
 	snprintf(userterm, sizeof(userterm), " -- user terminated, %u items ignored", N-added);
     }
-    else {
-	userterm[0] = '\0';
+
+    char  stats_size[128] = { 0 };
+    if (stats.bytes)
+    {
+	const float  BYTES_KB  = 1024.0;
+	const float  BYTES_MB  = BYTES_KB * 1024.0;
+	const float  BYTES_GB  = BYTES_MB * 1024.0;
+
+	if      (stats.bytes >= BYTES_GB)  sprintf(stats_size, "(%.1fG)", stats.bytes/BYTES_GB);
+	else if (stats.bytes >= BYTES_MB)  sprintf(stats_size, "(%.3fM)", stats.bytes/BYTES_MB);
+	else                               sprintf(stats_size, "(%.2fK)", stats.bytes/BYTES_KB);
     }
-    g_print("iPod total tracks=%u  (+%u/%u items music=%u video=%u other=%u  in %s%s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats.music, stats.video, stats.other, duration, userterm);
+
+
+    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
