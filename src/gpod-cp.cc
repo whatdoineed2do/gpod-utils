@@ -245,6 +245,10 @@ void  gpod_cp_destroy()
 
 static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
 {
+    /* anything that is not on this list requires a hash/cksum'd
+     * iTunesDB/iTunesCDB and sqlite3 db for the ipod which doesn't
+     * work well
+     */
     static const int  supported[] = { 
 	ITDB_IPOD_GENERATION_FIRST,
 	ITDB_IPOD_GENERATION_SECOND,
@@ -253,8 +257,6 @@ static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
 	ITDB_IPOD_GENERATION_PHOTO,
 	ITDB_IPOD_GENERATION_VIDEO_1,
 	ITDB_IPOD_GENERATION_VIDEO_2,
-	ITDB_IPOD_GENERATION_CLASSIC_1,
-	ITDB_IPOD_GENERATION_CLASSIC_2,
 	-1,
     };
 
