@@ -32,6 +32,8 @@
 #include "gpod-ffmpeg.h"
 
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <stdio.h>
 
 #include "libavformat/avformat.h"
@@ -876,6 +878,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
 
+
     /* Open the input file for reading. */
     if (open_input_file(info_->path, &input_format_context,
                         &input_codec_context, &audio_stream_idx, err_))
@@ -953,6 +956,11 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     /* Write the trailer of the output file container. */
     if (write_output_file_trailer(output_format_context, err_))
         goto cleanup;
+
+    struct stat  st;
+    stat(info_->path, &st);
+    info_->file_size = st.st_size;
+
     ret = 0;
 
 cleanup:
