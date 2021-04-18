@@ -101,17 +101,17 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
         track->time_added = time(NULL);
         track->time_modified = track->time_added;
 
-        track->filetype = g_strdup(mi.description);
+        track->filetype = gpod_trim(mi.description);
         track->size = mi.file_size;
         track->tracklen = mi.audio.song_length;
         track->bitrate = mi.audio.bitrate;
         track->samplerate = mi.audio.samplerate;
 
-        track->title = g_strdup(mi.meta.title);
-        track->album = g_strdup(mi.meta.album);
-        track->artist = g_strdup(mi.meta.artist);
-        track->genre = g_strdup(mi.meta.genre);
-        track->comment = g_strdup(mi.meta.comment);
+        track->title = gpod_trim(mi.meta.title);
+        track->album = gpod_trim(mi.meta.album);
+        track->artist = gpod_trim(mi.meta.artist);
+        track->genre = gpod_trim(mi.meta.genre);
+        track->comment = gpod_trim(mi.meta.comment);
         track->track_nr = mi.meta.track;
         track->year = mi.meta.year;
     }
