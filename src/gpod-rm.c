@@ -36,7 +36,7 @@
 #include "gpod-utils.h"
 
 
-static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_)
+static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_, const unsigned current_, const unsigned N_)
 {
     struct tm  tm;
     char dt[20];
@@ -44,7 +44,9 @@ static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* r
     gmtime_r(&(track_->time_added), &tm);
     strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
-    g_print("%s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)\n", track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt);
+    g_print("[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)\n", 
+	    current_, N_,
+	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt);
 
 
     // remove from all playlists
@@ -84,7 +86,7 @@ static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
         if (g_slist_length(l) > 1)
         {
             for (GSList* j=l->next; j!=NULL; j=j->next) {
-                _remove_track(itdb_, (Itdb_Track*)j->data, removed_);
+                _remove_track(itdb_, (Itdb_Track*)j->data, removed_, *removed_+1, 0);
             }
         }
     }
@@ -119,10 +121,13 @@ main (int argc, char *argv[])
     char  mountpoint[PATH_MAX];
     strcpy(mountpoint, argv[1]);
 
+    Itdb_Device*  itdev = itdb_device_new();
+
     const char*  argtype = "unknown";
     if (g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (argv[1], &error);
         argtype = "directroy";
+	itdb_device_set_mountpoint(itdev, argv[1]);
     }
     else {
         if (g_file_test(argv[1], G_FILE_TEST_EXISTS)) {
@@ -133,6 +138,7 @@ main (int argc, char *argv[])
         char*  mp;
         if ( (mp = strstr(mountpoint, "iPod_Control/"))) {
             *mp = '\0';
+	    itdb_device_set_mountpoint(itdev, mountpoint);
         }
         else {
             return -1;
@@ -168,11 +174,19 @@ main (int argc, char *argv[])
     uint64_t  removed = 0;
     uint64_t  requested = 0;
 
+
+    const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
+    g_print("removings tracks from iPod %s %s, currently %u tracks%s\n",
+                itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
+                ipodinfo->model_number,
+                current);
+
     char**  p = &argv[2];
     if (strcmp(*p, "--autoclean") == 0) {
         autoclean(itdb, &removed);
         ++p;
     }
+    const unsigned  N = argv+argc - p;
 
     GTree*  tree = NULL;
     while (*p)
@@ -210,15 +224,15 @@ main (int argc, char *argv[])
 	    first = false;
 
 	    if (track) {
-		_remove_track(itdb, track, &removed);
+		_remove_track(itdb, track, &removed, requested, N);
 	    }
 	    else
 	    {
 		if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-		    g_printerr("%s -> { Not on iPod/iTunesDB }\n", ipod_path);
+		    g_printerr("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, ipod_path);
 		}
 		else {
-		    g_print("%s -> { Not on iTunesDB }\n", ipod_path);
+		    g_print("[%3u/%u]  %s -> { Not on iTunesDB }\n", requested, N, ipod_path);
 		    g_unlink(path);
 		    ++removed;
 		}
@@ -232,10 +246,10 @@ main (int argc, char *argv[])
 
 	    track = itdb_track_id_tree_by_id(tree, atol(arg));
 	    if (track) {
-		_remove_track(itdb, track, &removed);
+		_remove_track(itdb, track, &removed, requested, N);
 	    }
 	    else {
-		g_print("%s -> { Not on iPod/iTunesDB }\n", arg);
+		g_print("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, arg);
 	    }
 	}
     }
@@ -257,6 +271,7 @@ main (int argc, char *argv[])
     }
     g_print("iPod total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
 
+    itdb_device_free(itdev);
     itdb_free (itdb);
 
     return ret;
