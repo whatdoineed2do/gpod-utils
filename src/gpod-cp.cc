@@ -336,7 +336,6 @@ int main (int argc, char *argv[])
     if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (opts.itdb_path, &error);
         argtype = "directroy";
-        itdev = itdb_device_new();
         itdb_device_set_mountpoint(itdev, opts.itdb_path);
         strcpy(mountpoint, opts.itdb_path);
     }
@@ -349,7 +348,6 @@ int main (int argc, char *argv[])
             // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
             char*  dmp;
             if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
-                itdev = itdb_device_new();
                 *dmp = '\0';
                 itdb_device_set_mountpoint(itdev, mountpoint);
             }
