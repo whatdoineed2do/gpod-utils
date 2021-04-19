@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <limits.h>
+#include <ctype.h>
 
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -173,43 +174,75 @@ main (int argc, char *argv[])
         ++p;
     }
 
+    GTree*  tree = NULL;
     while (*p)
     {
         ++requested;
-        const char*  ipod_path = *p++;
+        const char*  arg = *p++;
 
-        sprintf(path, "%s/%s", mountpoint, ipod_path);
+	// is it a path or an id
+	const char*  d = arg;
+	while (*d && isdigit(*d)) {
+	    ++d;
+	}
 
-        if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-            g_printerr("%s -> { No such file or directory }\n", ipod_path);
-            continue;
+	if (*d)
+	{
+	    const char*  ipod_path = arg;
+
+	    sprintf(path, "%s%s/%s", (*arg == '/' ? "" : "/"), mountpoint, ipod_path);
+
+
+	    // find the corresponding track
+	    track = NULL;
+	    for (it = mpl->members; it != NULL; it = it->next)
+	    {
+		tmptrack = (Itdb_Track *)it->data;
+		if (first) {
+		    itdb_filename_ipod2fs(tmptrack->ipod_path);
+		}
+
+		if (strcmp(ipod_path, tmptrack->ipod_path) == 0) {
+		    track = tmptrack;
+		    break;
+		}
+	    }
+	    first = false;
+
+	    if (track) {
+		_remove_track(itdb, track, &removed);
+	    }
+	    else
+	    {
+		if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
+		    g_printerr("%s -> { Not on iPod/iTunesDB }\n", ipod_path);
+		}
+		else {
+		    g_print("%s -> { Not on iTunesDB }\n", ipod_path);
+		    g_unlink(path);
+		    ++removed;
+		}
+	    }
         }
+	else
+	{
+	    if (tree == NULL) {
+		tree = itdb_track_id_tree_create(itdb);
+	    }
 
-        // find the corresponding track
-        track = NULL;
-        for (it = mpl->members; it != NULL; it = it->next)
-        {
-            tmptrack = (Itdb_Track *)it->data;
-            if (first) {
-                itdb_filename_ipod2fs(tmptrack->ipod_path);
-            }
-
-            if (strcmp(ipod_path, tmptrack->ipod_path) == 0) {
-                track = tmptrack;
-                break;
-            }
-        }
-        first = false;
-
-        if (track) {
-            _remove_track(itdb, track, &removed);
-        }
-        else {
-            g_print("%s -> { Not in master }\n", ipod_path);
-            g_unlink(path);
-            ++removed;
-        }
+	    track = itdb_track_id_tree_by_id(tree, atol(arg));
+	    if (track) {
+		_remove_track(itdb, track, &removed);
+	    }
+	    else {
+		g_print("%s -> { Not on iPod/iTunesDB }\n", arg);
+	    }
+	}
     }
+    if (tree) {
+	itdb_track_id_tree_destroy(tree);
+    }
+    tree = NULL;
 
     if (removed)
     {
