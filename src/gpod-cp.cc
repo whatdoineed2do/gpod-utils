@@ -382,9 +382,6 @@ int main (int argc, char *argv[])
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
 
-    char  path[PATH_MAX];
-    Itdb_Track*  track;
-    Itdb_Track*  tmptrack;
     GList*  it;
     char*  err = NULL;
 
@@ -442,6 +439,7 @@ int main (int argc, char *argv[])
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
+    Itdb_Track*  track = NULL;
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
     while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
@@ -461,7 +459,6 @@ int main (int argc, char *argv[])
 
         gpod_ff_transcode_ctx_init(&xfrm);
 
-        Itdb_Track*  track = NULL;
         bool  ok = true;
         if ( (track = _track(path, &xfrm, &err)) == NULL) {
             ok = false;
