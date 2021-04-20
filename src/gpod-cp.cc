@@ -274,14 +274,14 @@ static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s -M [ <dir ipod mount> | <file iTunesDB>]  [-c] [-F] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
              "\n"
-             "    -M <dir | file>   location of iPod data, as directory mount point or\n"
-             "    -c                generate checksum of each file in iTunesDB for \n"
-             "                      comparison to prevent duplicate\n"
-	     "    -F                libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
+             "    -M <iPod dir>  location of iPod data, as directory mount point or\n"
+             "    -c             generate checksum of each file in iTunesDB for \n"
+             "                   comparison to prevent duplicate\n"
+	     "    -F             libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -330,38 +330,18 @@ int main (int argc, char *argv[])
 
     char  mountpoint[PATH_MAX];
 
-    itdev = itdb_device_new();
 
-    const char*  argtype = "unknown";
     if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (opts.itdb_path, &error);
-        argtype = "directroy";
+	itdev = itdb_device_new();
         itdb_device_set_mountpoint(itdev, opts.itdb_path);
         strcpy(mountpoint, opts.itdb_path);
-    }
-    else {
-        if (g_file_test(opts.itdb_path, G_FILE_TEST_EXISTS)) {
-            itdb = itdb_parse_file(opts.itdb_path, &error);
-            argtype = "file";
-
-            // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
-            // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-            char*  dmp;
-            if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
-                *dmp = '\0';
-                itdb_device_set_mountpoint(itdev, mountpoint);
-            }
-            else {
-                g_printerr("failed to find iTunesDB structure under %s\n", argv[1]);
-                _usage(argv[0]);
-            }
-        }
     }
  
     if (error)
     {
         if (error->message) {
-            g_printerr("failed to prase iTunesDB via (%s) %s - %s\n", argtype, argv[1], error->message);
+            g_printerr("failed to prase iTunesDB via %s - %s\n", opts.itdb_path, error->message);
         }
         g_error_free (error);
         error = NULL;
@@ -369,7 +349,7 @@ int main (int argc, char *argv[])
     }
 
     if (itdb == NULL) {
-        g_print("failed to open iTunesDB via (%s) %s\n", argtype, opts.itdb_path);
+        g_print("failed to open iTunesDB via %s\n", opts.itdb_path);
         return -1;
     }
 
