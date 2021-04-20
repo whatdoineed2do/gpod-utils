@@ -56,7 +56,7 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
-    g_print ("usage: %s [ -M <dir ipod mount> | -D <file iTunesDB>]  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  <file id/ipod path> [ ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  <file id/ipod path> [ ...]\n\n"
              "    update meta tags for files as known in iPod/iTunesDB\n"
 	     "    empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
              "    use gpod-ls to determine ipod path/id\n",
@@ -90,13 +90,11 @@ main (int argc, char *argv[])
     opts.rating = -1;
 
     const char*  mpt = NULL;
-    const char*  db  = NULL;
 
     int c;
-    while ( (c=getopt(argc, argv, "M:D:a:t:A:g:T:y:r:h")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:a:t:A:g:T:y:r:h")) != EOF) {
         switch (c) {
             case 'M':  mpt = optarg;  break;
-            case 'D':  db = optarg;  break;
 
             case 'a':  opts.artist = optarg;  break;
             case 'A':  opts.album  = optarg;  break;
@@ -118,7 +116,7 @@ main (int argc, char *argv[])
     }
 
 
-    if (mpt == NULL && db == NULL && opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
+    if (mpt == NULL && opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
         g_printerr("invalid opts\n");
         _usage(argv[0]);
     }
@@ -133,33 +131,15 @@ main (int argc, char *argv[])
 
     char  mountpoint[PATH_MAX];
 
-    const char*  argtype = "unknown";
-    if (mpt) {
-        strcpy(mountpoint, mpt);
-        if (g_file_test(mpt, G_FILE_TEST_IS_DIR)) {
-            itdb = itdb_parse (mpt, &error);
-            argtype = "directroy";
-        }
-    }
-    else if (db) {
-        if (g_file_test(db, G_FILE_TEST_EXISTS)) {
-            itdb = itdb_parse_file(db, &error);
-            argtype = "file";
-        }
-        // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-        char*  mp;
-        if ( (mp = strstr(mountpoint, "iPod_Control/"))) {
-            *mp = '\0';
-        }
-        else {
-            itdb_free (itdb);
-        }
+    strcpy(mountpoint, mpt);
+    if (g_file_test(mpt, G_FILE_TEST_IS_DIR)) {
+	itdb = itdb_parse (mpt, &error);
     }
 
     if (error)
     {
         if (error->message) {
-            g_printerr("failed to prase iTunesDB via %s - %s\n", argtype, error->message);
+            g_printerr("failed to prase iTunesDB via %s - %s\n", mpt, error->message);
         }
         g_error_free (error);
         error = NULL;
@@ -167,7 +147,7 @@ main (int argc, char *argv[])
     }
 
     if (itdb == NULL) {
-        g_print("failed to open iTunesDB via (%s)\n", argtype);
+        g_print("failed to open iTunesDB via %s\n", mpt);
         _usage(argv[0]);
     }
 
