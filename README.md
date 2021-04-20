@@ -176,13 +176,14 @@ $ jq '.ipod_data.playlists.items[] | select(.type == "master") | .tracks[] | sel
 ## `gpod-rm`
 Removes track(s) from `iPod`.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
 ```
-$ gpod-rm /run/media/ray/IPOD \
+$ gpod-rm -M /run/media/ray/IPOD \
     /iPod_Control/Music/F41/ZNUF.mp3
+removing tracks from iPod Video (1st Gen.) A002, currently 88 tracks
 /iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='9492' time_added=161672437 }
 sync'ing iPod ... removing 1/1
 iPod total tracks=87 (originally=88)
 ```
-The `--autoclean` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
+The `-a` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
 ## `gpod-cp`
 Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.

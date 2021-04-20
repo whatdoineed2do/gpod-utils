@@ -20,6 +20,7 @@
  * This product is not supported/written/published by Apple!
 */
 
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,6 +95,24 @@ static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
     gpod_track_fs_hash_destroy(&tfsh);
 }
 
+void  _usage(const char* argv0_)
+{
+    char *basename = g_path_get_basename (argv0_);
+    g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ <file | ipod id> ... ]\n"
+	     "\n"
+	     "    Removes specified file(s) the iPod/iTunesDB\n"
+	     "    -M <iPod dir>   location of iPod data as directoy mount point\n"
+	     "    -a              automatically purge duplicate files based on cksum leaving the track added first.  Must be first arg\n"
+	     "\n"
+	     "    Filenames are provided relative to the iPod mountpoint; ie\n"
+	     "      /iPod_Control/Music/F08/NCQQ.mp3\n\n"
+	     "\n"
+	     "    Filenames <-> tracks cab be determined using gpod-ls\n",
+	     basename);
+    g_free (basename);
+    exit(-1);
+}
+
 
 int
 main (int argc, char *argv[])
@@ -102,61 +121,56 @@ main (int argc, char *argv[])
     Itdb_iTunesDB*  itdb = NULL;
     int  ret = 0;
 
-    if (argc < 3)
-    {
-        char *basename = g_path_get_basename (argv[0]);
-        g_print ("usage: %s [ <dir ipod mount> | <file iTunesDB>]  [--autoclean | <file0.mp3> [<file1.mp3> ...]\n"
-                 "\n"
-                 "    This utility removes specified file the iPod/iTunesDB\n"
-                 "    Filenames are provided relative to the iPod mountpoint; ie\n"
-                 "      /iPod_Control/Music/F08/NCQQ.mp3\n\n"
-                 "    Filenames <-> tracks cab be determined using gpod-ls\n",
-                 basename);
-        g_free (basename);
-        exit(-1);
+    struct {
+        const char*  itdb_path;
+	bool  autoclean;
+    } opts = { NULL, false };
+
+
+    int c;
+    while ( (c=getopt(argc, argv, "M:ah")) != EOF) {
+        switch (c) {
+            case 'M':  opts.itdb_path = optarg;  break;
+            case 'a':  opts.autoclean = true;  break;
+
+            case 'h':
+            default:
+                _usage(argv[0]);
+        }
     }
+
+
+    if (opts.itdb_path == NULL) {
+        _usage(argv[0]);
+    }
+
+    if ( !(optind < argc) && !opts.autoclean) {
+        g_printerr("no inputs\n");
+        _usage(argv[0]);
+    }
+
 
     gpod_setlocale();
 
     char  mountpoint[PATH_MAX];
     strcpy(mountpoint, argv[1]);
 
-    Itdb_Device*  itdev = itdb_device_new();
 
-    const char*  argtype = "unknown";
-    if (g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
-        itdb = itdb_parse (argv[1], &error);
-        argtype = "directroy";
-	itdb_device_set_mountpoint(itdev, argv[1]);
-    }
-    else {
-        if (g_file_test(argv[1], G_FILE_TEST_EXISTS)) {
-            itdb = itdb_parse_file(argv[1], &error);
-            argtype = "file";
-        }
-        // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-        char*  mp;
-        if ( (mp = strstr(mountpoint, "iPod_Control/"))) {
-            *mp = '\0';
-	    itdb_device_set_mountpoint(itdev, mountpoint);
-        }
-        else {
-            return -1;
-        }
+    Itdb_Device*  itdev = NULL;
+
+    if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
+        itdb = itdb_parse (opts.itdb_path, &error);
+	itdev = itdb_device_new();
+	itdb_device_set_mountpoint(itdev, opts.itdb_path);
     }
 
     if (error)
     {
         if (error->message) {
-            g_printerr("failed to prase iTunesDB via (%s) %s - %s\n", argtype, argv[1], error->message);
+            g_printerr("failed to prase iTunesDB via %s - %s\n", opts.itdb_path, error->message);
         }
         g_error_free (error);
         error = NULL;
-        return -1;
-    }
-
-    if (itdb == NULL) {
-        g_print("failed to open iTunesDB via (%s) %s\n", argtype, argv[1]);
         return -1;
     }
 
@@ -176,16 +190,15 @@ main (int argc, char *argv[])
 
 
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
-    g_print("removings tracks from iPod %s %s, currently %u tracks%s\n",
+    g_print("removing tracks from iPod %s %s, currently %u tracks%s\n",
                 itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
                 ipodinfo->model_number,
                 current);
 
-    char**  p = &argv[2];
-    if (strcmp(*p, "--autoclean") == 0) {
+    if (opts.autoclean) {
         autoclean(itdb, &removed);
-        ++p;
     }
+    char**  p = &argv[optind];
     const unsigned  N = argv+argc - p;
 
     GTree*  tree = NULL;
