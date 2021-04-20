@@ -19,7 +19,6 @@
 #include <strings.h>
 #include <stdint.h>
 #include <stdbool.h>
-#define _XOPEN_SOURCE 1
 #include <time.h>
 
 #include <libavcodec/avcodec.h>
