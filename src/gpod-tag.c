@@ -37,14 +37,31 @@
 
 
 struct gpod_opts {
-    const char*  artist;
-    const char*  album;
-    const char*  title;
-    const char*  genre;
+    char*  artist;
+    char*  album;
+    char*  title;
+    char*  genre;
     int  year;
     int  track;
     short  rating;
 };
+
+static void  gpod_opts_init(struct gpod_opts* opts_)
+{
+    memset(opts_, 0, sizeof(struct gpod_opts));
+    opts_->year = -1;
+    opts_->track = -1;
+    opts_->rating = -1;
+}
+
+static void  gpod_opts_free(struct gpod_opts* opts_)
+{
+    free(opts_->artist);
+    free(opts_->album);
+    free(opts_->title);
+    free(opts_->genre);
+    memset(opts_, 0, sizeof(struct gpod_opts));
+}
 
 struct gpod_arg {
     union {
@@ -84,10 +101,7 @@ main (int argc, char *argv[])
     int  ret = 0;
 
     struct gpod_opts  opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.year = -1;
-    opts.track = -1;
-    opts.rating = -1;
+    gpod_opts_init(&opts);
 
     const char*  mpt = NULL;
 
@@ -96,10 +110,10 @@ main (int argc, char *argv[])
         switch (c) {
             case 'M':  mpt = optarg;  break;
 
-            case 'a':  opts.artist = optarg;  break;
-            case 'A':  opts.album  = optarg;  break;
-            case 't':  opts.title  = optarg;  break;
-            case 'g':  opts.genre  = optarg;  break;
+            case 'a':  opts.artist = gpod_trim(optarg);  break;
+            case 'A':  opts.album  = gpod_trim(optarg);  break;
+            case 't':  opts.title  = gpod_trim(optarg);  break;
+            case 'g':  opts.genre  = gpod_trim(optarg);  break;
             case 'y':  opts.year   = atol(optarg);  break;
             case 'T':  opts.track  = atol(optarg);  break;
             case 'r': 
@@ -275,6 +289,7 @@ main (int argc, char *argv[])
         g_printerr("failed to update\n");
     }
     itdb_free (itdb);
+    gpod_opts_free(&opts);
 
     return ret;
 }
