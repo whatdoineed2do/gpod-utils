@@ -274,7 +274,7 @@ static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-m | -a ] [-q <quality>] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
              "\n"
@@ -282,6 +282,9 @@ void  _usage(const char* argv0_)
              "    -c             generate checksum of each file in iTunesDB for \n"
              "                   comparison to prevent duplicate\n"
 	     "    -F             libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
+	     "    -m             transcode to mp3 (default)\n"
+	     "    -a             transcode to aac\n"
+	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -299,15 +302,40 @@ int main (int argc, char *argv[])
         const char*  itdb_path;
         bool cksum;
 	bool  force;
-    } opts = { NULL, false, false };
+	bool  xcode_as_mp3;
+	enum gpod_ff_transcode_quality  xcode_quality;
+    } opts = { NULL, false, false, true, GPOD_FF_XCODE_VBR2 };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFh")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhamq:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'c':  opts.cksum = true;  break;
             case 'F':  opts.force = true;  break;
+
+	    case 'm':  opts.xcode_as_mp3 = true;  break;
+	    case 'a':  opts.xcode_as_mp3 = false;  break;
+	    case 'q':
+	    {
+		const unsigned  q = (unsigned)atol(optarg);
+	        if (q < 10) {
+		    opts.xcode_quality = (enum gpod_ff_transcode_quality)q;
+		}
+		else {
+		    switch (q) {
+			case 96:   opts.xcode_quality = GPOD_FF_XCODE_CBR96  ; break;
+			case 128:  opts.xcode_quality = GPOD_FF_XCODE_CBR128 ; break;
+			case 160:  opts.xcode_quality = GPOD_FF_XCODE_CBR160 ; break;
+			case 192:  opts.xcode_quality = GPOD_FF_XCODE_CBR192 ; break;
+			case 256:  opts.xcode_quality = GPOD_FF_XCODE_CBR256 ; break;
+			case 320:  opts.xcode_quality = GPOD_FF_XCODE_CBR320 ; break;
+
+		        default:
+			   ; // noop
+		    }
+		}
+	    } break;
 
             case 'h':
             default:
@@ -437,7 +465,7 @@ int main (int argc, char *argv[])
 
         error = NULL;
 
-        gpod_ff_transcode_ctx_init(&xfrm);
+        gpod_ff_transcode_ctx_init(&xfrm, opts.xcode_as_mp3, opts.xcode_quality);
 
         bool  ok = true;
         if ( (track = _track(path, &xfrm, &err)) == NULL) {
