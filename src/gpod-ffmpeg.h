@@ -132,7 +132,8 @@ void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_);
 int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** err_);
 
 
-void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_);
+void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
+                                 bool xcode_mp3_, enum gpod_ff_transcode_quality quality_);
 
 int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target, char** err_);
 

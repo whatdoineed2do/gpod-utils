@@ -618,15 +618,23 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
 
 
 
-void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_)
+void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
+                                 bool xcode_mp3_, enum gpod_ff_transcode_quality quality_)
 {
     memset(obj_, 0, sizeof(struct gpod_ff_transcode_ctx));
 
     // default the transcode params
     obj_->audio_opts.channels = 2;
-    obj_->audio_opts.quality = GPOD_FF_XCODE_VBR2;
-    obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
-    obj_->extn = ".mp3";
+    obj_->audio_opts.quality = quality_;
+    if (xcode_mp3_) {
+	obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
+	obj_->extn = ".mp3";
+    }
+    else {
+	obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
+	obj_->extn = ".m4a";
+    }
+
 
     const char*  tmpdir = getenv("TMPDIR");
     tmpdir = tmpdir == NULL ? "/tmp" : tmpdir;
