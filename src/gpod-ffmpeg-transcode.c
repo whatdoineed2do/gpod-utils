@@ -36,18 +36,19 @@
 #include <sys/stat.h>
 #include <stdio.h>
 
-#include "libavformat/avformat.h"
-#include "libavformat/avio.h"
+#include <libavformat/avformat.h>
+#include <libavformat/avio.h>
 
-#include "libavcodec/avcodec.h"
+#include <libavcodec/avcodec.h>
 
-#include "libavutil/audio_fifo.h"
-#include "libavutil/avassert.h"
-#include "libavutil/avstring.h"
-#include "libavutil/frame.h"
-#include "libavutil/opt.h"
+#include <libavutil/audio_fifo.h>
+#include <libavutil/avassert.h>
+#include <libavutil/avstring.h>
+#include <libavutil/frame.h>
+#include <libavutil/opt.h>
+#include <libavutil/avutil.h>
 
-#include "libswresample/swresample.h"
+#include <libswresample/swresample.h>
 
 
 /**
@@ -248,7 +249,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     else {
         // vbr
         avctx->flags      |= AV_CODEC_FLAG_QSCALE;
-        avctx->global_quality = (int)(target_->audio_opts.quality);
+        avctx->global_quality = (int)(target_->audio_opts.quality) * FF_QP2LAMBDA;
     }
 
     /* Allow the use of the experimental AAC encoder. */
@@ -262,6 +263,12 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
      * Mark the encoder so that it behaves accordingly. */
     if ((*output_format_context)->oformat->flags & AVFMT_GLOBALHEADER)
         avctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+#ifdef GPOD_XCODE_DEBUG
+    // xcoding test-ff-aac-vbr1.m4a.. channels=2 channel_layout=3 bit_rate=0 flags=4194306 global_quality=118 compression_level=%ld sample_rate=44100 qcompress=0 request channel_layout=4294967295 request_sample_fmt=4204882
+    printf("channels=%u channel_layout=%u bit_rate=%u flags=%u global_quality=%u compression_level=%ld codec_tag=%u sample_rate=%u qcompress=%u request channel_layout=%u request_sample_fmt=%u\n",
+	   avctx->channels, avctx->channel_layout, avctx->bit_rate, avctx->flags, avctx->global_quality, avctx->compression_level, avctx->codec_tag, avctx->sample_rate, avctx->qcompress, avctx->request_channel_layout, avctx->request_sample_fmt);
+#endif
 
     /* Open the encoder for the audio stream to use it later. */
     if ((error = avcodec_open2(avctx, output_codec, NULL)) < 0) {
