@@ -82,7 +82,7 @@ static bool  _remove_confirm(bool interactv_, const char* fmt_, ...)
 
 }
 
-static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_, const unsigned current_, const unsigned N_)
+static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_, size_t* bytes_, const unsigned current_, const unsigned N_)
 {
     struct tm  tm;
     char dt[20];
@@ -108,13 +108,14 @@ static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* tr
     char  path[PATH_MAX];
     sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
     g_unlink(path);
+    *bytes_ += track_->size;
   
     // remove (and free mem)
     itdb_track_remove(track_);
     ++(*removed_);
 }
 
-static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_)
+static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_, size_t* bytes_)
 {
     // cksum all files and remove the dupl, keeping the oldest
 
@@ -135,7 +136,8 @@ static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_
         if (g_slist_length(l) > 1)
         {
             for (GSList* j=l->next; j!=NULL; j=j->next) {
-                _remove_track(interactv_, itdb_, (Itdb_Track*)j->data, removed_, *removed_+1, 0);
+		Itdb_Track*  track = (Itdb_Track*)j->data;
+                _remove_track(interactv_, itdb_, track, removed_, bytes_, *removed_+1, 0);
             }
         }
     }
@@ -225,6 +227,14 @@ main (int argc, char *argv[])
         return -1;
     }
 
+    struct {
+	uint32_t  music;
+	uint32_t  video;
+	uint32_t  other;
+	size_t    bytes;
+    } stats = { 0, 0, 0, 0 };
+
+
     // unlink track and remove from all playlists
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
@@ -247,7 +257,7 @@ main (int argc, char *argv[])
                 current);
 
     if (opts.autoclean) {
-        autoclean(opts.interactv, itdb, &removed);
+        autoclean(opts.interactv, itdb, &removed, &stats.bytes);
     }
     char**  p = &argv[optind];
     const unsigned  N = argv+argc - p;
@@ -288,7 +298,7 @@ main (int argc, char *argv[])
 	    first = false;
 
 	    if (track) {
-		_remove_track(opts.interactv, itdb, track, &removed, requested, N);
+		_remove_track(opts.interactv, itdb, track, &removed, &stats.bytes, requested, N);
 	    }
 	    else
 	    {
@@ -298,8 +308,11 @@ main (int argc, char *argv[])
 		else {
 		    if (_remove_confirm(opts.interactv,
 				        "[%3u/%u]  %s -> { Not on iTunesDB }", requested, N, ipod_path)) {
+			struct stat  st;
+			stat(path, &st);
 			g_unlink(path);
 			++removed;
+			stats.bytes += st.st_size;
 		    }
 		}
 	    }
@@ -312,7 +325,7 @@ main (int argc, char *argv[])
 
 	    track = itdb_track_id_tree_by_id(tree, atol(arg));
 	    if (track) {
-		_remove_track(opts.interactv, itdb, track, &removed, requested, N);
+		_remove_track(opts.interactv, itdb, track, &removed, &stats.bytes, requested, N);
 	    }
 	    else {
 		g_print("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, arg);
@@ -326,16 +339,31 @@ main (int argc, char *argv[])
 
     if (removed)
     {
-        g_print("sync'ing iPod ... removing %d/%d\n", removed, requested);
+        g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 
         if (error) {
-            g_printerr("failed to write iPod database, %d files NOT removed - %s\n", requested, error->message ? error->message : "<unknown error>");
+            g_printerr("failed to write iPod database, %d files physically removed but NOT from database - %s\n", requested, error->message ? error->message : "<unknown error>");
              g_error_free (error);
              ret = 1;
         }
     }
-    g_print("iPod total tracks=%u (originally=%u)\n", g_list_length(itdb_playlist_mpl(itdb)->members), current);
+
+    char  stats_size[128] = { 0 };
+    if (stats.bytes)
+    {
+	const float  BYTES_KB  = 1024.0;
+	const float  BYTES_MB  = BYTES_KB * 1024.0;
+	const float  BYTES_GB  = BYTES_MB * 1024.0;
+
+	if      (stats.bytes >= BYTES_GB)  sprintf(stats_size, "(%.1fG)", stats.bytes/BYTES_GB);
+	else if (stats.bytes >= BYTES_MB)  sprintf(stats_size, "(%.3fM)", stats.bytes/BYTES_MB);
+	else                               sprintf(stats_size, "(%.2fK)", stats.bytes/BYTES_KB);
+    }
+
+
+    g_print("iPod total tracks=%u  removed %u/%u items %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : removed, requested, stats_size);
+
 
     itdb_device_free(itdev);
     itdb_free (itdb);
