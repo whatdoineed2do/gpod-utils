@@ -29,6 +29,7 @@
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -37,7 +38,51 @@
 #include "gpod-utils.h"
 
 
-static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_, const unsigned current_, const unsigned N_)
+static bool  _remove_confirm(bool interactv_, const char* fmt_, ...)
+{
+    va_list  args;
+    va_start(args, fmt_);
+    g_vprintf(fmt_, args);
+    va_end(args);
+
+    if (interactv_)
+    {
+        g_print("  [y/N]: ");
+
+	/* remember getchar() on the term will also get the '\n' on the next 
+	 * getchar() call - cheaply flush the buffer afterwards
+	 * */
+        char  c = getchar();
+	bool  more = false;
+	while (c != '\n' && getchar() != '\n') {
+	    more = true;
+	}
+	if (more) {
+	    c = 'n';
+	}
+
+	switch (c)
+	{
+	    case 'Y':
+	    case 'y':
+		return true;
+		break;
+
+	    case 'N':
+	    case 'n':
+	    default:
+		return false;
+		break;
+	}
+    }
+    else {
+        g_print("\n");
+    }
+    return true;
+
+}
+
+static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* removed_, const unsigned current_, const unsigned N_)
 {
     struct tm  tm;
     char dt[20];
@@ -45,9 +90,12 @@ static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* r
     gmtime_r(&(track_->time_added), &tm);
     strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
-    g_print("[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)\n", 
+    if (!_remove_confirm(interactv_, 
+            "[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)", 
 	    current_, N_,
-	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt);
+	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt)) {
+	return;
+    }
 
 
     // remove from all playlists
@@ -66,7 +114,7 @@ static void  _remove_track(Itdb_iTunesDB* itdb_, Itdb_Track* track_, uint64_t* r
     ++(*removed_);
 }
 
-static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
+static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_)
 {
     // cksum all files and remove the dupl, keeping the oldest
 
@@ -87,7 +135,7 @@ static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
         if (g_slist_length(l) > 1)
         {
             for (GSList* j=l->next; j!=NULL; j=j->next) {
-                _remove_track(itdb_, (Itdb_Track*)j->data, removed_, *removed_+1, 0);
+                _remove_track(interactv_, itdb_, (Itdb_Track*)j->data, removed_, *removed_+1, 0);
             }
         }
     }
@@ -98,11 +146,12 @@ static void  autoclean(Itdb_iTunesDB* itdb_, uint64_t* removed_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ <file | ipod id> ... ]\n"
+    g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ -i ] [ <file | ipod id> ... ]\n"
 	     "\n"
 	     "    Removes specified file(s) the iPod/iTunesDB\n"
 	     "    -M <iPod dir>   location of iPod data as directoy mount point\n"
 	     "    -a              automatically purge duplicate files based on cksum leaving the track added first.  Must be first arg\n"
+	     "    -i              interactive/confirmation for delete\n"
 	     "\n"
 	     "    Filenames are provided relative to the iPod mountpoint; ie\n"
 	     "      /iPod_Control/Music/F08/NCQQ.mp3\n\n"
@@ -124,14 +173,16 @@ main (int argc, char *argv[])
     struct {
         const char*  itdb_path;
 	bool  autoclean;
-    } opts = { NULL, false };
+	bool  interactv;
+    } opts = { NULL, false, false };
 
 
     int c;
-    while ( (c=getopt(argc, argv, "M:ah")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:aih")) != EOF) {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'a':  opts.autoclean = true;  break;
+            case 'i':  opts.interactv = true;  break;
 
             case 'h':
             default:
@@ -196,7 +247,7 @@ main (int argc, char *argv[])
                 current);
 
     if (opts.autoclean) {
-        autoclean(itdb, &removed);
+        autoclean(opts.interactv, itdb, &removed);
     }
     char**  p = &argv[optind];
     const unsigned  N = argv+argc - p;
@@ -237,7 +288,7 @@ main (int argc, char *argv[])
 	    first = false;
 
 	    if (track) {
-		_remove_track(itdb, track, &removed, requested, N);
+		_remove_track(opts.interactv, itdb, track, &removed, requested, N);
 	    }
 	    else
 	    {
@@ -245,9 +296,11 @@ main (int argc, char *argv[])
 		    g_printerr("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, ipod_path);
 		}
 		else {
-		    g_print("[%3u/%u]  %s -> { Not on iTunesDB }\n", requested, N, ipod_path);
-		    g_unlink(path);
-		    ++removed;
+		    if (_remove_confirm(opts.interactv,
+				        "[%3u/%u]  %s -> { Not on iTunesDB }", requested, N, ipod_path)) {
+			g_unlink(path);
+			++removed;
+		    }
 		}
 	    }
         }
@@ -259,7 +312,7 @@ main (int argc, char *argv[])
 
 	    track = itdb_track_id_tree_by_id(tree, atol(arg));
 	    if (track) {
-		_remove_track(itdb, track, &removed, requested, N);
+		_remove_track(opts.interactv, itdb, track, &removed, requested, N);
 	    }
 	    else {
 		g_print("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, arg);
