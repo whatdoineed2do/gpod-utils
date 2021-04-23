@@ -20,6 +20,7 @@ gpod_rm_SOURCES = gpod-rm.c sha1.c gpod-utils.c
 gpod_tag_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
 gpod_tag_SOURCES = gpod-tag.c gpod-utils.c
 
+
 if HAVE_FFMPEG
 GPOD_OPT+=gpod-cp
 gpod_cp_CPPFLAGS = -DWANT_GPOD_HASH
@@ -30,8 +31,13 @@ gpod_cp_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresa
 
 GPOD_OPT+=gpod-extract
 gpod_extract_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
-gpod_extract_SOURCES = gpod-extract.c gpod-utils.c
+gpod_extract_SOURCES = gpod-extract.c gpod-utils.c gpod-ffmpeg.c
 gpod_extract_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
+
+GPOD_OPT+=gpod-verify
+gpod_verify_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
+gpod_verify_SOURCES = gpod-verify.c gpod-utils.c gpod-ffmpeg.c
+gpod_verify_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS)
 test_ff_xcode_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
