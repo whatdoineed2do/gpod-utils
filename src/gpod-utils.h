@@ -31,6 +31,9 @@ extern "C" {
 const char*  gpod_setlocale();
 char*  gpod_trim(const char* what_);
 
+// recursively walk dir, adding files as strings to the list
+void  gpod_walk_dir(const gchar* dir_, GSList **l_);
+
 // mountpoint is alternative
 guint  gpod_hash(const Itdb_Track* track_);
 guint  gpod_hash_file(const char* track_);

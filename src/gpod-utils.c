@@ -74,6 +74,36 @@ char*  gpod_trim(const char* what_)
     return buf;
 }
 
+void  gpod_walk_dir(const gchar *dir_, GSList **l_) 
+{
+    GDir*  dir_handle;
+    const gchar*  filename;
+    gchar*  path;
+
+    if (!g_file_test(dir_, G_FILE_TEST_IS_DIR)) {
+        *l_ = g_slist_append(*l_, g_strdup(dir_));
+        return;
+    }
+
+    if ( (dir_handle = g_dir_open(dir_, 0, NULL)) == NULL) {
+        return;
+    }
+
+    while ((filename = g_dir_read_name(dir_handle)))
+    {
+        path = g_build_filename(dir_, filename, NULL);
+
+        if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
+            gpod_walk_dir(path, l_);
+            g_free(path);
+        }
+        else {
+            *l_ = g_slist_append(*l_, path);
+        }
+    }
+
+    g_dir_close(dir_handle);
+}
 
 
 #ifdef WANT_GPOD_HASH

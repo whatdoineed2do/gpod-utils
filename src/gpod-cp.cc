@@ -152,36 +152,6 @@ int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending
     return ret ? 0 : -1;
 }
 
-static void  walk_dir(const gchar *dir, GSList **l) 
-{
-    GDir*  dir_handle;
-    const gchar*  filename;
-    gchar*  path;
-
-    if (!g_file_test(dir, G_FILE_TEST_IS_DIR)) {
-        *l = g_slist_append(*l, g_strdup(dir));
-        return;
-    }
-
-    if ( (dir_handle = g_dir_open(dir, 0, NULL)) == NULL) {
-        return;
-    }
-
-    while ((filename = g_dir_read_name(dir_handle)))
-    {
-        path = g_build_filename(dir, filename, NULL);
-
-        if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
-            walk_dir(path, l);
-            g_free(path);
-        }
-        else {
-            *l = g_slist_append(*l, path);
-        }
-    }
-
-    g_dir_close(dir_handle);
-}
 
 static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
 {
@@ -402,7 +372,7 @@ int main (int argc, char *argv[])
     GSList*  files = NULL;
     int  i = optind;
     while (i < argc) {
-        walk_dir(argv[i++], &files);
+        gpod_walk_dir(argv[i++], &files);
     }
     const uint32_t  N = g_slist_length(files);
 
