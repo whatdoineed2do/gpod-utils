@@ -5,7 +5,7 @@ AM_CXXFLAGS = $(AM_CFLAGS)
 
 GPOD_OPT=
 bin_PROGRAMS = gpod-ls gpod-rm gpod-tag $(GPOD_OPT)
-check_PROGRAMS = test-ff-xcode
+check_PROGRAMS = test-ff-xcode test-init-ipod
 
 # using git version instead of the am values in config.h
 gpod_ls_CPPFLAGS = -DWANT_GPOD_HASH
@@ -43,3 +43,6 @@ test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS)
 test_ff_xcode_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 test_ff_xcode_SOURCES = test-ff-xcode.c gpod-ffmpeg-transcode.c gpod-ffmpeg.c
 endif
+
+test_init_ipod_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS)
+test_init_ipod_SOURCES = test-init-ipod.c 
