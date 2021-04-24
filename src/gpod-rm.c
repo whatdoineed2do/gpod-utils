@@ -242,7 +242,6 @@ main (int argc, char *argv[])
 
     char  path[PATH_MAX];
     Itdb_Track*  track;
-    Itdb_Track*  tmptrack;
     GList*  it;
 
     bool  first = true;
@@ -263,6 +262,7 @@ main (int argc, char *argv[])
     const unsigned  N = argv+argc - p;
 
     GTree*  tree = NULL;
+    GHashTable*  hash = NULL;
     while (*p)
     {
         ++requested;
@@ -283,19 +283,17 @@ main (int argc, char *argv[])
 
 	    // find the corresponding track
 	    track = NULL;
-	    for (it = mpl->members; it != NULL; it = it->next)
+	    if (hash == NULL)
 	    {
-		tmptrack = (Itdb_Track *)it->data;
-		if (first) {
-		    itdb_filename_ipod2fs(tmptrack->ipod_path);
-		}
-
-		if (strcmp(ipod_path, tmptrack->ipod_path) == 0) {
-		    track = tmptrack;
-		    break;
+		hash = g_hash_table_new(g_str_hash, g_str_equal);
+		for (it = mpl->members; it != NULL; it = it->next)
+		{
+		    track = (Itdb_Track *)it->data;
+		    itdb_filename_ipod2fs(track->ipod_path);
+		    g_hash_table_insert(hash, track->ipod_path, track);
 		}
 	    }
-	    first = false;
+	    track = g_hash_table_lookup(hash, ipod_path);
 
 	    if (track) {
 		_remove_track(opts.interactv, itdb, track, &removed, &stats.bytes, requested, N);
@@ -334,8 +332,12 @@ main (int argc, char *argv[])
     }
     if (tree) {
 	itdb_track_id_tree_destroy(tree);
+	tree = NULL;
     }
-    tree = NULL;
+    if (hash) {
+	g_hash_table_destroy(hash);
+	hash = NULL;
+    }
 
     if (removed)
     {
