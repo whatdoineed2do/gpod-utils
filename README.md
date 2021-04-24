@@ -246,3 +246,19 @@ $ exiftool '-filename<$Artist - $Title.%le' -r -ext mp3 -ext m4a .
 # rename based on albums, creating the directory structure as necessary
 $ exiftool '-filename<$Album/$Artist - $Title.%le' -r -ext mp3 -ext m4a .
 ```
+## `gpod-verify`
+Verifies the `iPod` db aginst the files on the device.  Three areas:
+|mode|DB|filesystem|Comments
+---|---|---|---
+_clean_|x||not recoverable, delete from db
+_add_||x|(`-a`) sync with filesystem, add to db
+_remove_||x|(`-d`) sync with db, remove from filesystem
+```
+$ gpod-verify-M /run/media/ray/IPOD -a
+validating tracks from iPod Video (2nd Gen.) A446, currently 4/4 db/filesystem tracks
+CLEAN [  1]  /iPod_Control/Music/F13/libgpod031826.mp3 -> { id=52 title='some title' artist='foo' album='' time_added=1619260556 }
+ADD   [  1]  /iPod_Control/Music/F00/foo.mp3 -> { title='Sine' artist='ffmpeg' album='' }
+sync'ing iPod ...
+iPod total tracks=4  orphaned 0 removed 1 added 1 items
+```
+#
