@@ -140,7 +140,16 @@ char*  gpod_sanitize_text(char* what_, bool sanitize_)
     return what_;
 }
 
+static const float  BYTES_KB  = 1024.0;
+static const float  BYTES_MB  = BYTES_KB * 1024.0;
+static const float  BYTES_GB  = BYTES_MB * 1024.0;
 
+void  gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wrap_)
+{
+    if      (bytes_ >= BYTES_GB)  snprintf(buf_, bufsz_, "%s%.1fG%s", wrap_ ? "(" : "", bytes_/BYTES_GB, wrap_ ? ")" : "" );
+    else if (bytes_ >= BYTES_MB)  snprintf(buf_, bufsz_, "%s%.3fM%s", wrap_ ? "(" : "", bytes_/BYTES_MB, wrap_ ? ")" : "" );
+    else                          snprintf(buf_, bufsz_, "%s%.2fK%s", wrap_ ? "(" : "", bytes_/BYTES_KB, wrap_ ? ")" : "" );
+}
 
 #ifdef WANT_GPOD_HASH
 guint  gpod_hash(const Itdb_Track* track_)

@@ -40,6 +40,8 @@ void  gpod_walk_dir(const gchar* dir_, GSList **l_);
 // replace some special char/strings to ascii like compatriots
 char*  gpod_sanitize_text(char* what_, bool sanitize_);
 
+void   gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wrap_);
+
 
 // mountpoint is alternative
 guint  gpod_hash(const Itdb_Track* track_);
