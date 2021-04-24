@@ -92,29 +92,8 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, bool sanitize_, c
         }
     }
 
+    track = gpod_ff_meta_to_track(&mi, sanitize_);
 
-    if (mi.supported_ipod_fmt)
-    {
-        track = itdb_track_new();
-        
-        track->mediatype = mi.has_video ? ITDB_MEDIATYPE_MOVIE : ITDB_MEDIATYPE_AUDIO;
-        track->time_added = time(NULL);
-        track->time_modified = track->time_added;
-
-        track->filetype = gpod_sanitize_text(gpod_trim(mi.description), sanitize_);
-        track->size = mi.file_size;
-        track->tracklen = mi.audio.song_length;
-        track->bitrate = mi.audio.bitrate;
-        track->samplerate = mi.audio.samplerate;
-
-        track->title = gpod_sanitize_text(gpod_trim(mi.meta.title), sanitize_);
-        track->album = gpod_sanitize_text(gpod_trim(mi.meta.album), sanitize_);
-        track->artist = gpod_sanitize_text(gpod_trim(mi.meta.artist), sanitize_);
-        track->genre = gpod_sanitize_text(gpod_trim(mi.meta.genre), sanitize_);
-        track->comment = gpod_sanitize_text(gpod_trim(mi.meta.comment), sanitize_);
-        track->track_nr = mi.meta.track;
-        track->year = mi.meta.year;
-    }
     gpod_ff_media_info_free(&mi);
     return track;
 }

@@ -48,7 +48,7 @@ static gint  _track_path_cmp(gconstpointer x_, gconstpointer y_)
     return strcmp((const char*)x_, (const char*)y_);
 }
 
-static Itdb_Track*  _track(const char* file_, char** err_)
+static Itdb_Track*  _track(const char* file_, char** err_, bool sanitize_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -70,29 +70,8 @@ static Itdb_Track*  _track(const char* file_, char** err_)
         return NULL;
     }
 
-    Itdb_Track*  track = NULL;
-    if (mi.supported_ipod_fmt)
-    {
-        track = itdb_track_new();
-        
-        track->mediatype = mi.has_video ? ITDB_MEDIATYPE_MOVIE : ITDB_MEDIATYPE_AUDIO;
-        track->time_added = time(NULL);
-        track->time_modified = track->time_added;
+    Itdb_Track*  track = gpod_ff_meta_to_track(&mi, sanitize_);
 
-        track->filetype = gpod_trim(mi.description);
-        track->size = mi.file_size;
-        track->tracklen = mi.audio.song_length;
-        track->bitrate = mi.audio.bitrate;
-        track->samplerate = mi.audio.samplerate;
-
-        track->title = gpod_trim(mi.meta.title);
-        track->album = gpod_trim(mi.meta.album);
-        track->artist = gpod_trim(mi.meta.artist);
-        track->genre = gpod_trim(mi.meta.genre);
-        track->comment = gpod_trim(mi.meta.comment);
-        track->track_nr = mi.meta.track;
-        track->year = mi.meta.year;
-    }
     gpod_ff_media_info_free(&mi);
     return track;
 }
@@ -101,7 +80,7 @@ static Itdb_Track*  _track(const char* file_, char** err_)
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> [ -a | -d ]\n"
+    g_print ("usage: %s -M <dir ipod mount> [ -a | -d ] [ -S ]\n"
              "\n"
              "    validates the integrity of the iTunesDB (entries in iTunesDB compared to filessystem)\n"
              "    will [CLEAN] db of entries that don't have filesystem entries and optionally add/remove\n"
@@ -114,6 +93,7 @@ void  _usage(char* argv0_)
              "    -d         [REMVE] sync files iTunesDB as files on device\n"
              "               all db entries must have corresponding file on device\n"
              "               db entries with no files are removed\n"
+	     "    -S         disable text sanitization; chars like ’ to '\n"
              , basename);
     g_free (basename);
     exit(-1);
@@ -129,15 +109,18 @@ int main (int argc, char *argv[])
     struct {
         const char*  itdb_path;
         unsigned  mode;
-    } opts = { NULL, 0 };
+	bool  sanitize;
+    } opts = { NULL, 0, true };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:da")) != EOF)
+    while ( (c=getopt(argc, argv, "M:daS")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'a':  opts.mode |= GPOD_MODE_FS;  break;
             case 'd':  opts.mode |= GPOD_MODE_DB;  break;
+
+            case 'S':  opts.sanitize = false;  break;
 
             case 'h':
             default:
@@ -277,7 +260,7 @@ int main (int argc, char *argv[])
         /* not in db, on fs .. what to do
          */
         char*  err = NULL;
-        track = _track(resolved_path, &err);
+        track = _track(resolved_path, &err, opts.sanitize);
         if (!track) {
             free(err);
             ret = -1;

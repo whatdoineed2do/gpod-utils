@@ -26,6 +26,8 @@
 #include <libavutil/opt.h>
 #include <libavutil/log.h>
 
+#include "gpod-utils.h"
+
 
 void gpod_ff_meta_free(struct gpod_ff_meta*  obj_)
 {
@@ -616,6 +618,35 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
     return 0;
 }
 
+
+Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool sanitize_)
+{
+    if (!meta_->supported_ipod_fmt) {
+        return NULL;
+    }
+
+    Itdb_Track*  track = itdb_track_new();
+    
+    track->mediatype = meta_->has_video ? ITDB_MEDIATYPE_MOVIE : ITDB_MEDIATYPE_AUDIO;
+    track->time_added = time(NULL);
+    track->time_modified = track->time_added;
+
+    track->filetype = gpod_sanitize_text(gpod_trim(meta_->description), sanitize_);
+    track->size = meta_->file_size;
+    track->tracklen = meta_->audio.song_length;
+    track->bitrate = meta_->audio.bitrate;
+    track->samplerate = meta_->audio.samplerate;
+
+    track->title = gpod_sanitize_text(gpod_trim(meta_->meta.title), sanitize_);
+    track->album = gpod_sanitize_text(gpod_trim(meta_->meta.album), sanitize_);
+    track->artist = gpod_sanitize_text(gpod_trim(meta_->meta.artist), sanitize_);
+    track->genre = gpod_sanitize_text(gpod_trim(meta_->meta.genre), sanitize_);
+    track->comment = gpod_sanitize_text(gpod_trim(meta_->meta.comment), sanitize_);
+    track->track_nr = meta_->meta.track;
+    track->year = meta_->meta.year;
+
+    return track;
+}
 
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
