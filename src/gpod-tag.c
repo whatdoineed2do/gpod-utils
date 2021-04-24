@@ -44,6 +44,8 @@ struct gpod_opts {
     int  year;
     int  track;
     short  rating;
+
+    bool  sanitize;
 };
 
 static void  gpod_opts_init(struct gpod_opts* opts_)
@@ -52,6 +54,8 @@ static void  gpod_opts_init(struct gpod_opts* opts_)
     opts_->year = -1;
     opts_->track = -1;
     opts_->rating = -1;
+
+    opts_->sanitize = false;
 }
 
 static void  gpod_opts_free(struct gpod_opts* opts_)
@@ -61,6 +65,24 @@ static void  gpod_opts_free(struct gpod_opts* opts_)
     free(opts_->title);
     free(opts_->genre);
     memset(opts_, 0, sizeof(struct gpod_opts));
+}
+
+static void  _sanitize(struct gpod_opts* opts_)
+{
+    if (!opts_->sanitize) {
+        return;
+    }
+
+    char*  what[] = {
+	opts_->artist, opts_->album, opts_->title, opts_->genre, NULL
+    };
+    char**  p = what;
+    while (*p) {
+	if (*p) {
+	    gpod_sanitize_text(*p, true);
+	}
+        ++p;
+    }
 }
 
 struct gpod_arg {
@@ -73,11 +95,13 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  <file id/ipod path> [ ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  [-s]  <file id/ipod path> [ ...]\n\n"
              "    update meta tags for files as known in iPod/iTunesDB\n"
 	     "    empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
-             "    use gpod-ls to determine ipod path/id\n",
-             basename);
+             "    use gpod-ls to determine ipod path/id\n"
+	     "\n"
+	     "    -s    to sanitize text tags, chars like ’ to '\n"
+             , basename);
     g_free (basename);
     exit(-1);
 }
@@ -106,7 +130,7 @@ main (int argc, char *argv[])
     const char*  mpt = NULL;
 
     int c;
-    while ( (c=getopt(argc, argv, "M:a:t:A:g:T:y:r:h")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:a:t:A:g:T:y:r:hs")) != EOF) {
         switch (c) {
             case 'M':  mpt = optarg;  break;
 
@@ -122,6 +146,8 @@ main (int argc, char *argv[])
 		    opts.rating = 5;
 		}
 	        break;
+
+            case 's':  opts.sanitize = true;  break;
 
             case 'h':
             default:
@@ -139,6 +165,8 @@ main (int argc, char *argv[])
         g_printerr("no inputs\n");
         _usage(argv[0]);
     }
+
+    _sanitize(&opts);
 
 
     gpod_setlocale();
