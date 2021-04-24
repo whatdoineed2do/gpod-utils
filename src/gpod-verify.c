@@ -219,26 +219,46 @@ int main (int argc, char *argv[])
     /* initial cleanup for stuff that in db and not on fs
      */
     GHashTable*  hash = g_hash_table_new(g_str_hash, g_str_equal);
+    GSList*  clean = NULL;
     for (GList* it=mpl->members; it!=NULL; it=it->next)
     {
 	track = (Itdb_Track *)it->data;
 	itdb_filename_ipod2fs(track->ipod_path);
-	g_hash_table_insert(hash, track->ipod_path, track->ipod_path);
+	if (!g_hash_table_insert(hash, track->ipod_path, track->ipod_path))
+	{
+	    /* theres already something with the same file name -- this is wrong
+	     * drop it
+	     */
+	}
+	else
+	{
+	    strcpy(pbase, track->ipod_path);
 
-	strcpy(pbase, track->ipod_path);
+	    if (g_slist_find_custom(files, path, _track_path_cmp) != NULL) {
+		// all good - in db and on fs
+		continue;
+	    }
+	    // in db, not on fs.. can't recover this, drop from db
+	}
+	clean = g_slist_append(clean, track);
+    }
 
-        if (g_slist_find_custom(files, path, _track_path_cmp) != NULL) {
-            // all good - in db and on fs
-            continue;
-        }
-        // in db, not on fs.. can't recover this, drop from db
+    for (GSList* i=clean; i!=NULL; i=i->next)
+    {
+	track = (Itdb_Track*)i->data;
 
         g_print("CLEAN [%3u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%u }\n", 
                 ++removed, track->ipod_path, track->id, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->time_added);
 
-        itdb_playlist_remove_track(mpl, track);
+	for (GList* j=itdb->playlists; j!=NULL; j=j->next) {
+	    itdb_playlist_remove_track((Itdb_Playlist*)j->data, track);
+	}
         itdb_track_remove(track);
         stats.rm_bytes += track->size;
+    }
+    if (clean) {
+	g_slist_free(clean);
+	clean = NULL;
     }
 
 
