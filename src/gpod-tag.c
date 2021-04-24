@@ -182,7 +182,6 @@ main (int argc, char *argv[])
     const uint32_t  current = g_list_length(mpl->members);
 
     Itdb_Track*  track;
-    Itdb_Track*  tmptrack;
     GList*  it;
 
     uint64_t  updated = 0;
@@ -195,9 +194,9 @@ main (int argc, char *argv[])
     char  dt[21];
     char  path[PATH_MAX];
 
-    const time_t  now = time(NULL);
     struct gpod_arg  arg;
     const char*  p = NULL;
+    GHashTable*  hash = NULL;
     int  i = optind;
     while (i < argc)
     {
@@ -210,8 +209,6 @@ main (int argc, char *argv[])
 
         if (strncmp(p, "/iPod_Control/", 14) == 0)
         {
-            // this is expensive!!!
- 
             arg.u.ipod_path = p;
 
             sprintf(path, "%s/%s", mountpoint, p);
@@ -221,16 +218,18 @@ main (int argc, char *argv[])
                 continue;
             }
 
-            for (it = mpl->members; it != NULL; it = it->next)
-            {
-                tmptrack = (Itdb_Track *)it->data;
-                itdb_filename_ipod2fs(tmptrack->ipod_path);
-
-                if (strcmp(p, tmptrack->ipod_path) == 0) {
-                    track = tmptrack;
-                    break;
-                }
-            }
+	    track = NULL;
+	    if (hash == NULL)
+	    {
+		hash = g_hash_table_new(g_str_hash, g_str_equal);
+		for (it = mpl->members; it != NULL; it = it->next)
+		{
+		    track = (Itdb_Track *)it->data;
+		    itdb_filename_ipod2fs(track->ipod_path);
+		    g_hash_table_insert(hash, track->ipod_path, track);
+		}
+	    }
+	    track = g_hash_table_lookup(hash, p);
          }
         else
         {
@@ -272,6 +271,10 @@ main (int argc, char *argv[])
         ++updated;
     }
     itdb_track_id_tree_destroy(idtree);
+    if (hash) {
+	g_hash_table_destroy(hash);
+	hash = NULL;
+    }
 
     if (updated)
     {
