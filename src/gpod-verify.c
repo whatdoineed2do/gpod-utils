@@ -101,7 +101,7 @@ static Itdb_Track*  _track(const char* file_, char** err_)
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> [ -f | -d ]\n"
+    g_print ("usage: %s -M <dir ipod mount> [ -a | -d ]\n"
              "\n"
              "    validates the integrity of the iTunesDB (entries in iTunesDB compared to filessystem)\n"
              "    will [CLEAN] db of entries that don't have filesystem entries and optionally add/remove\n"
