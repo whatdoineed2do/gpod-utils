@@ -105,6 +105,42 @@ void  gpod_walk_dir(const gchar *dir_, GSList **l_)
     g_dir_close(dir_handle);
 }
 
+char*  gpod_sanitize_text(char* what_, bool sanitize_)
+{
+    if (!sanitize_ || what_ == NULL) {
+        return what_;
+    }
+
+    struct sanitize_map {
+        const char   tgt;
+	const char*  xlate;  // anything in this array to map to c
+    };
+
+    const struct sanitize_map  maps[] = {
+        //{ 'X',  "aeiou" },
+        { '-',   "‐", },
+	{ '\'',  "’" }, // 3 bytes!!
+
+	{ '\0', NULL }
+    };
+
+    const struct sanitize_map*  p = maps;
+    while (p->xlate)
+    {
+        const char*  q = p->xlate;
+	{
+	    char*  r = what_;
+	    while ( (r = strstr(r, q)) ) {
+	        *r = p->tgt;
+		memmove(r+1, r+strlen(q), 1+strlen(r+strlen(q)) );
+	    }
+	}
+        ++p;
+    }
+    return what_;
+}
+
+
 
 #ifdef WANT_GPOD_HASH
 guint  gpod_hash(const Itdb_Track* track_)
