@@ -48,7 +48,7 @@
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -101,17 +101,17 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, char** err_)
         track->time_added = time(NULL);
         track->time_modified = track->time_added;
 
-        track->filetype = gpod_trim(mi.description);
+        track->filetype = gpod_sanitize_text(gpod_trim(mi.description), sanitize_);
         track->size = mi.file_size;
         track->tracklen = mi.audio.song_length;
         track->bitrate = mi.audio.bitrate;
         track->samplerate = mi.audio.samplerate;
 
-        track->title = gpod_trim(mi.meta.title);
-        track->album = gpod_trim(mi.meta.album);
-        track->artist = gpod_trim(mi.meta.artist);
-        track->genre = gpod_trim(mi.meta.genre);
-        track->comment = gpod_trim(mi.meta.comment);
+        track->title = gpod_sanitize_text(gpod_trim(mi.meta.title), sanitize_);
+        track->album = gpod_sanitize_text(gpod_trim(mi.meta.album), sanitize_);
+        track->artist = gpod_sanitize_text(gpod_trim(mi.meta.artist), sanitize_);
+        track->genre = gpod_sanitize_text(gpod_trim(mi.meta.genre), sanitize_);
+        track->comment = gpod_sanitize_text(gpod_trim(mi.meta.comment), sanitize_);
         track->track_nr = mi.meta.track;
         track->year = mi.meta.year;
     }
@@ -243,7 +243,7 @@ static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-m | -a ] [-q <quality>] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-m | -a ] [-q <quality>] [ -S ] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
              "\n"
@@ -254,6 +254,7 @@ void  _usage(const char* argv0_)
 	     "    -m             transcode to mp3 (default)\n"
 	     "    -a             transcode to aac\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k\n"
+	     "    -S             disable text sanitization; chars like ’ to '\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -273,10 +274,11 @@ int main (int argc, char *argv[])
 	bool  force;
 	bool  xcode_as_mp3;
 	enum gpod_ff_transcode_quality  xcode_quality;
-    } opts = { NULL, false, false, true, GPOD_FF_XCODE_VBR2 };
+	bool  sanitize;
+    } opts = { NULL, false, false, true, GPOD_FF_XCODE_VBR2, true };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhamq:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhamSq:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -305,6 +307,8 @@ int main (int argc, char *argv[])
 		    }
 		}
 	    } break;
+
+            case 'S':  opts.sanitize = false;  break;
 
             case 'h':
             default:
@@ -437,7 +441,7 @@ int main (int argc, char *argv[])
         gpod_ff_transcode_ctx_init(&xfrm, opts.xcode_as_mp3, opts.xcode_quality);
 
         bool  ok = true;
-        if ( (track = _track(path, &xfrm, &err)) == NULL) {
+        if ( (track = _track(path, &xfrm, opts.sanitize, &err)) == NULL) {
             ok = false;
             g_print("{ } track err - %s\n", err ? err : "<>");
             g_free(err);
