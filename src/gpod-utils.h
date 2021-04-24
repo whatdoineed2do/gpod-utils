@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+
 #include <glib.h>
 #include <gpod/itdb.h>
 
@@ -45,6 +47,8 @@ struct gpod_track_fs_hash {
 
 void  gpod_track_fs_hash_init(struct gpod_track_fs_hash* htbl_, Itdb_iTunesDB* itdb_);
 void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_);
+
+bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const Itdb_Track* track_, const char* path_);
 
 
 #ifdef __cplusplus
