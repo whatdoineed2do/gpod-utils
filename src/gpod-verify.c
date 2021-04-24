@@ -218,10 +218,12 @@ int main (int argc, char *argv[])
 
     /* initial cleanup for stuff that in db and not on fs
      */
+    GHashTable*  hash = g_hash_table_new(g_str_hash, g_str_equal);
     for (GList* it=mpl->members; it!=NULL; it=it->next)
     {
 	track = (Itdb_Track *)it->data;
 	itdb_filename_ipod2fs(track->ipod_path);
+	g_hash_table_insert(hash, track->ipod_path, track->ipod_path);
 
 	strcpy(pbase, track->ipod_path);
 
@@ -242,24 +244,14 @@ int main (int argc, char *argv[])
 
     for (GSList* i=files; i!=NULL; i=i->next)
     {
-        bool  in_db = false;
         const char*  resolved_path = i->data;
 
-        mpl = itdb_playlist_mpl(itdb);
-        for (GList* j=mpl->members; j!=NULL; j=j->next)
-        {
-            track = (Itdb_Track*)j->data;
-
-            if (track->ipod_path && strcmp(resolved_path+strlen(mountpoint)-1, track->ipod_path) == 0) {
-                in_db = true;
-                break;
-            }
-        }
-        track = NULL;
-
-        if (in_db) {
+        if (g_hash_table_contains(hash, resolved_path+strlen(mountpoint)-1)) {
+	    // name on fs is in (hash of paths) db
             continue;
         }
+
+        track = NULL;
 
         /* not in db, on fs .. what to do
          */
@@ -309,6 +301,8 @@ int main (int argc, char *argv[])
     }
     g_slist_free_full(files, g_free);
     files = NULL;
+    g_hash_table_destroy(hash);
+    hash = NULL;
 
 
     if (added || removed) {
