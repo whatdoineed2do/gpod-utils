@@ -155,8 +155,7 @@ int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending
 
 static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
 {
-    const guint  hash = track_->itdb ? gpod_hash(track_) : gpod_hash_file(path_);
-    return g_hash_table_lookup(tfsh_->tbl, &hash);
+    return gpod_track_fs_hash_contains(tfsh_, track_, path_);
 }
 
 
