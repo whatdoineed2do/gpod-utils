@@ -553,15 +553,8 @@ int main (int argc, char *argv[])
     }
 
     char  stats_size[128] = { 0 };
-    if (stats.bytes)
-    {
-	const float  BYTES_KB  = 1024.0;
-	const float  BYTES_MB  = BYTES_KB * 1024.0;
-	const float  BYTES_GB  = BYTES_MB * 1024.0;
-
-	if      (stats.bytes >= BYTES_GB)  sprintf(stats_size, "(%.1fG)", stats.bytes/BYTES_GB);
-	else if (stats.bytes >= BYTES_MB)  sprintf(stats_size, "(%.3fM)", stats.bytes/BYTES_MB);
-	else                               sprintf(stats_size, "(%.2fK)", stats.bytes/BYTES_KB);
+    if (stats.bytes) {
+	gpod_bytes_to_human(stats_size, sizeof(stats_size), stats.bytes, true);
     }
 
 

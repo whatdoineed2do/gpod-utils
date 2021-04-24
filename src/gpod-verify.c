@@ -204,7 +204,8 @@ int main (int argc, char *argv[])
 	unsigned  ttl;
 	size_t  rm_bytes;
 	size_t  add_bytes;
-    } stats = { 0, 0, 0 };
+	size_t  orphan_bytes;
+    } stats = { 0, 0, 0, 0 };
 
 
     bool  first = true;
@@ -336,7 +337,14 @@ int main (int argc, char *argv[])
         }
     }
 
-    g_print("iPod total tracks=%u  orphaned %u removed %u added %u items\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, removed, added);
+    char  add_size[32] = { 0 };
+    gpod_bytes_to_human(add_size, sizeof(add_size), stats.add_bytes, true);
+    char  rm_size[32] = { 0 };
+    gpod_bytes_to_human(rm_size, sizeof(rm_size), stats.rm_bytes, true);
+    char  orphan_size[32] = { 0 };
+    gpod_bytes_to_human(orphan_size, sizeof(orphan_size), stats.orphan_bytes, true);
+
+    g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size);
 
 
     if (itdev) {
