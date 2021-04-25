@@ -122,6 +122,7 @@ main (int argc, char *argv[])
 {
     GError *error = NULL;
     Itdb_iTunesDB*  itdb = NULL;
+    Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
     struct gpod_opts  opts;
@@ -176,6 +177,8 @@ main (int argc, char *argv[])
     strcpy(mountpoint, mpt);
     if (g_file_test(mpt, G_FILE_TEST_IS_DIR)) {
 	itdb = itdb_parse (mpt, &error);
+	itdev = itdb_device_new();
+	itdb_device_set_mountpoint(itdev, mpt);
     }
 
     if (error)
@@ -193,8 +196,15 @@ main (int argc, char *argv[])
         _usage(argv[0]);
     }
 
+    const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
+    const bool  supported = gpod_write_supported(ipodinfo);
+ 
+    g_print("updating iPod %s track meta %s", itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation), supported ? "{" : " - device NOT supported\n");
 
-    g_print("updating iPod track meta {");
+    if (!supported) {
+        goto cleanup;
+        ret = -1;
+    }
       if (opts.title)       g_print(" title='%s'",  opts.title);
       if (opts.artist)      g_print(" artist='%s'", opts.artist);
       if (opts.album)       g_print(" album='%s'",  opts.album);
@@ -319,6 +329,9 @@ main (int argc, char *argv[])
     else {
         g_printerr("failed to update\n");
     }
+
+cleanup:
+    itdb_device_free(itdev);
     itdb_free (itdb);
     gpod_opts_free(&opts);
 
