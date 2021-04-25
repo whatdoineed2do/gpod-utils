@@ -250,10 +250,17 @@ main (int argc, char *argv[])
 
 
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
+    const bool  supported = gpod_write_supported(ipodinfo);
+    
     g_print("removing tracks from iPod %s %s, currently %u tracks%s\n",
                 itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
                 ipodinfo->model_number,
-                current);
+                current, supported ? "" : " - device NOT supportd");
+
+    if (!supported) {
+        ret = -1;
+        goto cleanup;
+    }
 
     if (opts.autoclean) {
         autoclean(opts.interactv, itdb, &removed, &stats.bytes);
@@ -360,6 +367,7 @@ main (int argc, char *argv[])
     g_print("iPod total tracks=%u  removed %u/%u items %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : removed, requested, stats_size);
 
 
+cleanup:
     itdb_device_free(itdev);
     itdb_free (itdb);
 
