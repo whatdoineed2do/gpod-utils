@@ -178,10 +178,12 @@ int main (int argc, char *argv[])
     musicdir = NULL;
 
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
-    g_print("validating tracks from iPod %s %s, currently %u/%u db/filesystem tracks\n",
+    const bool  supported = gpod_write_supported(ipodinfo);
+
+    g_print("validating tracks from iPod %s %s, currently %u/%u db/filesystem tracks%s\n",
              itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
              ipodinfo->model_number,
-             dbcount, fscount);
+             dbcount, fscount, supported ? "" : " - DB updates NOT supported");
 
     struct Stats {
 	unsigned  ttl;
@@ -231,8 +233,13 @@ int main (int argc, char *argv[])
     {
 	track = (Itdb_Track*)i->data;
 
-        g_print("CLEAN [%3u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%u }\n", 
-                ++removed, track->ipod_path, track->id, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->time_added);
+        g_print("CLEAN  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%u }\n", 
+                track->ipod_path, track->id, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->time_added);
+
+        if (!supported) {
+            continue;
+        }
+        ++removed;
 
 	for (GList* j=itdb->playlists; j!=NULL; j=j->next) {
 	    itdb_playlist_remove_track((Itdb_Playlist*)j->data, track);
@@ -273,11 +280,14 @@ int main (int argc, char *argv[])
             // no xcode, if its a supported file, add it back to db
             track->ipod_path = g_strdup(resolved_path+strlen(mountpoint)-1);
 
-            ++added;
-            g_print("ADD   [%3u]  %s -> { title='%s' artist='%s' album='%s' }\n", 
-                    added, track->ipod_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+            g_print("ADD   %s -> { title='%s' artist='%s' album='%s' }\n", 
+                    track->ipod_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
             stats.add_bytes += track->size;
 
+            if (!supported) {
+                continue;
+            }
+            ++added;
             itdb_filename_fs2ipod(track->ipod_path);
             itdb_track_add(itdb, track, -1);
             itdb_playlist_add_track(mpl, track, -1);
@@ -287,7 +297,7 @@ int main (int argc, char *argv[])
             if (opts.mode & GPOD_MODE_DB)
             {
                 // trust the db, remove from fs
-                g_print("REMVE [%3u]  %s -> { title='%s' artist='%s' album='%s' }\n", 
+                g_print("REMVE  %s -> { title='%s' artist='%s' album='%s' }\n", 
                         ++removed, resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
 
                 g_unlink(resolved_path);
@@ -295,8 +305,9 @@ int main (int argc, char *argv[])
             }
             else
             {
-                g_print("ORPHN [%3u]  %s -> { title='%s' artist='%s' album='%s' }\n", 
-                        ++orphaned, resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                g_print("ORPHN  %s -> { title='%s' artist='%s' album='%s' }\n", 
+                        resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                ++orphaned;
             }
 
             itdb_track_free(track);
@@ -309,7 +320,7 @@ int main (int argc, char *argv[])
     hash = NULL;
 
 
-    if (added || removed) {
+    if (supported && added || removed) {
         g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 
@@ -328,7 +339,6 @@ int main (int argc, char *argv[])
     gpod_bytes_to_human(orphan_size, sizeof(orphan_size), stats.orphan_bytes, true);
 
     g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size);
-
 
     if (itdev) {
         itdb_device_free(itdev);
