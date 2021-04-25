@@ -33,6 +33,8 @@ extern "C" {
 const char*  gpod_setlocale();
 char*  gpod_trim(const char* what_);
 
+bool  gpod_write_supported(const Itdb_IpodInfo* ipi_);
+
 // recursively walk dir, adding files as strings to the list
 void  gpod_walk_dir(const gchar* dir_, GSList **l_);
 

@@ -74,6 +74,34 @@ char*  gpod_trim(const char* what_)
     return buf;
 }
 
+bool  gpod_write_supported(const Itdb_IpodInfo* ipi_)
+{
+    /* anything that is not on this list requires a hash/cksum'd
+     * iTunesDB/iTunesCDB and sqlite3 db for the ipod which doesn't
+     * work well
+     */
+    static const int  supported[] = { 
+	ITDB_IPOD_GENERATION_FIRST,
+	ITDB_IPOD_GENERATION_SECOND,
+	ITDB_IPOD_GENERATION_THIRD,
+	ITDB_IPOD_GENERATION_FOURTH,
+	ITDB_IPOD_GENERATION_PHOTO,
+	ITDB_IPOD_GENERATION_VIDEO_1,
+	ITDB_IPOD_GENERATION_VIDEO_2,
+	-1,
+    };
+
+    const int*  p = supported;
+    while (*p)
+    {
+	if (*p == ipi_->ipod_generation) {
+	    return true;
+	}
+	++p;
+    }
+    return false;
+}
+
 void  gpod_walk_dir(const gchar *dir_, GSList **l_) 
 {
     GDir*  dir_handle;

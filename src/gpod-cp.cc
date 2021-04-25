@@ -191,33 +191,6 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
-static bool  gpod_cp_supported(const Itdb_IpodInfo* ipi_)
-{
-    /* anything that is not on this list requires a hash/cksum'd
-     * iTunesDB/iTunesCDB and sqlite3 db for the ipod which doesn't
-     * work well
-     */
-    static const int  supported[] = { 
-	ITDB_IPOD_GENERATION_FIRST,
-	ITDB_IPOD_GENERATION_SECOND,
-	ITDB_IPOD_GENERATION_THIRD,
-	ITDB_IPOD_GENERATION_FOURTH,
-	ITDB_IPOD_GENERATION_PHOTO,
-	ITDB_IPOD_GENERATION_VIDEO_1,
-	ITDB_IPOD_GENERATION_VIDEO_2,
-	-1,
-    };
-
-    const int*  p = supported;
-    while (*p)
-    {
-	if (*p == ipi_->ipod_generation) {
-	    return true;
-	}
-	++p;
-    }
-    return false;
-}
 
 void  _usage(const char* argv0_)
 {
@@ -373,8 +346,8 @@ int main (int argc, char *argv[])
 #define SUPPORT_DEVICE  1 << 1
 #define SUPPORT_FORCED  1 << 2
 
-    const unsigned  support = gpod_cp_supported(ipodinfo) ? SUPPORT_DEVICE : 0 |
-			      opts.force                  ? SUPPORT_FORCED : 0;
+    const unsigned  support = gpod_write_supported(ipodinfo) ?
+                                SUPPORT_DEVICE : 0 | opts.force ? SUPPORT_FORCED : 0;
 
     const char*  extra = "";
     if (support & SUPPORT_DEVICE) {
