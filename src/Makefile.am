@@ -39,8 +39,8 @@ gpod_verify_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
 gpod_verify_SOURCES = gpod-verify.c gpod-utils.c gpod-ffmpeg.c
 gpod_verify_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
-test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS)
-test_ff_xcode_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample
+test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
+test_ff_xcode_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) -lavformat -lavutil -lavcodec -lswresample -zundefs
 test_ff_xcode_SOURCES = test-ff-xcode.c gpod-ffmpeg-transcode.c gpod-ffmpeg.c
 endif
 
