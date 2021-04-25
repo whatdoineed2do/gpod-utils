@@ -308,6 +308,7 @@ int main (int argc, char *argv[])
                 g_print("ORPHN  %s -> { title='%s' artist='%s' album='%s' }\n", 
                         resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
                 ++orphaned;
+                stats.orphan_bytes += track->size;
             }
 
             itdb_track_free(track);
