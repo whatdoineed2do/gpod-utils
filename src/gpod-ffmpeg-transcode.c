@@ -768,7 +768,8 @@ static int encode_audio_frame(AVFrame *frame,
     /* The encoder signals that it has nothing more to encode. */
     if (error == AVERROR_EOF) {
         error = 0;
-        goto cleanup;
+	// this is a bug in ffmpeg's example - need this to go an drain
+        // goto cleanup;
     } else if (error < 0) {
         char  err[1024];
         snprintf(err, 1024, "Could not send packet for encoding (error '%s')",
