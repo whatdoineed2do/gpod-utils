@@ -195,8 +195,10 @@ copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 [  2/3]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.mp3' }
 [  3/3]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' }
 sync'ing iPod ... 
-iPod total tracks=29  (+2/3 items music=2 video=0 other=0  in 0.231 secs)
+iPod total tracks=29  2/3 items (3.44M)  music=2 video=0 other=0  in 0.572 secs
 ```
+The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,.320 for CBR.  Whilst the default conversion is to high quality vbr MP3 (equivalent to `ffmpeg -c:a libmp3lame -q:a 2`), conversion t AAC is also available via `-e aac` if supported by your `ffmpeg` (`libfdk_aac`) installation.  We avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.
+
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
 To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile baseline -b:v 1.8M foo.mp4`.  This video will not contain the `uuid` atom.
