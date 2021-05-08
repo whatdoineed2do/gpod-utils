@@ -173,6 +173,24 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     AVCodec *output_codec          = NULL;
     int error;
 
+    /* Find the encoder to be used by its name. */
+    if (target_->audio_opts.enc_name) {
+        if ( (output_codec = avcodec_find_encoder_by_name(target_->audio_opts.enc_name)) == NULL) {
+            char  err[256];
+            snprintf(err, 256,"Could not find encoder %s.", target_->audio_opts.enc_name);
+            *err_ = strdup(err);
+            return AVERROR_ENCODER_NOT_FOUND;
+        }
+    }
+    else {
+        if (!(output_codec = avcodec_find_encoder(target_->audio_opts.codec_id))) {
+            char  err[1024];
+            snprintf(err, 1024,"Could not find an codec_id=%u encoder.", (unsigned)target_->audio_opts.codec_id);
+                *err_ = strdup(err);
+            return AVERROR_ENCODER_NOT_FOUND;
+        }
+    }
+
     /* Open the output file to write to it. */
     if ((error = avio_open(&output_io_context, target_->path,
                            AVIO_FLAG_WRITE)) < 0) {
@@ -209,24 +227,6 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
             *err_ = strdup(err);
         error = AVERROR(ENOMEM);
         goto cleanup;
-    }
-
-    /* Find the encoder to be used by its name. */
-    if (target_->audio_opts.enc_name) {
-        if ( (output_codec = avcodec_find_encoder_by_name(target_->audio_opts.enc_name)) == NULL) {
-            char  err[256];
-            snprintf(err, 256,"Could not find encoder %s.", target_->audio_opts.enc_name);
-            *err_ = strdup(err);
-            goto cleanup;
-        }
-    }
-    else {
-        if (!(output_codec = avcodec_find_encoder(target_->audio_opts.codec_id))) {
-            char  err[1024];
-            snprintf(err, 1024,"Could not find an codec_id=%u encoder.", (unsigned)target_->audio_opts.codec_id);
-                *err_ = strdup(err);
-            goto cleanup;
-        }
     }
 
     /* Create a new audio stream in the output file container. */
