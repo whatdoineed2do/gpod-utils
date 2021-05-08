@@ -212,11 +212,21 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     }
 
     /* Find the encoder to be used by its name. */
-    if (!(output_codec = avcodec_find_encoder(target_->audio_opts.codec_id))) {
-        char  err[1024];
-        snprintf(err, 1024,"Could not find an codec_id=%u encoder.", (unsigned)target_->audio_opts.codec_id);
+    if (target_->audio_opts.enc_name) {
+        if ( (output_codec = avcodec_find_encoder_by_name(target_->audio_opts.enc_name)) == NULL) {
+            char  err[256];
+            snprintf(err, 256,"Could not find encoder %s.", target_->audio_opts.enc_name);
             *err_ = strdup(err);
-        goto cleanup;
+            goto cleanup;
+        }
+    }
+    else {
+        if (!(output_codec = avcodec_find_encoder(target_->audio_opts.codec_id))) {
+            char  err[1024];
+            snprintf(err, 1024,"Could not find an codec_id=%u encoder.", (unsigned)target_->audio_opts.codec_id);
+                *err_ = strdup(err);
+            goto cleanup;
+        }
     }
 
     /* Create a new audio stream in the output file container. */
@@ -249,7 +259,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     else {
         // vbr
         avctx->flags      |= AV_CODEC_FLAG_QSCALE;
-        avctx->global_quality = (int)(target_->audio_opts.quality) * FF_QP2LAMBDA;
+        avctx->global_quality = (int)(target_->audio_opts.quality) * target_->audio_opts.quality_scale_factor;
     }
 
     /* Allow the use of the experimental AAC encoder. */

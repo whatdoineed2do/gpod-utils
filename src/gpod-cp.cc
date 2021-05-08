@@ -195,7 +195,7 @@ void  gpod_cp_destroy()
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-m | -a ] [-q <quality>] [ -S ] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
              "\n"
@@ -203,8 +203,7 @@ void  _usage(const char* argv0_)
              "    -c             generate checksum of each file in iTunesDB for \n"
              "                   comparison to prevent duplicate\n"
 	     "    -F             libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
-	     "    -m             transcode to mp3 (default)\n"
-	     "    -a             transcode to aac\n"
+	     "    -e <mp3|aac>  transcode to mp3(default)/fdkaac\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              ,basename);
@@ -224,21 +223,27 @@ int main (int argc, char *argv[])
         const char*  itdb_path;
         bool cksum;
 	bool  force;
-	bool  xcode_as_mp3;
+	enum gpod_ff_enc  enc;
 	enum gpod_ff_transcode_quality  xcode_quality;
 	bool  sanitize;
-    } opts = { NULL, false, false, true, GPOD_FF_XCODE_VBR2, true };
+    } opts = { NULL, false, false, GPOD_FF_ENC_MP3, GPOD_FF_XCODE_VBR2, true };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhamSq:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhe:Sq:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'c':  opts.cksum = true;  break;
             case 'F':  opts.force = true;  break;
 
-	    case 'm':  opts.xcode_as_mp3 = true;  break;
-	    case 'a':  opts.xcode_as_mp3 = false;  break;
+            case 'e':
+	    {
+                if      (strcasecmp(optarg, "mp3") == 0)  opts.enc = GPOD_FF_ENC_MP3;
+                else if (strcasecmp(optarg, "aac") == 0)  opts.enc = GPOD_FF_ENC_FDKAAC;
+                else if (strcasecmp(optarg, "aac-broken") == 0)  opts.enc = GPOD_FF_ENC_AAC;
+                else                                      opts.enc = GPOD_FF_ENC_MAX;
+            } break;
+
 	    case 'q':
 	    {
 		const unsigned  q = (unsigned)atol(optarg);
@@ -268,7 +273,7 @@ int main (int argc, char *argv[])
         }
     }
 
-    if (opts.itdb_path == NULL) {
+    if (opts.itdb_path == NULL || opts.enc == GPOD_FF_ENC_MAX) {
         _usage(argv[0]);
     }
 
@@ -390,7 +395,7 @@ int main (int argc, char *argv[])
 
         error = NULL;
 
-        gpod_ff_transcode_ctx_init(&xfrm, opts.xcode_as_mp3, opts.xcode_quality);
+        gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
 
         bool  ok = true;
         if ( (track = _track(path, &xfrm, opts.sanitize, &err)) == NULL) {

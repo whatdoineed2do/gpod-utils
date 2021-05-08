@@ -91,6 +91,14 @@ struct gpod_ff_media_info
     struct gpod_ff_meta  meta;
 };
 
+enum gpod_ff_enc {
+    GPOD_FF_ENC_MP3,
+    GPOD_FF_ENC_AAC,
+    GPOD_FF_ENC_FDKAAC,
+
+    GPOD_FF_ENC_MAX
+};
+
 enum gpod_ff_transcode_quality { 
     GPOD_FF_XCODE_VBR0 = 0,
     GPOD_FF_XCODE_VBR1,
@@ -116,9 +124,11 @@ enum gpod_ff_transcode_quality {
 struct gpod_ff_transcode_ctx {
     struct {
         enum AVCodecID  codec_id;
+        const char*  enc_name;  // if set use this over codec_id
         uint8_t  channels;
         uint32_t  samplerate;
         enum gpod_ff_transcode_quality  quality;
+        float  quality_scale_factor;
     } audio_opts;
 
     const char*  extn;
@@ -136,7 +146,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool 
 
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
-                                 bool xcode_mp3_, enum gpod_ff_transcode_quality quality_);
+                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_);
 
 int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target, char** err_);
 

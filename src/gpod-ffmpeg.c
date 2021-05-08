@@ -650,20 +650,43 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool 
 
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
-                                 bool xcode_mp3_, enum gpod_ff_transcode_quality quality_)
+                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_)
 {
     memset(obj_, 0, sizeof(struct gpod_ff_transcode_ctx));
 
     // default the transcode params
     obj_->audio_opts.channels = 2;
     obj_->audio_opts.quality = quality_;
-    if (xcode_mp3_) {
-	obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
-	obj_->extn = ".mp3";
-    }
-    else {
+    obj_->audio_opts.quality_scale_factor = FF_QP2LAMBDA;
+    switch (enc_)
+    {
+      /* maybe better NOT to support the ffmpeg inbuilt aac enc since it generates
+       * files that the ipod plays with glitches but fine on other media players
+       */
+      case GPOD_FF_ENC_AAC:
 	obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
 	obj_->extn = ".m4a";
+        break;
+
+      case GPOD_FF_ENC_FDKAAC:
+	obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
+	obj_->audio_opts.enc_name = "libfdk_aac";
+	obj_->extn = ".m4a";
+        obj_->audio_opts.quality_scale_factor = 1.0;
+
+        /* fdk-aac encoder only accepts vbr 1-5 (best), rather than the ffmpeg 
+         * -q:a 1 (best)-9 so fudge it
+         */
+        if (quality_ <= GPOD_FF_XCODE_VBR_MAX) {
+            int  tmp = -1 * ( ((int)quality_)/2 - 5);
+            obj_->audio_opts.quality = tmp;
+        }
+        break;
+
+      case GPOD_FF_ENC_MP3:
+      default:
+	obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
+	obj_->extn = ".mp3";
     }
 
 
