@@ -649,6 +649,18 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool 
 }
 
 
+bool  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
+{
+    const char*  codec_name = NULL;
+    switch (enc_) {
+	case GPOD_FF_ENC_MP3:     codec_name = "libmp3lame";  break;
+	case GPOD_FF_ENC_AAC:     codec_name = "aac";         break;
+	case GPOD_FF_ENC_FDKAAC:  codec_name = "libfdk_aac";  break;
+    }
+
+    return codec_name ? avcodec_find_encoder_by_name(codec_name) : false;
+}
+
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
                                  enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_)
 {

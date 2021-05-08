@@ -145,6 +145,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
 Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool sanitize_);
 
 
+bool  gpod_ff_enc_supported(enum gpod_ff_enc  enc_);
+
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
                                  enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_);
 
