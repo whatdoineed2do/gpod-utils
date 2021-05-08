@@ -203,7 +203,8 @@ void  _usage(const char* argv0_)
              "    -c             generate checksum of each file in iTunesDB for \n"
              "                   comparison to prevent duplicate\n"
 	     "    -F             libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
-	     "    -e <mp3|aac>  transcode to mp3(default)/fdkaac\n"
+	     "    -e <mp3|aac>   transcode to mp3(default)/fdkaac\n"
+	     "    -E             disable encoding fallback\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              ,basename);
@@ -224,17 +225,22 @@ int main (int argc, char *argv[])
         bool cksum;
 	bool  force;
 	enum gpod_ff_enc  enc;
+	bool enc_fallback;
 	enum gpod_ff_transcode_quality  xcode_quality;
 	bool  sanitize;
-    } opts = { NULL, false, false, GPOD_FF_ENC_MP3, GPOD_FF_XCODE_VBR2, true };
+    } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR2, true };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhe:Sq:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'c':  opts.cksum = true;  break;
             case 'F':  opts.force = true;  break;
+
+	    case 'E':
+		opts.enc_fallback = false;
+		break;
 
             case 'e':
 	    {
@@ -371,6 +377,20 @@ int main (int argc, char *argv[])
 		itdb_info_get_ipod_generation_string(ipodinfo->ipod_generation),
 		ipodinfo->model_number, 
 		current, extra);
+
+    /* validate that the requested xcode encoder is supported; we expect that 
+     * mp3 is supported!
+     */
+    if (!gpod_ff_enc_supported(opts.enc))
+    {
+	extra = "";
+	opts.enc = GPOD_FF_ENC_MAX;
+	if (opts.enc_fallback) {
+	    opts.enc = GPOD_FF_ENC_MP3;
+	    extra = ", falling back to MP3 encoding";
+	}
+	g_printf("requested transcoding NOT available%s\n", extra);
+    }
 
     struct gpod_track_fs_hash  tfsh;
     if (opts.cksum && (support & (SUPPORT_DEVICE|SUPPORT_FORCED) )) {
