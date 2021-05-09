@@ -228,7 +228,7 @@ int main (int argc, char *argv[])
 	bool enc_fallback;
 	enum gpod_ff_transcode_quality  xcode_quality;
 	bool  sanitize;
-    } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR2, true };
+    } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
 
     int  c;
     while ( (c=getopt(argc, argv, "M:cFhEe:Sq:")) != EOF)
