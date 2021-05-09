@@ -170,7 +170,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     AVCodecContext *avctx          = NULL;
     AVIOContext *output_io_context = NULL;
     AVStream *stream               = NULL;
-    AVCodec *output_codec          = NULL;
+    const AVCodec *output_codec    = NULL;
     int error;
 
     /* Find the encoder to be used by its name. */
