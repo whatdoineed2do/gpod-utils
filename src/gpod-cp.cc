@@ -197,15 +197,15 @@ void  _usage(const char* argv0_)
     char *basename = g_path_get_basename(argv0_);
     g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
-             "    Will automatically transcode unsupported audio (flac,wav etc) to .aac\n"
+             "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
              "    -M <iPod dir>  location of iPod data, as directory mount point or\n"
              "    -c             generate checksum of each file in iTunesDB for \n"
              "                   comparison to prevent duplicate\n"
 	     "    -F             libgpod write can corrupt iTunesDB, only allow for tested version.  Use to override\n"
-	     "    -e <mp3|aac>   transcode to mp3(default)/fdkaac\n"
+	     "    -e <mp3|aac|alac>   transcode to mp3/fdkaac/alac - default to aac\n"
 	     "    -E             disable encoding fallback\n"
-	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k\n"
+	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k (not applicable for alac)\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              ,basename);
     g_free (basename);
@@ -246,6 +246,11 @@ int main (int argc, char *argv[])
 	    {
                 if      (strcasecmp(optarg, "mp3") == 0)  opts.enc = GPOD_FF_ENC_MP3;
                 else if (strcasecmp(optarg, "aac") == 0)  opts.enc = GPOD_FF_ENC_FDKAAC;
+                else if (strcasecmp(optarg, "alac") == 0)
+		{ 
+		    opts.enc = GPOD_FF_ENC_ALAC;
+		    opts.xcode_quality = GPOD_FF_XCODE_MAX;
+		}
                 else if (strcasecmp(optarg, "aac-broken") == 0)  opts.enc = GPOD_FF_ENC_AAC;
                 else                                      opts.enc = GPOD_FF_ENC_MAX;
             } break;
