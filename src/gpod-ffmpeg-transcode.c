@@ -247,14 +247,18 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     avctx->channels       = target_->audio_opts.channels;
     avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
     avctx->sample_rate    = input_codec_context->sample_rate;
-    avctx->sample_fmt     = output_codec->sample_fmts[0];
-    if ((int)(target_->audio_opts.quality) > GPOD_FF_XCODE_VBR_MAX) {
-        avctx->bit_rate   = (int)(target_->audio_opts.quality);
-    }
-    else {
-        // vbr
-        avctx->flags      |= AV_CODEC_FLAG_QSCALE;
-        avctx->global_quality = (int)(target_->audio_opts.quality) * target_->audio_opts.quality_scale_factor;
+    avctx->sample_fmt     = target_->audio_opts.samplefmt == AV_SAMPLE_FMT_NONE ? output_codec->sample_fmts[0] : target_->audio_opts.samplefmt;
+    const int  quality = (int)(target_->audio_opts.quality);
+    if (quality != GPOD_FF_XCODE_MAX)
+    {
+	if (quality > GPOD_FF_XCODE_VBR_MAX) {
+	    avctx->bit_rate = quality;
+	}
+	else {
+	    // vbr
+	    avctx->flags         |= AV_CODEC_FLAG_QSCALE;
+	    avctx->global_quality = quality * target_->audio_opts.quality_scale_factor;
+	}
     }
 
     /* Allow the use of the experimental AAC encoder. */

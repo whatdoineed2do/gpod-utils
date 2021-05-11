@@ -656,6 +656,7 @@ bool  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
 	case GPOD_FF_ENC_MP3:     codec_name = "libmp3lame";  break;
 	case GPOD_FF_ENC_AAC:     codec_name = "aac";         break;
 	case GPOD_FF_ENC_FDKAAC:  codec_name = "libfdk_aac";  break;
+	case GPOD_FF_ENC_ALAC:    codec_name = "alac";        break;
     }
 
     return codec_name ? avcodec_find_encoder_by_name(codec_name) : false;
@@ -670,6 +671,7 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
     obj_->audio_opts.channels = 2;
     obj_->audio_opts.quality = quality_;
     obj_->audio_opts.quality_scale_factor = FF_QP2LAMBDA;
+    obj_->audio_opts.samplefmt = AV_SAMPLE_FMT_NONE;
     switch (enc_)
     {
       /* maybe better NOT to support the ffmpeg inbuilt aac enc since it generates
@@ -694,6 +696,14 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
             int  tmp = -1 * ( ((int)quality_)/2 - 5);
             obj_->audio_opts.quality = tmp;
         }
+        break;
+
+      case GPOD_FF_ENC_ALAC:
+	obj_->audio_opts.codec_id = AV_CODEC_ID_ALAC;
+	obj_->audio_opts.enc_name = "alac";
+	obj_->extn = ".m4a";
+        obj_->audio_opts.quality_scale_factor = 0;
+	obj_->audio_opts.samplefmt = AV_SAMPLE_FMT_S16P;
         break;
 
       case GPOD_FF_ENC_MP3:

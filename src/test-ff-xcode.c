@@ -65,6 +65,8 @@ int main(int argc, char* argv[])
         { GPOD_FF_ENC_MP3,    GPOD_FF_XCODE_VBR1,   "test-ff-mp3-vbr1.mp3" },
         { GPOD_FF_ENC_MP3,    GPOD_FF_XCODE_CBR160, "test-ff-mp3-cbr160.mp3" },
 
+        { GPOD_FF_ENC_ALAC,   GPOD_FF_XCODE_MAX,    "test-ff-alac.m4a" },
+
         { 0, 0, NULL }
     };
 

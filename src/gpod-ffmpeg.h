@@ -95,6 +95,7 @@ enum gpod_ff_enc {
     GPOD_FF_ENC_MP3,
     GPOD_FF_ENC_AAC,
     GPOD_FF_ENC_FDKAAC,
+    GPOD_FF_ENC_ALAC,
 
     GPOD_FF_ENC_MAX
 };
@@ -110,6 +111,7 @@ enum gpod_ff_transcode_quality {
     GPOD_FF_XCODE_VBR7,
     GPOD_FF_XCODE_VBR8,
     GPOD_FF_XCODE_VBR9,
+    GPOD_FF_XCODE_VBR_MAX = GPOD_FF_XCODE_VBR9,
 
     GPOD_FF_XCODE_CBR96 = 96000,
     GPOD_FF_XCODE_CBR128 = 128000,
@@ -118,7 +120,7 @@ enum gpod_ff_transcode_quality {
     GPOD_FF_XCODE_CBR256 = 256000,
     GPOD_FF_XCODE_CBR320 = 320000,
 
-    GPOD_FF_XCODE_VBR_MAX = GPOD_FF_XCODE_VBR9
+    GPOD_FF_XCODE_MAX
 };
 
 struct gpod_ff_transcode_ctx {
@@ -127,6 +129,7 @@ struct gpod_ff_transcode_ctx {
         const char*  enc_name;  // if set use this over codec_id
         uint8_t  channels;
         uint32_t  samplerate;
+        enum AVSampleFormat  samplefmt;
         enum gpod_ff_transcode_quality  quality;
         float  quality_scale_factor;
     } audio_opts;
