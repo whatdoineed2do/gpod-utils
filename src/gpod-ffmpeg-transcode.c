@@ -174,21 +174,16 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     int error;
 
     /* Find the encoder to be used by its name. */
-    if (target_->audio_opts.enc_name) {
-        if ( (output_codec = avcodec_find_encoder_by_name(target_->audio_opts.enc_name)) == NULL) {
-            char  err[256];
-            snprintf(err, 256,"Could not find encoder %s.", target_->audio_opts.enc_name);
-            *err_ = strdup(err);
-            return AVERROR_ENCODER_NOT_FOUND;
-        }
+    if (target_->audio_opts.enc_name == NULL) {
+	*err_ = strdup("encoder not specified");
+	return AVERROR_ENCODER_NOT_FOUND;
     }
-    else {
-        if (!(output_codec = avcodec_find_encoder(target_->audio_opts.codec_id))) {
-            char  err[1024];
-            snprintf(err, 1024,"Could not find an codec_id=%u encoder.", (unsigned)target_->audio_opts.codec_id);
-                *err_ = strdup(err);
-            return AVERROR_ENCODER_NOT_FOUND;
-        }
+
+    if ( (output_codec = avcodec_find_encoder_by_name(target_->audio_opts.enc_name)) == NULL) {
+	char  err[256];
+	snprintf(err, 256,"Could not find encoder %s.", target_->audio_opts.enc_name);
+	*err_ = strdup(err);
+	return AVERROR_ENCODER_NOT_FOUND;
     }
 
     /* Open the output file to write to it. */

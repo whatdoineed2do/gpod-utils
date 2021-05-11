@@ -677,6 +677,7 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
        */
       case GPOD_FF_ENC_AAC:
 	obj_->audio_opts.codec_id = AV_CODEC_ID_AAC;
+	obj_->audio_opts.enc_name = "aac";
 	obj_->extn = ".m4a";
         break;
 
@@ -698,6 +699,7 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
       case GPOD_FF_ENC_MP3:
       default:
 	obj_->audio_opts.codec_id = AV_CODEC_ID_MP3;
+	obj_->audio_opts.enc_name = "libmp3lame";
 	obj_->extn = ".mp3";
     }
 
