@@ -741,8 +741,6 @@ static int init_output_frame(AVFrame **frame,
     return 0;
 }
 
-/* Global timestamp for the audio frames. */
-static int64_t pts = 0;
 
 /**
  * Encode one frame worth of audio to the output file.
@@ -756,7 +754,7 @@ static int64_t pts = 0;
 static int encode_audio_frame(AVFrame *frame,
                               AVFormatContext *output_format_context,
                               AVCodecContext *output_codec_context,
-                              int *data_present, char** err_)
+                              int64_t* pts, int *data_present, char** err_)
 {
     /* Packet used for temporary storage. */
     AVPacket *output_packet;
@@ -768,8 +766,8 @@ static int encode_audio_frame(AVFrame *frame,
 
     /* Set a timestamp based on the sample rate for the container. */
     if (frame) {
-        frame->pts = pts;
-        pts += frame->nb_samples;
+        frame->pts = *pts;
+        *pts += frame->nb_samples;
     }
 
     /* Send the audio frame stored in the temporary packet to the encoder.
@@ -833,7 +831,7 @@ cleanup:
  */
 static int load_encode_and_write(AVAudioFifo *fifo,
                                  AVFormatContext *output_format_context,
-                                 AVCodecContext *output_codec_context, char** err_)
+                                 AVCodecContext *output_codec_context, int64_t* pts, char** err_)
 {
     /* Temporary storage of the output samples of the frame written to the file. */
     AVFrame *output_frame;
@@ -858,7 +856,7 @@ static int load_encode_and_write(AVAudioFifo *fifo,
 
     /* Encode one frame worth of audio samples. */
     if (encode_audio_frame(output_frame, output_format_context,
-                           output_codec_context, &data_written, err_)) {
+                           output_codec_context, pts, &data_written, err_)) {
         av_frame_free(&output_frame);
         return AVERROR_EXIT;
     }
@@ -895,6 +893,9 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     AVAudioFifo  *fifo = NULL;
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
+
+    /* timestamp for the audio frames. */
+    int64_t pts = 0;
 
 
     /* Open the input file for reading. */
@@ -953,7 +954,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
             /* Take one frame worth of audio samples from the FIFO buffer,
              * encode it and write it to the output file. */
             if (load_encode_and_write(fifo, output_format_context,
-                                      output_codec_context, err_))
+                                      output_codec_context, &pts, err_))
                 goto cleanup;
 
         /* If we are at the end of the input file and have encoded
@@ -964,7 +965,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
             do {
                 data_written = 0;
                 if (encode_audio_frame(NULL, output_format_context,
-                                       output_codec_context, &data_written, err_))
+                                       output_codec_context, &pts, &data_written, err_))
                     goto cleanup;
             } while (data_written);
             break;
