@@ -143,7 +143,7 @@ void  gpod_ff_meta_free(struct gpod_ff_meta*  obj_);
 void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_);
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_);
 
-int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** err_);
+int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_IpodGeneration target_, char** err_);
 
 Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool sanitize_);
 

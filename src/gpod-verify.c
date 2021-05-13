@@ -48,12 +48,12 @@ static gint  _track_path_cmp(gconstpointer x_, gconstpointer y_)
     return strcmp((const char*)x_, (const char*)y_);
 }
 
-static Itdb_Track*  _track(const char* file_, char** err_, bool sanitize_)
+static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration idevice_, bool sanitize_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
 
-    if (gpod_ff_scan(&mi, file_, err_) < 0) {
+    if (gpod_ff_scan(&mi, file_, idevice_, err_) < 0) {
 	if (!mi.has_audio) {
             if (*err_) {
                 const char*  err = "no audio - ";
@@ -267,7 +267,7 @@ int main (int argc, char *argv[])
         /* not in db, on fs .. what to do
          */
         char*  err = NULL;
-        track = _track(resolved_path, &err, opts.sanitize);
+        track = _track(resolved_path, &err, ipodinfo->ipod_generation, opts.sanitize);
         if (!track) {
             free(err);
             ret = -1;

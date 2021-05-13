@@ -48,12 +48,12 @@
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, bool sanitize_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
 
-    if (gpod_ff_scan(&mi, file_, err_) < 0) {
+    if (gpod_ff_scan(&mi, file_, idevice_, err_) < 0) {
 	if (!mi.has_audio) {
             if (*err_) {
                 const char*  err = "no audio - ";
@@ -73,23 +73,37 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, bool sanitize_, c
     Itdb_Track*  track = NULL;
     if (!mi.supported_ipod_fmt)
     {
-        /* generate a tmp transcoded file name - having this set is also the
-         * indicator a on-the-fly transcoded file
-         */
-        snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL), xfrm_->extn);
+	if (mi.has_audio && !mi.has_video)
+	{
+	    /* generate a tmp transcoded file name - having this set is also the
+	     * indicator a on-the-fly transcoded file
+	     */
+	    snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL), xfrm_->extn);
 
-        if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
-            char err[1024];
-            snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s) - %s", mi.file_size, mi.type, mi.codectype, *err_ ? *err_ : "");
-            if (*err_) {
-                free(*err_);
-            }
-            *err_ = g_strdup(err);
-        }
-        else {
-            mi.supported_ipod_fmt = true;
-            mi.description = "audio (transcoded)";
-        }
+	    if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
+		char err[1024];
+		snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s) - %s", mi.file_size, mi.type, mi.codectype, *err_ ? *err_ : "");
+		if (*err_) {
+		    free(*err_);
+		}
+		*err_ = g_strdup(err);
+	    }
+	    else {
+		mi.supported_ipod_fmt = true;
+		mi.description = "audio (transcoded)";
+	    }
+	}
+	else
+	{
+	    if (mi.has_video)
+	    {
+		char err[1024];
+		snprintf(err, 1024, "unsupported iPod video file: %s %ux%u @ %i kbps %i channels @ %i",
+                                mi.type, mi.video.width, mi.video.height, mi.video.bitrate/1000, mi.audio.channels, mi.audio.bitrate);
+
+		*err_ = g_strdup(err);
+	    }
+	}
     }
 
     track = gpod_ff_meta_to_track(&mi, sanitize_);
@@ -102,7 +116,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, bool sanitize_, c
 /* writes the itunedb and clears pending list
  * if the itunes write fails, rollback all the files listed in pending
  */
-int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending)
+static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** pending)
 {
     GError*  error = NULL;
     itdb_write(itdb, &error);
@@ -423,7 +437,7 @@ int main (int argc, char *argv[])
         gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
 
         bool  ok = true;
-        if ( (track = _track(path, &xfrm, opts.sanitize, &err)) == NULL) {
+        if ( (track = _track(path, &xfrm, ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
             ok = false;
             g_print("{ } track err - %s\n", err ? err : "<>");
             g_free(err);

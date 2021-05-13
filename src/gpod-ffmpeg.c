@@ -293,9 +293,96 @@ extract_metadata (struct gpod_ff_media_info* info_, AVFormatContext* ctx,
     return mdcount;
 }
 
+const struct gpod_video_support {
+    unsigned  max_width;
+    unsigned  max_height;
+    unsigned  max_vbit_rate;
+    unsigned  max_fps;
+    unsigned  max_abit_rate;
+    short     channels;
+    unsigned  sample_rate;
+
+    int*  profile;
+    Itdb_IpodGeneration*  device;
+}  video_support[] = {
+    {
+	.max_width = 640,
+	.max_height = 480,
+	.max_vbit_rate = 2500000,
+	.max_fps = 30, 
+	.max_abit_rate = 1600,
+	.channels = 2,
+	.sample_rate = 48000,
+
+	.profile = (int[]){
+	    FF_PROFILE_H264_BASELINE,
+	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
+	    FF_PROFILE_UNKNOWN
+	},
+	.device = (Itdb_IpodGeneration[]){ 
+	    ITDB_IPOD_GENERATION_VIDEO_1,
+	    ITDB_IPOD_GENERATION_VIDEO_2,
+	    ITDB_IPOD_GENERATION_UNKNOWN }
+    },
+
+    // in reality, this is redundant since the only ipods supporting video that we can update (does not need iTuneCDB is the ipod video
+    {
+	.max_width = 1280,
+	.max_height = 720, 
+	.max_vbit_rate = 2500000,
+	.max_fps = 30,
+	.max_abit_rate = 1600,
+	.channels = 2,
+	.sample_rate = 48000,
+
+	.profile = (int[]){
+	    FF_PROFILE_H264_BASELINE,
+	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
+	    FF_PROFILE_H264_MAIN,
+	    FF_PROFILE_UNKNOWN
+	},
+	.device = (Itdb_IpodGeneration[]){
+	    ITDB_IPOD_GENERATION_UNKNOWN
+	}
+    },
+
+    { .profile = NULL, .device = NULL }
+};
+
+static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpod_ff_media_info* mi_)
+{
+    const struct gpod_video_support*  p = video_support;
+
+    while (p->profile)
+    {
+	if (mi_->video.height <= p->max_height &&
+            mi_->video.width  <= p->max_width  &&
+	    mi_->video.bitrate <= p->max_vbit_rate &&
+	    mi_->audio.samplerate <= p->sample_rate &&
+	    mi_->audio.channels <= p->channels)
+	{
+	    int*  q = p->profile;
+	    while (*q != FF_PROFILE_UNKNOWN)
+	    {
+		if (*q == mi_->video.profile) {
+		    Itdb_IpodGeneration*  r = p->device;
+		    while (*r != ITDB_IPOD_GENERATION_UNKNOWN) {
+			if (*r == idevice_) {
+			    return true;
+			}
+			++r;
+		    }
+		}
+		++q;
+	    }
+	}
+	++p;
+    }
+    return false;
+}
 
 
-int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** err_)
+int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_IpodGeneration idevice_, char** err_)
 {
     AVFormatContext *ctx;
     AVDictionary *options;
@@ -359,42 +446,51 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
 	    case AVMEDIA_TYPE_VIDEO:
             {
                 // only care about h264
-                if (codec_id == AV_CODEC_ID_H264) {
-                    switch (ctx->streams[i]->codecpar->profile)
-                    {
-                        // only believe in
-                        case FF_PROFILE_H264_BASELINE:
-                        case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-                        case FF_PROFILE_H264_MAIN:
-                        case FF_PROFILE_H264_EXTENDED:
-                        case FF_PROFILE_H264_HIGH:
-                        case FF_PROFILE_H264_HIGH_10:
-                        case FF_PROFILE_H264_HIGH_10_INTRA:
-                        case FF_PROFILE_H264_MULTIVIEW_HIGH:
-                        case FF_PROFILE_H264_HIGH_422:
-                        case FF_PROFILE_H264_HIGH_422_INTRA:
-                        case FF_PROFILE_H264_STEREO_HIGH:
-                        case FF_PROFILE_H264_HIGH_444:
-                        case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
-                        case FF_PROFILE_H264_HIGH_444_INTRA:
-                        case FF_PROFILE_H264_CAVLC_444:
-                        {
-                            info_->has_video = true;
-                            if (!video_stream)
-                            {
-                                video_stream = ctx->streams[i];
-                                info_->video.codec_id = video_codec_id = codec_id;
-                                info_->video.height = video_stream->codecpar->height;
-                                info_->video.width = video_stream->codecpar->width;
-                                info_->video.profile = video_stream->codecpar->profile;
-                                info_->video.bitrate = video_stream->codecpar->bit_rate;
-                                info_->video.length = video_stream->duration/AV_TIME_BASE;
-                            }
-                        } break;
+                switch (codec_id)
+		{
+		    case AV_CODEC_ID_H264:
+		    {
+			switch (ctx->streams[i]->codecpar->profile)
+			{
+			    // only believe in
+			    case FF_PROFILE_H264_BASELINE:
+			    case FF_PROFILE_H264_CONSTRAINED_BASELINE:
+			    case FF_PROFILE_H264_MAIN:
+			    case FF_PROFILE_H264_EXTENDED:
+			    case FF_PROFILE_H264_HIGH:
+			    case FF_PROFILE_H264_HIGH_10:
+			    case FF_PROFILE_H264_HIGH_10_INTRA:
+			    case FF_PROFILE_H264_MULTIVIEW_HIGH:
+			    case FF_PROFILE_H264_HIGH_422:
+			    case FF_PROFILE_H264_HIGH_422_INTRA:
+			    case FF_PROFILE_H264_STEREO_HIGH:
+			    case FF_PROFILE_H264_HIGH_444:
+			    case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
+			    case FF_PROFILE_H264_HIGH_444_INTRA:
+			    case FF_PROFILE_H264_CAVLC_444:
+			    {
+				info_->has_video = true;
+				if (!video_stream)
+				{
+				    video_stream = ctx->streams[i];
+				    info_->video.codec_id = video_codec_id = codec_id;
+				    info_->video.height = video_stream->codecpar->height;
+				    info_->video.width = video_stream->codecpar->width;
+				    info_->video.profile = video_stream->codecpar->profile;
+				    info_->video.bitrate = video_stream->codecpar->bit_rate;
+				    info_->video.length = video_stream->duration/AV_TIME_BASE;
+				}
+			    } break;
 
-                        default:
-                            break;
-                    }
+			    default:
+				break;
+			}
+		    } break;
+
+		    case AV_CODEC_ID_MJPEG:
+		    case AV_CODEC_ID_MJPEGB:
+			// embedded artwork, not video
+			break;
                 }
             } break;
 
@@ -445,7 +541,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
         // its a real vid file (not jsut an audio file with cover art)
         info_->codectype = "h264";
         info_->description = "H264 video";
-        info_->supported_ipod_fmt = true;
+	info_->supported_ipod_fmt = device_support_video(idevice_, info_);
         switch (info_->video.profile)
         {
             case FF_PROFILE_H264_BASELINE:
@@ -454,6 +550,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, char** er
             case FF_PROFILE_H264_CONSTRAINED_BASELINE:
                 info_->type = "h264 (constrained baseline)";
                 break;
+
             case FF_PROFILE_H264_MAIN:
                 info_->type = "h264 (main)";
                 break;
