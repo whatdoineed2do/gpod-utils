@@ -70,6 +70,7 @@ struct gpod_ff_video {
     int       profile;
     uint32_t  length;
     uint32_t  bitrate;
+    float     fps;
 };
 
 

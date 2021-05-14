@@ -297,7 +297,7 @@ const struct gpod_video_support {
     unsigned  max_width;
     unsigned  max_height;
     unsigned  max_vbit_rate;
-    unsigned  max_fps;
+    float     max_fps;
     unsigned  max_abit_rate;
     short     channels;
     unsigned  sample_rate;
@@ -358,6 +358,7 @@ static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpo
 	if (mi_->video.height <= p->max_height &&
             mi_->video.width  <= p->max_width  &&
 	    mi_->video.bitrate <= p->max_vbit_rate &&
+	    mi_->video.fps <= p->max_fps &&
 	    mi_->audio.samplerate <= p->sample_rate &&
 	    mi_->audio.channels <= p->channels)
 	{
@@ -479,6 +480,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 				    info_->video.profile = video_stream->codecpar->profile;
 				    info_->video.bitrate = video_stream->codecpar->bit_rate;
 				    info_->video.length = video_stream->duration/AV_TIME_BASE;
+				    info_->video.fps = video_stream->avg_frame_rate.den ? video_stream->avg_frame_rate.num/(float)video_stream->avg_frame_rate.den : 0;
 				}
 			    } break;
 

@@ -98,8 +98,8 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGenerati
 	    if (mi.has_video)
 	    {
 		char err[1024];
-		snprintf(err, 1024, "unsupported iPod video file: %s %ux%u @ %i kbps %i channels @ %i",
-                                mi.type, mi.video.width, mi.video.height, mi.video.bitrate/1000, mi.audio.channels, mi.audio.bitrate);
+		snprintf(err, 1024, "unsupported iPod video file: %s %ux%u @ %i kb/s, %.3f fps, %i channels @ %i",
+                                mi.type, mi.video.width, mi.video.height, mi.video.bitrate/1000, mi.video.fps, mi.audio.channels, mi.audio.bitrate);
 
 		*err_ = g_strdup(err);
 	    }
