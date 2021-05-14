@@ -186,7 +186,7 @@ iPod total tracks=87 (originally=88)
 The `-a` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
 ## `gpod-cp`
-Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversions to mp3 is made.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
+Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversion is performed.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
 ```
 $ gpod-cp -M /run/media/ray/IPOD -c \
     nothere.mp3 foo.flac foo.mp3 
@@ -197,7 +197,7 @@ copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 sync'ing iPod ... 
 iPod total tracks=29  2/3 items (3.44M)  music=2 video=0 other=0  in 0.572 secs
 ```
-The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,.320 for CBR.  Whilst the default conversion is to high quality vbr MP3 (equivalent to `ffmpeg -c:a libmp3lame -q:a 2`), conversion t AAC is also available via `-e aac` if supported by your `ffmpeg` (`libfdk_aac`) installation.  We avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.
+The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,.320 for CBR.  The default conversion is to high quality vbr AAC (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to MP3 and ALAC is also available via `-e` flag.  Note that the AAC conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to MP3 if FDK not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.
 
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
