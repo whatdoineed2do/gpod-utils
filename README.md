@@ -13,7 +13,30 @@ As of 2021, the last `libgpod` release is 0.8.3 - their docs suggests the librar
 `iPod Touch 1G`|5.1.1|No|tools appear to be success and updates the `iTunesDB`.  Data not reflected one rescan/app.  Remove appears success but next scan file exists, underlying file removed but listing on app exists.  Other tracks continue to be playable
 `iPhone 1` MB213B|3.1.3|No|tools appear to be success and updates the `iTunesDB`.  However once a sync has been complete (cp/rm) none of the audio files are playable on the `iPod` app
 
-The underlying support is provided by `libgpod`.
+The underlying support is provided by `libgpod` and the reported `iPod` feature matrix:
+
+|            |SysInfoExtended|hash58|hash72|sqlite|iTunesCDB
+-------------|--------------:|-----:|-----:|-----:|--------:
+iPod 1G      |no |no |no |no |no
+iPod 2G      |no |no |no |no |no
+iPod 3G      |no |no |no |no |no
+Mini 1G      |no |no |no |no |no
+Mini 2G      |no |no |no |no |no
+||||||
+iPod 4G      |yes|no |no |no |no
+iPod 5G      |yes|no |no |no |no
+Nano 1G      |yes|no |no |no |no
+Nano 2G      |yes|no |no |no |no
+||||||
+iPod Classic |yes|yes|no |no |no
+Nano3G       |yes|yes|no |no |no
+Nano4G       |yes|yes|no |no |no
+iPhoneOS 1.x |yes|yes|no |no |no
+||||||
+iPhoneOS 2.x |yes|no |yes|no |no
+||||||
+Nano5G       |yes|yes|yes|yes|yes
+iPhoneOS 3.x |yes|no |yes|yes|yes
 
 ### mount points
 Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermoumt -u /tmp/ipod` when done.
@@ -179,9 +202,9 @@ Removes track(s) from `iPod`.  Requires the filename as known in the `iTunesDB` 
 $ gpod-rm -M /run/media/ray/IPOD \
     /iPod_Control/Music/F41/ZNUF.mp3
 removing tracks from iPod Video (1st Gen.) A002, currently 88 tracks
-/iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='9492' time_added=161672437 }
-sync'ing iPod ... removing 1/1
-iPod total tracks=87 (originally=88)
+[  1/1]  /iPod_Control/Music/F41/ZNUF.mp3 -> { id=1366 title='foo' artist='Foo&Bar' album='Test tracks' time_added=161672437 (2021-04-20T08:22:17)
+sync'ing iPod ...
+iPod total tracks=87  removed 1/1 items (58.32K)
 ```
 The `-a` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
@@ -197,7 +220,7 @@ copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 sync'ing iPod ... 
 iPod total tracks=29  2/3 items (3.44M)  music=2 video=0 other=0  in 0.572 secs
 ```
-The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,.320 for CBR.  The default conversion is to high quality vbr AAC (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to MP3 and ALAC is also available via `-e` flag.  Note that the AAC conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to MP3 if FDK not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.
+The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,.320 for CBR.  The default conversion is to high quality vbr AAC (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to MP3 and ALAC is also available via `-e` flag.  Note that the AAC conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to MP3 if the `FDK` support is not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.
 
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
