@@ -355,6 +355,7 @@ int main (int argc, char *argv[])
     char dt[20];
 
     GSList*  files = NULL;
+    GSList*  failed = NULL;
     int  i = optind;
     while (i < argc) {
         gpod_walk_dir(argv[i++], &files);
@@ -442,6 +443,8 @@ int main (int argc, char *argv[])
             g_print("{ } track err - %s\n", err ? err : "<>");
             g_free(err);
 	    err = NULL;
+
+	    failed = g_slist_append(failed, (gpointer)path);
         }
         else
         {
@@ -503,6 +506,16 @@ int main (int argc, char *argv[])
     }
     if (opts.cksum) {
         gpod_track_fs_hash_destroy(&tfsh);
+    }
+
+    if (failed)
+    {
+	g_print("failed tracks:\n");
+	for (p=failed; p!=NULL; p=p->next) {
+	    g_print("  %s\n", p->data);
+	}
+	g_slist_free(failed);
+	failed = NULL;
     }
     g_slist_free_full(files, g_free);
     files = NULL;
