@@ -436,6 +436,11 @@ int main (int argc, char **argv)
     uint64_t  requested = 0;
 
     char**  p = &argv[optind];
+    if (*p == NULL) {
+        g_printerr("no tracks specified for extract\n");
+	_usage(argv[0]);
+    }
+
     if (strcmp(*p, "all") == 0) {
 	opts.extract_all = true;
 
