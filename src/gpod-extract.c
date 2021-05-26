@@ -141,7 +141,7 @@ static int  _extract(const char* src_, const char* dest_, const Itdb_Track* trac
 
     avformat_alloc_output_context2 (&out_fmt_ctx, NULL, NULL, dest_);
     if (!out_fmt_ctx) {
-	fprintf (stderr, "Could not create output context\n");
+	fprintf (stderr, "Could not create output context");
 	ret = AVERROR_UNKNOWN;
 	goto end;
     }
@@ -177,13 +177,13 @@ static int  _extract(const char* src_, const char* dest_, const Itdb_Track* trac
 	out_stream = avformat_new_stream (out_fmt_ctx, NULL);
 	if (!out_stream)
 	{
-	    fprintf (stderr, "Failed allocating output stream\n");
+	    fprintf (stderr, "Failed allocating output stream");
 	    ret = AVERROR_UNKNOWN;
 	    goto end;
 	}
 	ret = avcodec_parameters_copy (out_stream->codecpar, in_codecpar);
 	if (ret < 0) {
-	    fprintf (stderr, "Failed to copy codec parameters\n");
+	    fprintf (stderr, "Failed to copy codec parameters");
 	    goto end;
 	}
 
@@ -202,7 +202,7 @@ static int  _extract(const char* src_, const char* dest_, const Itdb_Track* trac
     }
     av_dump_format (out_fmt_ctx, 0, dest_, 1);
 
-    if (!(out_fmt_ctx->oformat->flags & AVFMT_NOFILE))
+    //if (!(out_fmt_ctx->oformat->flags & AVFMT_NOFILE))
     {
 	ret = avio_open (&out_fmt_ctx->pb, dest_, AVIO_FLAG_WRITE);
 	if (ret < 0) {
@@ -214,7 +214,7 @@ static int  _extract(const char* src_, const char* dest_, const Itdb_Track* trac
 
     ret = avformat_write_header (out_fmt_ctx, &opts);
     if (ret < 0) {
-	fprintf (stderr, "Error occurred when opening output file\n");
+	fprintf (stderr, "Error occurred when writing output header: '%s'", dest_);
 	goto end;
     }
 
@@ -257,7 +257,7 @@ end:
     avformat_free_context (out_fmt_ctx);
     av_freep (&stream_mapping);
     if (ret < 0 && ret != AVERROR_EOF) {
-	fprintf (stderr, "Error occurred: %s\n", av_err2str (ret));
+	fprintf (stderr, " - %s\n", av_err2str(ret));
 	return 1;
     }
     return 0;
@@ -461,8 +461,9 @@ int main (int argc, char **argv)
 
     struct Stats {
 	unsigned  ttl;
+	unsigned  failed;
 	size_t  bytes;
-    } stats = { 0, 0 };
+    } stats = { 0, 0, 0 };
 
 
     char*  dest = dest_full + sprintf(dest_full, "%s/", opts.output_path);
@@ -510,6 +511,7 @@ int main (int argc, char **argv)
 	    if (_extract(src, dest_full, opts.sync_meta ? track : NULL) < 0) {
 	        g_printerr("%s - FAILED\n", track->ipod_path);
 		ret = 1;
+		++stats.failed;
 	    }
 	    else
 	    {
