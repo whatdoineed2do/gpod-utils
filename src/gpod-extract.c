@@ -15,6 +15,8 @@
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
 
+#include <glib/gstdio.h>
+
 #include <gpod/itdb.h>
 #include "gpod-utils.h"
 
@@ -465,6 +467,7 @@ int main (int argc, char **argv)
 	size_t  bytes;
     } stats = { 0, 0, 0 };
 
+    GSList*  failed = NULL;
 
     char*  dest = dest_full + sprintf(dest_full, "%s/", opts.output_path);
     const unsigned  dest_avail = sizeof(dest_full) - strlen(dest_full);
@@ -510,8 +513,11 @@ int main (int argc, char **argv)
 	    g_print("[%3u/%u]  id=%u %s -> %s\n", stats.ttl+1, N, track->id, track->ipod_path, dest_full);
 	    if (_extract(src, dest_full, opts.sync_meta ? track : NULL) < 0) {
 	        g_printerr("%s - FAILED\n", track->ipod_path);
+		g_unlink(dest_full);
 		ret = 1;
 		++stats.failed;
+
+		failed = g_slist_append(failed, track->ipod_path);
 	    }
 	    else
 	    {
@@ -555,6 +561,16 @@ int main (int argc, char **argv)
     }
 
     g_print("iPod total tracks=%u  %u/%u items %s in %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : stats.ttl, N, stats_size, duration);
+    if (failed)
+    {
+	g_print("failed tracks:\n");
+	for (GSList* f=failed; f!=NULL; f=f->next) {
+	    g_print("  %s\n", f->data);
+	}
+	g_slist_free(failed);
+	failed = NULL;
+    }
+
 
     itdb_device_free(itdev);
     itdb_free(itdb);
