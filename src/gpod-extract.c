@@ -258,7 +258,7 @@ end:
     av_freep (&stream_mapping);
     if (ret < 0 && ret != AVERROR_EOF) {
 	fprintf (stderr, " - %s\n", av_err2str(ret));
-	return 1;
+	return -1;
     }
     return 0;
 }
