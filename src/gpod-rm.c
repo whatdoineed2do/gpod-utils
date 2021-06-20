@@ -115,6 +115,26 @@ static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* tr
     ++(*removed_);
 }
 
+static void  _remove_playlist(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Playlist* playlist_, uint64_t* removed_, const unsigned current_, const unsigned N_)
+{
+    struct tm  tm;
+    char dt[20];
+
+    gmtime_r(&(playlist_->timestamp), &tm);
+    strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
+
+    if (!_remove_confirm(interactv_, 
+            "[%3u/%u]  %s -> { count=%d time_added=%d (%s)", 
+	    current_, N_,
+	    playlist_->name, g_list_length(playlist_->members), playlist_->timestamp, dt)) {
+	return;
+    }
+
+    // remove (and free mem)
+    itdb_playlist_remove(playlist_);
+    ++(*removed_);
+}
+
 static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_, size_t* bytes_)
 {
     // cksum all files and remove the dupl, keeping the oldest
@@ -148,12 +168,13 @@ static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ -i ] [ <file | ipod id> ... ]\n"
+    g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ -i ] [-P] [ <file | ipod id> ... ]\n"
 	     "\n"
 	     "    Removes specified file(s) the iPod/iTunesDB\n"
 	     "    -M <iPod dir>   location of iPod data as directoy mount point\n"
 	     "    -a              automatically purge duplicate files based on cksum leaving the track added first.  Must be first arg\n"
 	     "    -i              interactive/confirmation for delete\n"
+	     "    -P              removing playlists rather than files (accepts names only)\n"
 	     "\n"
 	     "    Filenames are provided relative to the iPod mountpoint; ie\n"
 	     "      /iPod_Control/Music/F08/NCQQ.mp3\n\n"
@@ -176,15 +197,18 @@ main (int argc, char *argv[])
         const char*  itdb_path;
 	bool  autoclean;
 	bool  interactv;
-    } opts = { NULL, false, false };
+        bool  playlists;
+    } opts = { NULL, false, false, false };
 
 
     int c;
-    while ( (c=getopt(argc, argv, "M:aih")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:aiPh")) != EOF) {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'a':  opts.autoclean = true;  break;
             case 'i':  opts.interactv = true;  break;
+
+            case 'P':  opts.playlists = true;  break;
 
             case 'h':
             default:
@@ -197,7 +221,7 @@ main (int argc, char *argv[])
         _usage(argv[0]);
     }
 
-    if ( !(optind < argc) && !opts.autoclean) {
+    if ( !(optind < argc) && !opts.autoclean && !opts.playlists) {
         g_printerr("no inputs\n");
         _usage(argv[0]);
     }
@@ -283,7 +307,19 @@ main (int argc, char *argv[])
 
 	if (*d)
 	{
-	    const char*  ipod_path = arg;
+	    if (opts.playlists)
+            {
+                Itdb_Playlist*  playlist = itdb_playlist_by_name(itdb, (gchar*)arg);
+                if (playlist && !itdb_playlist_is_mpl(playlist)) {
+                    _remove_playlist(opts.interactv, itdb, playlist, &removed, requested, N);
+                }
+                else {
+                    g_print("[%3u/%u]  %s -> { Not on iPod/iTunesDB }\n", requested, N, arg);
+                }
+                continue;
+            }
+
+            const char*  ipod_path = arg;
 
 	    sprintf(path, "%s%s/%s", (*arg == '/' ? "" : "/"), mountpoint, ipod_path);
 
