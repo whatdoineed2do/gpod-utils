@@ -209,7 +209,7 @@ void  gpod_cp_destroy()
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -221,6 +221,9 @@ void  _usage(const char* argv0_)
 	     "    -E             disable encoding fallback\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k (not applicable for alac)\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
+             "\n"
+	     "    -P <name>      generate our 'recently added' playlist\n"
+	     "    -N <limit>     'recently added' pl limit'\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -242,10 +245,16 @@ int main (int argc, char *argv[])
 	bool enc_fallback;
 	enum gpod_ff_transcode_quality  xcode_quality;
 	bool  sanitize;
+        struct {
+          const char*  pl;
+          unsigned  limit;
+        } recent;
     } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
+    opts.recent.pl = NULL;
+    opts.recent.limit = 50;
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -289,6 +298,9 @@ int main (int argc, char *argv[])
 		    }
 		}
 	    } break;
+
+            case 'P':  opts.recent.pl = optarg;  break;
+            case 'N':  opts.recent.limit = atoi(optarg);  break;
 
             case 'S':  opts.sanitize = false;  break;
 
@@ -417,6 +429,7 @@ int main (int argc, char *argv[])
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
+    Itdb_Playlist*  recentpl = NULL;
     Itdb_Track*  track = NULL;
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
@@ -479,6 +492,31 @@ int main (int argc, char *argv[])
                         default: ++stats.other;
                     }
 		    stats.bytes += track->size;
+
+                    // req'd to add to playlist
+                    if (opts.recent.pl && recentpl == NULL)
+                    {
+                        recentpl = itdb_playlist_by_name(itdb, (gchar*)opts.recent.pl);
+                        if (recentpl == NULL) {
+                            recentpl = itdb_playlist_new(opts.recent.pl, false);
+                            itdb_playlist_add(itdb, recentpl, -1);
+                        }
+                    }
+
+                    if (recentpl)
+                    {
+                        // always add at the top of playlist and drop off any tracks past imposed limit
+                        itdb_playlist_add_track(recentpl, track, 0);
+                        if (g_list_length(recentpl->members) > opts.recent.limit)
+                        {
+                            int  plcnt = 0;
+                            for (GList* plelem=recentpl->members; plelem; plelem=plelem->next) {
+                                if (plcnt++ >= opts.recent.limit) {
+                                    itdb_playlist_remove_track(recentpl, (Itdb_Track*)plelem->data);
+                                }
+                            }
+                        }
+                    }
 
                     if (added%10 == 0) {
                         // force a upd of the db and clear down pending list 
