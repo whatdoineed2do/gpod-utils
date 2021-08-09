@@ -5,7 +5,7 @@ AM_CXXFLAGS = $(AM_CFLAGS)
 
 GPOD_OPT=
 bin_PROGRAMS = gpod-ls gpod-rm gpod-tag $(GPOD_OPT)
-check_PROGRAMS = test-ff-xcode test-init-ipod
+check_PROGRAMS = test-ff-xcode test-init-ipod test-gpool
 
 # using git version instead of the am values in config.h
 gpod_ls_CPPFLAGS = -DWANT_GPOD_HASH
@@ -46,3 +46,7 @@ endif
 
 test_init_ipod_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS)
 test_init_ipod_SOURCES = test-init-ipod.c 
+
+test_gpool_LDFLAGS = $(GLIB_LIBS)
+test_gpool_SOURCES = test-gpool.c 
+
