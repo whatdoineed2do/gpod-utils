@@ -43,6 +43,27 @@
 #include "gpod-ffmpeg.h"
 #include "gpod-utils.h"
 
+struct {
+    const char*  itdb_path;
+    bool cksum;
+    bool  force;
+    enum gpod_ff_enc  enc;
+    bool enc_fallback;
+    enum gpod_ff_transcode_quality  xcode_quality;
+    bool  sanitize;
+    struct {
+      const char*  pl;
+      unsigned  limit;
+    } recent;
+} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
+
+struct {
+    uint32_t  music;
+    uint32_t  video;
+    uint32_t  other;
+    size_t    bytes;
+} stats = { 0, 0, 0, 0 };
+
 
 /* parse the track info to make sure its a compatible format, if not supported 
  * attempt transcode otherwise NULL retruned
@@ -113,6 +134,12 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGenerati
 }
 
 
+static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
+{
+    return gpod_track_fs_hash_contains(tfsh_, track_, path_);
+}
+
+
 /* writes the itunedb and clears pending list
  * if the itunes write fails, rollback all the files listed in pending
  */
@@ -145,11 +172,92 @@ static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** 
     return ret ? 0 : -1;
 }
 
-
-static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
+static int  gpod_cp_track(Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track** track_, const char* mountpoint, uint32_t* added_,
+                          struct gpod_ff_transcode_ctx* xfrm_, const char* path_,
+                          GSList** pending_,
+                          struct gpod_track_fs_hash*  tfsh_,
+                          Itdb_Playlist**  recentpl_,
+                          GError** error_)
 {
-    return gpod_track_fs_hash_contains(tfsh_, track_, path_);
+    Itdb_Track*  track = *track_;
+    Itdb_Playlist*  recentpl = *recentpl_;
+
+    g_print("{ title='%s' artist='%s' album='%s' ipod_path=", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+
+    const bool  dupl = opts.cksum && _track_exists(track, tfsh_, xfrm_->path[0] ? xfrm_->path : path_);
+
+    if (dupl) {
+        g_print(" *** DUPL *** }\n");
+        itdb_track_free(*track_);
+        *track_ = NULL;
+    }
+    else
+    {
+        itdb_track_add(itdb, track, -1);
+        itdb_playlist_add_track(mpl_, track, -1);
+
+        bool  ok = itdb_cp_track_to_ipod (track, xfrm_->path[0] ? xfrm_->path : path_, error_);
+
+        if (ok)
+        {
+            ++(*added_);
+            itdb_filename_ipod2fs(track->ipod_path);
+            g_print("'%s' }\n", track->ipod_path);
+
+            *pending_ = g_slist_append(*pending_, g_strdup(track->ipod_path));
+
+            switch (track->mediatype) {
+                case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
+                case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
+                default: ++stats.other;
+            }
+            stats.bytes += track->size;
+
+            // req'd to add to playlist
+            if (opts.recent.pl && recentpl == NULL)
+            {
+                recentpl = itdb_playlist_by_name(itdb, (gchar*)opts.recent.pl);
+                if (recentpl == NULL) {
+                    recentpl = itdb_playlist_new(opts.recent.pl, false);
+                    itdb_playlist_add(itdb, recentpl, -1);
+                }
+            }
+
+            if (recentpl)
+            {
+                // always add at the top of playlist and drop off any tracks past imposed limit
+                itdb_playlist_add_track(recentpl, track, 0);
+                if (g_list_length(recentpl->members) > opts.recent.limit)
+                {
+                    int  plcnt = 0;
+                    for (GList* plelem=recentpl->members; plelem; plelem=plelem->next) {
+                        if (plcnt++ >= opts.recent.limit) {
+                            itdb_playlist_remove_track(recentpl, (Itdb_Track*)plelem->data);
+                        }
+                    }
+                }
+            }
+
+            if ((*added_)%10 == 0) {
+                // force a upd of the db and clear down pending list 
+                if (gpod_write_db(itdb, mountpoint, pending_) < 0) {
+                    return -1;
+                }
+            }
+        }
+        else {
+            g_print("N/A } %s\n", (*error_)->message ? (*error_)->message : "<unknown err>");
+            itdb_playlist_remove_track(mpl_, track);
+            itdb_track_remove(track);
+        }
+    }
+
+    if (xfrm_->path[0]) {
+        g_unlink(xfrm_->path);
+    }
+    return 0;
 }
+
 
 
 static bool  gpod_stop = false;
@@ -237,19 +345,6 @@ int main (int argc, char *argv[])
     Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
-    struct {
-        const char*  itdb_path;
-        bool cksum;
-	bool  force;
-	enum gpod_ff_enc  enc;
-	bool enc_fallback;
-	enum gpod_ff_transcode_quality  xcode_quality;
-	bool  sanitize;
-        struct {
-          const char*  pl;
-          unsigned  limit;
-        } recent;
-    } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
     opts.recent.pl = NULL;
     opts.recent.limit = 50;
 
@@ -374,13 +469,6 @@ int main (int argc, char *argv[])
     }
     const uint32_t  N = g_slist_length(files);
 
-    struct {
-	uint32_t  music;
-	uint32_t  video;
-	uint32_t  other;
-	size_t    bytes;
-    } stats = { 0, 0, 0, 0 };
-
     struct gpod_ff_transcode_ctx  xfrm;
 
     GSList*  pending = NULL;
@@ -461,79 +549,10 @@ int main (int argc, char *argv[])
         }
         else
         {
-            g_print("{ title='%s' artist='%s' album='%s' ipod_path=", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
-
-            const bool  dupl = opts.cksum && _track_exists(track, &tfsh, xfrm.path[0] ? xfrm.path : path);
-
-            if (dupl) {
-                g_print(" *** DUPL *** }\n");
-                itdb_track_free(track);
-                track = NULL;
-            }
-            else
-            {
-                itdb_track_add(itdb, track, -1);
-                itdb_playlist_add_track(mpl, track, -1);
-
-                ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
-
-
-                if (ok)
-                {
-                    ++added;
-                    itdb_filename_ipod2fs(track->ipod_path);
-                    g_print("'%s' }\n", track->ipod_path);
-
-                    pending = g_slist_append(pending, g_strdup(track->ipod_path));
-
-                    switch (track->mediatype) {
-                        case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
-                        case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
-                        default: ++stats.other;
-                    }
-		    stats.bytes += track->size;
-
-                    // req'd to add to playlist
-                    if (opts.recent.pl && recentpl == NULL)
-                    {
-                        recentpl = itdb_playlist_by_name(itdb, (gchar*)opts.recent.pl);
-                        if (recentpl == NULL) {
-                            recentpl = itdb_playlist_new(opts.recent.pl, false);
-                            itdb_playlist_add(itdb, recentpl, -1);
-                        }
-                    }
-
-                    if (recentpl)
-                    {
-                        // always add at the top of playlist and drop off any tracks past imposed limit
-                        itdb_playlist_add_track(recentpl, track, 0);
-                        if (g_list_length(recentpl->members) > opts.recent.limit)
-                        {
-                            int  plcnt = 0;
-                            for (GList* plelem=recentpl->members; plelem; plelem=plelem->next) {
-                                if (plcnt++ >= opts.recent.limit) {
-                                    itdb_playlist_remove_track(recentpl, (Itdb_Track*)plelem->data);
-                                }
-                            }
-                        }
-                    }
-
-                    if (added%10 == 0) {
-                        // force a upd of the db and clear down pending list 
-                        if (gpod_write_db(itdb, mountpoint, &pending) < 0) {
-                            break;
-                        }
-                    }
-                }
-                else {
-                    g_print("N/A } %s\n", error->message ? error->message : "<unknown err>");
-                    itdb_playlist_remove_track(mpl, track);
-                    itdb_track_remove(track);
-                }
-            }
-
-            if (xfrm.path[0]) {
-                g_unlink(xfrm.path);
+            if (gpod_cp_track(itdb, mpl, &track, mountpoint, &added,
+                              &xfrm, path, &pending, &tfsh, &recentpl,
+                              &error) < 0) {
+                break;
             }
         }
 
