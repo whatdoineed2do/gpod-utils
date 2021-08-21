@@ -55,6 +55,7 @@ struct {
       const char*  pl;
       unsigned  limit;
     } recent;
+    unsigned short  max_threads;
 } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
 
 struct {
@@ -259,6 +260,128 @@ static int  gpod_cp_track(Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track**
 }
 
 
+struct gpod_cp_pool_args {
+    GMutex  cp_lck;
+
+    GSList*  failed;
+    GMutex  failed_lck;
+    const Itdb_IpodInfo* ipodinfo;
+};
+
+struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, GSList* failed_)
+{
+    struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)malloc(sizeof(struct gpod_cp_pool_args));
+    memset(args, 0, sizeof(struct gpod_cp_pool_args));
+
+    args->ipodinfo = ipodinfo_;
+
+    args->failed = failed_;
+
+    g_mutex_init(&args->failed_lck);
+    g_mutex_init(&args->cp_lck);
+
+    return args;
+}
+
+void  gpod_cp_pa_free(struct gpod_cp_pool_args*  args_)
+{
+    g_mutex_clear(&args_->failed_lck);
+    g_mutex_clear(&args_->cp_lck);
+}
+
+struct gpod_cp_thread_args {
+    Itdb_iTunesDB* itdb;
+    Itdb_Playlist* mpl;
+    const char* mountpoint;
+    uint32_t* added;
+    GSList* pending;
+    struct gpod_track_fs_hash*  tfsh;
+    Itdb_Playlist*  recentpl;
+
+    char*     path;
+    unsigned  N;
+    uint32_t  requested;
+};
+
+struct gpod_cp_thread_args*  gpod_cp_ta_init(
+        Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
+        uint32_t* added_, GSList* pending_,
+        struct gpod_track_fs_hash*  tfsh_,
+        Itdb_Playlist*  recentpl_,
+        const char* path_, unsigned N_, uint32_t requested_)
+{
+    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)malloc(sizeof(struct gpod_cp_thread_args));
+    memset(args, 0, sizeof(struct gpod_cp_thread_args));
+
+    args->itdb = itdb_;
+    args->mpl = mpl_;
+    args->mountpoint = mountpoint_;
+    args->added = added_;
+    args->pending = pending_;
+    args->tfsh = tfsh_;
+    args->recentpl = recentpl_;
+
+    args->path = strdup(path_);
+    args->N = N_;
+    args->requested = requested_;
+
+    return args;
+}
+
+void gpod_cp_ta_free(struct gpod_cp_thread_args* obj_)
+{
+    free(obj_->path);
+    free(obj_);
+}
+
+void gpod_cp_thread(gpointer args_, gpointer pool_args_)
+{
+    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)args_;
+    struct gpod_cp_pool_args*  pargs = (struct gpod_cp_pool_args*)pool_args_;
+
+    GError *error = NULL;
+    char*  err = NULL;
+    Itdb_Track*  track = NULL;
+    struct gpod_ff_transcode_ctx  xfrm;
+
+    g_print("[%3u/%u]  %s -> ", args->requested, args->N, args->path);
+
+    if (!g_file_test(args->path, G_FILE_TEST_EXISTS)) {
+        g_print("{ } No such file or directory\n", args->path);
+        goto thread_cleanup;
+    }
+
+    gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
+
+    if ( (track = _track(args->path, &xfrm, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
+        g_print("{ } track err - %s\n", err ? err : "<>");
+        g_free(err);
+        err = NULL;
+
+        g_mutex_lock(&pargs->failed_lck);
+        pargs->failed = g_slist_append(pargs->failed, (gpointer)args->path);
+        g_mutex_unlock(&pargs->failed_lck);
+    }
+    else
+    {
+        g_mutex_lock(&pargs->cp_lck);
+        if (gpod_cp_track(args->itdb, args->mpl, &track, args->mountpoint, args->added,
+                          &xfrm, args->path, &args->pending, args->tfsh, &args->recentpl,
+                          &error) < 0) {
+            ; // TODO - what on failed copy?
+        }
+        g_mutex_unlock(&pargs->cp_lck);
+    }
+
+thread_cleanup:
+    if (error) {
+        g_error_free(error);
+        error = NULL;
+    }
+
+    gpod_cp_ta_free(args);
+}
+
 
 static bool  gpod_stop = false;
 static void  _sighandler(const int sig_)
@@ -347,9 +470,10 @@ int main (int argc, char *argv[])
 
     opts.recent.pl = NULL;
     opts.recent.limit = 50;
+    opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:T:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -398,6 +522,14 @@ int main (int argc, char *argv[])
             case 'N':  opts.recent.limit = atoi(optarg);  break;
 
             case 'S':  opts.sanitize = false;  break;
+            case 'T':
+            {
+                unsigned short  req_max_threads = (unsigned short)atoi(optarg);
+                if (req_max_threads > opts.max_threads*2) {
+                    req_max_threads = opts.max_threads*2;
+                }
+                opts.max_threads = req_max_threads;
+            } break;
 
             case 'h':
             default:
@@ -469,7 +601,6 @@ int main (int argc, char *argv[])
     }
     const uint32_t  N = g_slist_length(files);
 
-    struct gpod_ff_transcode_ctx  xfrm;
 
     GSList*  pending = NULL;
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
@@ -519,6 +650,14 @@ int main (int argc, char *argv[])
 
     Itdb_Playlist*  recentpl = NULL;
     Itdb_Track*  track = NULL;
+
+    // create thread pool and throw all tasks (direct cp and xcode)
+    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(ipodinfo, failed);
+
+    GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
+                                         opts.max_threads,
+                                         TRUE, NULL);
+
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
     while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
@@ -527,40 +666,16 @@ int main (int argc, char *argv[])
         const char*  path = (const char*)(p->data);
         p = p->next;
 
-        g_print("[%3u/%u]  %s -> ", requested, N, path);
-
-        if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-            g_print("{ } No such file or directory\n", path);
-            continue;
-        }
-
-        error = NULL;
-
-        gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
-
-        bool  ok = true;
-        if ( (track = _track(path, &xfrm, ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
-            ok = false;
-            g_print("{ } track err - %s\n", err ? err : "<>");
-            g_free(err);
-	    err = NULL;
-
-	    failed = g_slist_append(failed, (gpointer)path);
-        }
-        else
-        {
-            if (gpod_cp_track(itdb, mpl, &track, mountpoint, &added,
-                              &xfrm, path, &pending, &tfsh, &recentpl,
-                              &error) < 0) {
-                break;
-            }
-        }
-
-        if (error) {
-	    g_error_free(error);
-	    error = NULL;
-	}
+        struct gpod_cp_thread_args*  args = gpod_cp_ta_init(itdb, mpl, mountpoint, &added, pending, &tfsh, recentpl, path, N, requested);
+        g_thread_pool_push(tp, (void*)args, NULL);
     }
+
+    // wait for all tasks
+    g_thread_pool_free(tp, FALSE, TRUE);
+    gpod_cp_pa_free(pool_args);
+    pool_args = NULL;
+    tp = NULL;
+
     if (opts.cksum) {
         gpod_track_fs_hash_destroy(&tfsh);
     }
