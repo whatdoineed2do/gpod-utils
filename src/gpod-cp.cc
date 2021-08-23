@@ -30,6 +30,7 @@
 #include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -89,7 +90,7 @@ static void  gpod_cp_log(const struct gpod_cp_log_ctx* ctx_, const char* fmt_, .
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -119,7 +120,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGenerati
 	    /* generate a tmp transcoded file name - having this set is also the
 	     * indicator a on-the-fly transcoded file
 	     */
-	    snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL), xfrm_->extn);
+	    snprintf(xfrm_->path, PATH_MAX, "%s-%u-%" PRIu64 ".%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, uuid_, xfrm_->extn);
 
 	    if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
 		char err[1024];
@@ -368,6 +369,8 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     const struct gpod_cp_log_ctx  lctx = { 
       args->requested, args->N, args->path
     };
+    struct timeval  tv = { 0 };
+    uint64_t  uuid = -1;
 
     if (gpod_stop) {
         goto thread_cleanup;
@@ -380,7 +383,12 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
 
     gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
 
-    if ( (track = _track(args->path, &xfrm, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
+    g_mutex_lock(&pargs->cp_lck);
+    gettimeofday(&tv, NULL);
+    g_mutex_unlock(&pargs->cp_lck);
+    uuid = tv.tv_sec * 1000000 + tv.tv_usec;
+
+    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
         gpod_cp_log(&lctx, "{ } track err - %s\n", err ? err : "<>");
         g_free(err);
         err = NULL;
