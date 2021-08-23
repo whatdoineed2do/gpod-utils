@@ -278,6 +278,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     return 0;
 }
 
+static bool  gpod_stop = false;
 
 struct gpod_cp_pool_args {
     unsigned  fatal;
@@ -368,6 +369,10 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
       args->requested, args->N, args->path
     };
 
+    if (gpod_stop) {
+        goto thread_cleanup;
+    }
+
     if (!g_file_test(args->path, G_FILE_TEST_EXISTS)) {
         gpod_cp_log(&lctx, "{ } No such file or directory\n");
         goto thread_cleanup;
@@ -386,6 +391,10 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     }
     else
     {
+        if (gpod_stop) {
+            goto thread_cleanup;
+        }
+
         g_mutex_lock(&pargs->cp_lck);
         if (gpod_cp_track(&lctx,
                           args->itdb, args->mpl, &track, args->mountpoint, args->added,
@@ -406,7 +415,6 @@ thread_cleanup:
 }
 
 
-static bool  gpod_stop = false;
 static void  _sighandler(const int sig_)
 {
     gpod_stop = true;
