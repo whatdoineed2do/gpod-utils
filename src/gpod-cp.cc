@@ -292,8 +292,7 @@ struct gpod_cp_pool_args {
 
 struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, GSList* failed_)
 {
-    struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)malloc(sizeof(struct gpod_cp_pool_args));
-    memset(args, 0, sizeof(struct gpod_cp_pool_args));
+    struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
 
     args->ipodinfo = ipodinfo_;
 
@@ -309,6 +308,7 @@ void  gpod_cp_pa_free(struct gpod_cp_pool_args*  args_)
 {
     g_mutex_clear(&args_->failed_lck);
     g_mutex_clear(&args_->cp_lck);
+    g_free(args_);
 }
 
 struct gpod_cp_thread_args {
@@ -332,8 +332,7 @@ struct gpod_cp_thread_args*  gpod_cp_ta_init(
         Itdb_Playlist*  recentpl_,
         const char* path_, unsigned N_, uint32_t requested_)
 {
-    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)malloc(sizeof(struct gpod_cp_thread_args));
-    memset(args, 0, sizeof(struct gpod_cp_thread_args));
+    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)g_malloc0(sizeof(struct gpod_cp_thread_args));
 
     args->itdb = itdb_;
     args->mpl = mpl_;
@@ -343,7 +342,7 @@ struct gpod_cp_thread_args*  gpod_cp_ta_init(
     args->tfsh = tfsh_;
     args->recentpl = recentpl_;
 
-    args->path = strdup(path_);
+    args->path = g_strdup(path_);
     args->N = N_;
     args->requested = requested_;
 
@@ -352,8 +351,8 @@ struct gpod_cp_thread_args*  gpod_cp_ta_init(
 
 void gpod_cp_ta_free(struct gpod_cp_thread_args* obj_)
 {
-    free(obj_->path);
-    free(obj_);
+    g_free(obj_->path);
+    g_free(obj_);
 }
 
 void gpod_cp_thread(gpointer args_, gpointer pool_args_)
@@ -740,7 +739,7 @@ int main (int argc, char *argv[])
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
     }
 
-    if (g_slist_length(pending)) {
+    if (pending && g_slist_length(pending)) {
 	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
