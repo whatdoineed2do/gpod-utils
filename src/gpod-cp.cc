@@ -65,7 +65,8 @@ struct {
     uint32_t  video;
     uint32_t  other;
     size_t    bytes;
-} stats = { 0, 0, 0, 0 };
+    guint     xcode_time;
+} stats = { 0, 0, 0, 0, 0 };
 
 struct gpod_cp_log_ctx {
     uint32_t  requested;
@@ -195,7 +196,7 @@ static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** 
 
 static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
                           Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track** track_, const char* mountpoint, uint32_t* added_,
-                          struct gpod_ff_transcode_ctx* xfrm_, const char* path_,
+                          struct gpod_ff_transcode_ctx* xfrm_, const guint xcodetime_, const char* path_,
                           GSList** pending_,
                           struct gpod_track_fs_hash*  tfsh_,
                           Itdb_Playlist**  recentpl_,
@@ -221,6 +222,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
 
         if (ok)
         {
+            stats.xcode_time += xcodetime_;
             ++(*added_);
             itdb_filename_ipod2fs(track->ipod_path);
             gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path='%s' }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->ipod_path);
@@ -371,6 +373,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     };
     struct timeval  tv = { 0 };
     uint64_t  uuid = -1;
+    guint  then, now;
 
     if (gpod_stop) {
         goto thread_cleanup;
@@ -388,6 +391,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     g_mutex_unlock(&pargs->cp_lck);
     uuid = tv.tv_sec * 1000000 + tv.tv_usec;
 
+    then = g_get_monotonic_time();
     if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
         gpod_cp_log(&lctx, "{ } track err - %s\n", err ? err : "<>");
         g_free(err);
@@ -399,6 +403,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     }
     else
     {
+        now = g_get_monotonic_time();
         if (gpod_stop) {
             goto thread_cleanup;
         }
@@ -406,7 +411,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
         g_mutex_lock(&pargs->cp_lck);
         if (gpod_cp_track(&lctx,
                           args->itdb, args->mpl, &track, args->mountpoint, pargs->added,
-                          &xfrm, args->path, args->pending, args->tfsh, &args->recentpl,
+                          &xfrm, then-now, args->path, args->pending, args->tfsh, &args->recentpl,
                           &error) < 0) {
             ++(pargs->fatal);
         }
@@ -473,6 +478,32 @@ void  gpod_cp_destroy()
     flock(gpod_lockfd, LOCK_UN);
     close(gpod_lockfd);
     unlink(GPOD_CP_LOCKFILE);
+}
+
+static void  gpod_duration(char duration_[32], guint then_, guint now_)
+{
+    const unsigned  sec = (now_-then_)/1000000;
+    unsigned  h, m, s;
+    h = (sec/3600);
+    m = (sec -(3600*h))/60;
+    s = (sec -(3600*h)-(m*60));
+    if (sec < 60) {
+        sprintf(duration_, "%.3f secs", (now_-then_)/1000000.0);
+    }
+    else
+    {
+        if (sec < 3600) {
+            sprintf(duration_, "%02d:%02d mins:secs", m,s);
+        }
+        else {
+            if (sec < 3600*60) {
+                sprintf(duration_, "%02d:%02d:%02d", h,m,s);
+            }
+            else {
+                strcpy(duration_, "inf");
+            }
+        }
+    }
 }
 
 
@@ -744,32 +775,10 @@ int main (int argc, char *argv[])
 	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
-    char duration[32];
-    {
-        const guint  now = g_get_monotonic_time();
-        const unsigned  sec = (now-then)/1000000;
-        unsigned  h, m, s;
-        h = (sec/3600);
-        m = (sec -(3600*h))/60;
-        s = (sec -(3600*h)-(m*60));
-        if (sec < 60) {
-            sprintf(duration, "%.3f secs", (now-then)/1000000.0);
-        }
-        else
-        {
-            if (sec < 3600) {
-                sprintf(duration, "%02d:%02d mins:secs", m,s);
-            }
-            else {
-                if (sec < 3600*60) {
-                    sprintf(duration, "%02d:%02d:%02d", h,m,s);
-                }
-                else {
-                    strcpy(duration, "inf");
-                }
-            }
-        }
-    }
+    char duration[32] = { 0 };
+    gpod_duration(duration, then, g_get_monotonic_time());
+    char xcode_duration[32] = { 0 };
+    gpod_duration(xcode_duration, stats.xcode_time, 0);
 
     char  userterm[128] = { 0 };
     if (gpod_stop) {
@@ -782,7 +791,7 @@ int main (int argc, char *argv[])
     }
 
 
-    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm);
+    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s (ttl xcode %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm, xcode_duration);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
