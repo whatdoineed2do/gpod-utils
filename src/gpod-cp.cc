@@ -479,7 +479,7 @@ void  gpod_cp_destroy()
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -494,6 +494,8 @@ void  _usage(const char* argv0_)
              "\n"
 	     "    -P <name>      generate our 'recently added' playlist\n"
 	     "    -N <limit>     'recently added' pl limit'\n"
+             "\n"
+	     "    -T <max threads>   number of threads for xcoding/copying\n"
              ,basename);
     g_free (basename);
     exit(-1);
