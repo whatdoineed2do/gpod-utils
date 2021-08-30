@@ -1,10 +1,6 @@
-gpod-cp
-gpod-ls
-gpod-rm
-gpod-tag
-gpod-verify
-test-ff-xcode
-test-init-ipod
+gpod-*
+test-*
+a.out
 *.swp
 Makefile.in
 Makefile
