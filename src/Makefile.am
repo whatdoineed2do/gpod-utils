@@ -4,7 +4,7 @@ AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) -Wno
 AM_CXXFLAGS = $(AM_CFLAGS)
 
 GPOD_OPT=
-bin_PROGRAMS = gpod-ls gpod-rm gpod-tag $(GPOD_OPT)
+bin_PROGRAMS = gpod-ls gpod-rm gpod-tag gpod-pl $(GPOD_OPT)
 check_PROGRAMS = test-ff-xcode test-init-ipod
 
 # using git version instead of the am values in config.h
@@ -20,6 +20,8 @@ gpod_rm_SOURCES = gpod-rm.c sha1.c gpod-utils.c
 gpod_tag_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
 gpod_tag_SOURCES = gpod-tag.c gpod-utils.c
 
+gpod_pl_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
+gpod_pl_SOURCES = gpod-pl.c gpod-utils.c
 
 if HAVE_FFMPEG
 GPOD_OPT+=gpod-cp
