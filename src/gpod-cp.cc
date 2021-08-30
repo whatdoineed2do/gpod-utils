@@ -30,12 +30,14 @@
 #include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdarg.h>
 
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
@@ -43,12 +45,53 @@
 #include "gpod-ffmpeg.h"
 #include "gpod-utils.h"
 
+struct {
+    const char*  itdb_path;
+    bool cksum;
+    bool  force;
+    enum gpod_ff_enc  enc;
+    bool enc_fallback;
+    enum gpod_ff_transcode_quality  xcode_quality;
+    bool  sanitize;
+    struct {
+      const char*  pl;
+      unsigned  limit;
+    } recent;
+    unsigned short  max_threads;
+} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
+
+struct {
+    uint32_t  music;
+    uint32_t  video;
+    uint32_t  other;
+    size_t    bytes;
+    guint     xcode_time;
+} stats = { 0, 0, 0, 0, 0 };
+
+struct gpod_cp_log_ctx {
+    uint32_t  requested;
+    uint32_t  N;
+    const char* path;
+};
+
+static void  gpod_cp_log(const struct gpod_cp_log_ctx* ctx_, const char* fmt_, ...)
+{
+    char*  tmp = NULL;
+
+    va_list  args;
+    va_start(args, fmt_);
+    g_vasprintf(&tmp, fmt_, args);
+    va_end(args);
+
+    g_print("[%3u/%u]  %s -> %s", ctx_->requested, ctx_->N, ctx_->path, tmp);
+    g_free(tmp);
+}
 
 /* parse the track info to make sure its a compatible format, if not supported 
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -78,7 +121,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGenerati
 	    /* generate a tmp transcoded file name - having this set is also the
 	     * indicator a on-the-fly transcoded file
 	     */
-	    snprintf(xfrm_->path, PATH_MAX, "%s-%u-%u.%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, time(NULL), xfrm_->extn);
+	    snprintf(xfrm_->path, PATH_MAX, "%s-%u-%" PRIu64 ".%s", xfrm_->tmpprfx, xfrm_->audio_opts.codec_id, uuid_, xfrm_->extn);
 
 	    if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
 		char err[1024];
@@ -110,6 +153,12 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, Itdb_IpodGenerati
 
     gpod_ff_media_info_free(&mi);
     return track;
+}
+
+
+static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
+{
+    return gpod_track_fs_hash_contains(tfsh_, track_, path_);
 }
 
 
@@ -145,14 +194,240 @@ static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** 
     return ret ? 0 : -1;
 }
 
-
-static bool  _track_exists(const Itdb_Track* track_, const struct gpod_track_fs_hash*  tfsh_, const char* path_)
+static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
+                          Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track** track_, const char* mountpoint, uint32_t* added_,
+                          struct gpod_ff_transcode_ctx* xfrm_, const guint xcodetime_, const char* path_,
+                          GSList** pending_,
+                          struct gpod_track_fs_hash*  tfsh_,
+                          Itdb_Playlist**  recentpl_,
+                          GError** error_)
 {
-    return gpod_track_fs_hash_contains(tfsh_, track_, path_);
+    Itdb_Track*  track = *track_;
+    Itdb_Playlist*  recentpl = *recentpl_;
+
+
+    const bool  dupl = opts.cksum && _track_exists(track, tfsh_, xfrm_->path[0] ? xfrm_->path : path_);
+
+    if (dupl) {
+        gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path= *** DUPL *** }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+        itdb_track_free(*track_);
+        *track_ = NULL;
+    }
+    else
+    {
+        itdb_track_add(itdb, track, -1);
+        itdb_playlist_add_track(mpl_, track, -1);
+
+        bool  ok = itdb_cp_track_to_ipod (track, xfrm_->path[0] ? xfrm_->path : path_, error_);
+
+        if (ok)
+        {
+            stats.xcode_time += xcodetime_;
+            ++(*added_);
+            itdb_filename_ipod2fs(track->ipod_path);
+            gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path='%s' }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->ipod_path);
+
+            *pending_ = g_slist_append(*pending_, g_strdup(track->ipod_path));
+
+            switch (track->mediatype) {
+                case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
+                case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
+                default: ++stats.other;
+            }
+            stats.bytes += track->size;
+
+            // req'd to add to playlist
+            if (opts.recent.pl && recentpl == NULL)
+            {
+                recentpl = itdb_playlist_by_name(itdb, (gchar*)opts.recent.pl);
+                if (recentpl == NULL) {
+                    recentpl = itdb_playlist_new(opts.recent.pl, false);
+                    itdb_playlist_add(itdb, recentpl, -1);
+                }
+            }
+
+            if (recentpl)
+            {
+                // always add at the top of playlist and drop off any tracks past imposed limit
+                itdb_playlist_add_track(recentpl, track, 0);
+                if (g_list_length(recentpl->members) > opts.recent.limit)
+                {
+                    int  plcnt = 0;
+                    for (GList* plelem=recentpl->members; plelem; plelem=plelem->next) {
+                        if (plcnt++ >= opts.recent.limit) {
+                            itdb_playlist_remove_track(recentpl, (Itdb_Track*)plelem->data);
+                        }
+                    }
+                }
+            }
+
+            if ((*added_)%10 == 0) {
+                // force a upd of the db and clear down pending list 
+                if (gpod_write_db(itdb, mountpoint, pending_) < 0) {
+                    return -1;
+                }
+            }
+        }
+        else {
+            gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path=N/A } %s\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", (*error_)->message ? (*error_)->message : "<unknown err>");
+            itdb_playlist_remove_track(mpl_, track);
+            itdb_track_remove(track);
+        }
+    }
+
+    if (xfrm_->path[0]) {
+        g_unlink(xfrm_->path);
+    }
+    return 0;
+}
+
+static bool  gpod_stop = false;
+
+struct gpod_cp_pool_args {
+    unsigned  fatal;
+    GMutex  cp_lck;
+
+    uint32_t*  added;
+
+    GSList**  failed;
+    GMutex  failed_lck;
+    const Itdb_IpodInfo* ipodinfo;
+};
+
+struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_)
+{
+    struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
+
+    args->ipodinfo = ipodinfo_;
+
+    args->added = added_;
+    args->failed = failed_;
+
+    g_mutex_init(&args->failed_lck);
+    g_mutex_init(&args->cp_lck);
+
+    return args;
+}
+
+void  gpod_cp_pa_free(struct gpod_cp_pool_args*  args_)
+{
+    g_mutex_clear(&args_->failed_lck);
+    g_mutex_clear(&args_->cp_lck);
+    g_free(args_);
+}
+
+struct gpod_cp_thread_args {
+    Itdb_iTunesDB* itdb;
+    Itdb_Playlist* mpl;
+    const char* mountpoint;
+    GSList** pending;
+    struct gpod_track_fs_hash*  tfsh;
+    Itdb_Playlist*  recentpl;
+
+    char*     path;
+    unsigned  N;
+    uint32_t  requested;
+};
+
+struct gpod_cp_thread_args*  gpod_cp_ta_init(
+        Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
+        GSList** pending_,
+        struct gpod_track_fs_hash*  tfsh_,
+        Itdb_Playlist*  recentpl_,
+        const char* path_, unsigned N_, uint32_t requested_)
+{
+    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)g_malloc0(sizeof(struct gpod_cp_thread_args));
+
+    args->itdb = itdb_;
+    args->mpl = mpl_;
+    args->mountpoint = mountpoint_;
+    args->pending = pending_;
+    args->tfsh = tfsh_;
+    args->recentpl = recentpl_;
+
+    args->path = g_strdup(path_);
+    args->N = N_;
+    args->requested = requested_;
+
+    return args;
+}
+
+void gpod_cp_ta_free(struct gpod_cp_thread_args* obj_)
+{
+    g_free(obj_->path);
+    g_free(obj_);
+}
+
+void gpod_cp_thread(gpointer args_, gpointer pool_args_)
+{
+    struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)args_;
+    struct gpod_cp_pool_args*  pargs = (struct gpod_cp_pool_args*)pool_args_;
+
+    GError *error = NULL;
+    char*  err = NULL;
+    Itdb_Track*  track = NULL;
+    struct gpod_ff_transcode_ctx  xfrm;
+
+    const struct gpod_cp_log_ctx  lctx = { 
+      args->requested, args->N, args->path
+    };
+    struct timeval  tv = { 0 };
+    uint64_t  uuid = -1;
+    guint  then, now;
+
+    if (gpod_stop) {
+        goto thread_cleanup;
+    }
+
+    if (!g_file_test(args->path, G_FILE_TEST_EXISTS)) {
+        gpod_cp_log(&lctx, "{ } No such file or directory\n");
+        goto thread_cleanup;
+    }
+
+    gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
+
+    g_mutex_lock(&pargs->cp_lck);
+    gettimeofday(&tv, NULL);
+    g_mutex_unlock(&pargs->cp_lck);
+    uuid = tv.tv_sec * 1000000 + tv.tv_usec;
+
+    then = g_get_monotonic_time();
+    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
+        gpod_cp_log(&lctx, "{ } track err - %s\n", err ? err : "<>");
+        g_free(err);
+        err = NULL;
+
+        g_mutex_lock(&pargs->failed_lck);
+        *(pargs->failed) = g_slist_append(*(pargs->failed), (gpointer)g_strdup(args->path));
+        g_mutex_unlock(&pargs->failed_lck);
+    }
+    else
+    {
+        now = g_get_monotonic_time();
+        if (gpod_stop) {
+            goto thread_cleanup;
+        }
+
+        g_mutex_lock(&pargs->cp_lck);
+        if (gpod_cp_track(&lctx,
+                          args->itdb, args->mpl, &track, args->mountpoint, pargs->added,
+                          &xfrm, then-now, args->path, args->pending, args->tfsh, &args->recentpl,
+                          &error) < 0) {
+            ++(pargs->fatal);
+        }
+        g_mutex_unlock(&pargs->cp_lck);
+    }
+
+thread_cleanup:
+    if (error) {
+        g_error_free(error);
+        error = NULL;
+    }
+
+    gpod_cp_ta_free(args);
 }
 
 
-static bool  gpod_stop = false;
 static void  _sighandler(const int sig_)
 {
     gpod_stop = true;
@@ -205,11 +480,37 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
+static void  gpod_duration(char duration_[32], guint then_, guint now_)
+{
+    const unsigned  sec = (now_-then_)/1000000;
+    unsigned  h, m, s;
+    h = (sec/3600);
+    m = (sec -(3600*h))/60;
+    s = (sec -(3600*h)-(m*60));
+    if (sec < 60) {
+        sprintf(duration_, "%.3f secs", (now_-then_)/1000000.0);
+    }
+    else
+    {
+        if (sec < 3600) {
+            sprintf(duration_, "%02d:%02d mins:secs", m,s);
+        }
+        else {
+            if (sec < 3600*60) {
+                sprintf(duration_, "%02d:%02d:%02d", h,m,s);
+            }
+            else {
+                strcpy(duration_, "inf");
+            }
+        }
+    }
+}
+
 
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -224,6 +525,8 @@ void  _usage(const char* argv0_)
              "\n"
 	     "    -P <name>      generate our 'recently added' playlist\n"
 	     "    -N <limit>     'recently added' pl limit'\n"
+             "\n"
+	     "    -T <max threads>   number of threads for xcoding/copying\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -237,24 +540,12 @@ int main (int argc, char *argv[])
     Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
-    struct {
-        const char*  itdb_path;
-        bool cksum;
-	bool  force;
-	enum gpod_ff_enc  enc;
-	bool enc_fallback;
-	enum gpod_ff_transcode_quality  xcode_quality;
-	bool  sanitize;
-        struct {
-          const char*  pl;
-          unsigned  limit;
-        } recent;
-    } opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
     opts.recent.pl = NULL;
     opts.recent.limit = 50;
+    opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:T:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -303,6 +594,14 @@ int main (int argc, char *argv[])
             case 'N':  opts.recent.limit = atoi(optarg);  break;
 
             case 'S':  opts.sanitize = false;  break;
+            case 'T':
+            {
+                unsigned short  req_max_threads = (unsigned short)atoi(optarg);
+                if (req_max_threads > opts.max_threads*2) {
+                    req_max_threads = opts.max_threads*2;
+                }
+                opts.max_threads = req_max_threads;
+            } break;
 
             case 'h':
             default:
@@ -374,14 +673,6 @@ int main (int argc, char *argv[])
     }
     const uint32_t  N = g_slist_length(files);
 
-    struct {
-	uint32_t  music;
-	uint32_t  video;
-	uint32_t  other;
-	size_t    bytes;
-    } stats = { 0, 0, 0, 0 };
-
-    struct gpod_ff_transcode_ctx  xfrm;
 
     GSList*  pending = NULL;
     const Itdb_IpodInfo*  ipodinfo = itdb_device_get_ipod_info(itdev);
@@ -431,6 +722,16 @@ int main (int argc, char *argv[])
 
     Itdb_Playlist*  recentpl = NULL;
     Itdb_Track*  track = NULL;
+
+    // create thread pool and throw all tasks (direct cp and xcode)
+    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(ipodinfo, &added, &failed);
+
+    GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
+                                         opts.max_threads,
+                                         TRUE, NULL);
+
+    g_print("processing %u tracks over %u threads\n", N, opts.max_threads);
+
     const guint  then = g_get_monotonic_time();
     GSList*  p = files;
     while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
@@ -439,109 +740,16 @@ int main (int argc, char *argv[])
         const char*  path = (const char*)(p->data);
         p = p->next;
 
-        g_print("[%3u/%u]  %s -> ", requested, N, path);
-
-        if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
-            g_print("{ } No such file or directory\n", path);
-            continue;
-        }
-
-        error = NULL;
-
-        gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
-
-        bool  ok = true;
-        if ( (track = _track(path, &xfrm, ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
-            ok = false;
-            g_print("{ } track err - %s\n", err ? err : "<>");
-            g_free(err);
-	    err = NULL;
-
-	    failed = g_slist_append(failed, (gpointer)path);
-        }
-        else
-        {
-            g_print("{ title='%s' artist='%s' album='%s' ipod_path=", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
-
-            const bool  dupl = opts.cksum && _track_exists(track, &tfsh, xfrm.path[0] ? xfrm.path : path);
-
-            if (dupl) {
-                g_print(" *** DUPL *** }\n");
-                itdb_track_free(track);
-                track = NULL;
-            }
-            else
-            {
-                itdb_track_add(itdb, track, -1);
-                itdb_playlist_add_track(mpl, track, -1);
-
-                ok = itdb_cp_track_to_ipod (track, xfrm.path[0] ? xfrm.path : path, &error);
-
-
-                if (ok)
-                {
-                    ++added;
-                    itdb_filename_ipod2fs(track->ipod_path);
-                    g_print("'%s' }\n", track->ipod_path);
-
-                    pending = g_slist_append(pending, g_strdup(track->ipod_path));
-
-                    switch (track->mediatype) {
-                        case ITDB_MEDIATYPE_AUDIO:  ++stats.music;  break;
-                        case ITDB_MEDIATYPE_MOVIE:  ++stats.video;  break;
-                        default: ++stats.other;
-                    }
-		    stats.bytes += track->size;
-
-                    // req'd to add to playlist
-                    if (opts.recent.pl && recentpl == NULL)
-                    {
-                        recentpl = itdb_playlist_by_name(itdb, (gchar*)opts.recent.pl);
-                        if (recentpl == NULL) {
-                            recentpl = itdb_playlist_new(opts.recent.pl, false);
-                            itdb_playlist_add(itdb, recentpl, -1);
-                        }
-                    }
-
-                    if (recentpl)
-                    {
-                        // always add at the top of playlist and drop off any tracks past imposed limit
-                        itdb_playlist_add_track(recentpl, track, 0);
-                        if (g_list_length(recentpl->members) > opts.recent.limit)
-                        {
-                            int  plcnt = 0;
-                            for (GList* plelem=recentpl->members; plelem; plelem=plelem->next) {
-                                if (plcnt++ >= opts.recent.limit) {
-                                    itdb_playlist_remove_track(recentpl, (Itdb_Track*)plelem->data);
-                                }
-                            }
-                        }
-                    }
-
-                    if (added%10 == 0) {
-                        // force a upd of the db and clear down pending list 
-                        if (gpod_write_db(itdb, mountpoint, &pending) < 0) {
-                            break;
-                        }
-                    }
-                }
-                else {
-                    g_print("N/A } %s\n", error->message ? error->message : "<unknown err>");
-                    itdb_playlist_remove_track(mpl, track);
-                    itdb_track_remove(track);
-                }
-            }
-
-            if (xfrm.path[0]) {
-                g_unlink(xfrm.path);
-            }
-        }
-
-        if (error) {
-	    g_error_free(error);
-	    error = NULL;
-	}
+        struct gpod_cp_thread_args*  args = gpod_cp_ta_init(itdb, mpl, mountpoint, &pending, &tfsh, recentpl, path, N, requested);
+        g_thread_pool_push(tp, (void*)args, NULL);
     }
+
+    // wait for all tasks
+    g_thread_pool_free(tp, FALSE, TRUE);
+    gpod_cp_pa_free(pool_args);
+    pool_args = NULL;
+    tp = NULL;
+
     if (opts.cksum) {
         gpod_track_fs_hash_destroy(&tfsh);
     }
@@ -552,7 +760,7 @@ int main (int argc, char *argv[])
 	for (p=failed; p!=NULL; p=p->next) {
 	    g_print("  %s\n", p->data);
 	}
-	g_slist_free(failed);
+	g_slist_free_full(failed, g_free);
 	failed = NULL;
     }
     g_slist_free_full(files, g_free);
@@ -563,36 +771,14 @@ int main (int argc, char *argv[])
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
     }
 
-    if (g_slist_length(pending)) {
+    if (pending && g_slist_length(pending)) {
 	ret = gpod_write_db(itdb, mountpoint, &pending);
     }
 
-    char duration[32];
-    {
-        const guint  now = g_get_monotonic_time();
-        const unsigned  sec = (now-then)/1000000;
-        unsigned  h, m, s;
-        h = (sec/3600);
-        m = (sec -(3600*h))/60;
-        s = (sec -(3600*h)-(m*60));
-        if (sec < 60) {
-            sprintf(duration, "%.3f secs", (now-then)/1000000.0);
-        }
-        else
-        {
-            if (sec < 3600) {
-                sprintf(duration, "%02d:%02d mins:secs", m,s);
-            }
-            else {
-                if (sec < 3600*60) {
-                    sprintf(duration, "%02d:%02d:%02d", h,m,s);
-                }
-                else {
-                    strcpy(duration, "inf");
-                }
-            }
-        }
-    }
+    char duration[32] = { 0 };
+    gpod_duration(duration, then, g_get_monotonic_time());
+    char xcode_duration[32] = { 0 };
+    gpod_duration(xcode_duration, stats.xcode_time, 0);
 
     char  userterm[128] = { 0 };
     if (gpod_stop) {
@@ -605,7 +791,7 @@ int main (int argc, char *argv[])
     }
 
 
-    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm);
+    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s (ttl xcode %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm, xcode_duration);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
