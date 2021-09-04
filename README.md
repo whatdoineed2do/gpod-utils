@@ -240,6 +240,8 @@ ffmpeg -hwaccel cuda  -hwaccel_output_format cuda  \
 ```
 The `-f ipod` flag will add the `uuid` attom.  If the video file will be sync'd to your `iPod 5G` using `gpod-cp` then this flag is not necessary but *is* required if you with to use iTunes to perform the copy to the device.
 
+The audio conversions are performed in their own threads and defaults to the number of cores on your system.  This can be adjusted with the `-T` flag.
+
 By default the copy will replace tracks (deleting existing version) with matchin `title`/`artist`/`album` - this assumes the user is intending to replace the tracks;  this behaviour is governed by `-r` flag.
 
 ## `gpod-tag`
