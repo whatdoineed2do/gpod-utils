@@ -228,7 +228,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
                           GSList** pending_,
                           struct gpod_track_fs_hash*  tfsh_,
                           Itdb_Playlist**  recentpl_,
-                          GTree* tracks_, GSList** replaced_,
+                          GHashTable* tracks_, GSList** replaced_,
                           GError** error_)
 {
     Itdb_Track*  track = *track_;
@@ -291,34 +291,37 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
             }
 
             // replace any prev version of track
-            Itdb_Track*  existing_trk;
-            if (opts.replace &&
-                _track_key_valid(track) && 
-                (existing_trk = (Itdb_Track*)g_tree_lookup(tracks_, track)) &&
-                _track_key_valid(existing_trk))
+            if (opts.replace && _track_key_valid(track))
             {
-                // remove existing from all playlists, from the device and upd the tre
-                for (GList* i = itdb->playlists; i!=NULL; i=i->next) {
-                    Itdb_Playlist*  playlist = (Itdb_Playlist *)i->data;
-                    itdb_playlist_remove_track(playlist, existing_trk);
+                GSList*  existing_trks = (GSList*)g_hash_table_lookup(tracks_, track);
+                g_hash_table_replace(tracks_, track, NULL);
+                for (GSList* j=existing_trks; j; j=j->next)
+                {
+                    Itdb_Track*  existing_trk = (Itdb_Track*)j->data;
+
+                    // remove existing from all playlists, from the device and upd the tre
+                    for (GList* i = itdb->playlists; i!=NULL; i=i->next) {
+                        Itdb_Playlist*  playlist = (Itdb_Playlist *)i->data;
+                        itdb_playlist_remove_track(playlist, existing_trk);
+                    }
+                    itdb_playlist_remove_track(itdb_playlist_mpl(existing_trk->itdb), existing_trk);
+
+                    char  path[PATH_MAX] = { 0 };
+                    sprintf(path, "%s/%s", itdb_get_mountpoint(itdb), existing_trk->ipod_path);
+                    g_unlink(path);
+
+                    struct gpod_replaced*  replaced = (struct gpod_replaced*)g_malloc0(sizeof(struct gpod_replaced));
+                    replaced->title = g_strdup(existing_trk->title);
+                    replaced->artist = g_strdup(existing_trk->artist);
+                    replaced->album = g_strdup(existing_trk->album);
+                    strncpy(replaced->path, existing_trk->ipod_path, PATH_MAX);
+                    strncpy(replaced->new_path, track->ipod_path, PATH_MAX);
+
+                    itdb_track_remove(existing_trk);
+
+                    *(replaced_) = g_slist_append(*(replaced_), (gpointer)replaced);
                 }
-                itdb_playlist_remove_track(itdb_playlist_mpl(existing_trk->itdb), existing_trk);
-
-                char  path[PATH_MAX] = { 0 };
-                sprintf(path, "%s/%s", itdb_get_mountpoint(itdb), existing_trk->ipod_path);
-                g_unlink(path);
-
-                struct gpod_replaced*  replaced = (struct gpod_replaced*)g_malloc0(sizeof(struct gpod_replaced));
-                replaced->title = g_strdup(existing_trk->title);
-                replaced->artist = g_strdup(existing_trk->artist);
-                replaced->album = g_strdup(existing_trk->album);
-                strncpy(replaced->path, existing_trk->ipod_path, PATH_MAX);
-                strncpy(replaced->new_path, track->ipod_path, PATH_MAX);
-
-                g_tree_replace(tracks_, track, track);
-                itdb_track_remove(existing_trk);
-
-                *(replaced_) = g_slist_append(*(replaced_), (gpointer)replaced);
+                g_slist_free(existing_trks);
             }
 
             if ((*added_)%10 == 0) {
@@ -353,10 +356,10 @@ struct gpod_cp_pool_args {
     GSList**  failed;
     GMutex  failed_lck;
     const Itdb_IpodInfo* ipodinfo;
-    GTree*  tracks;
+    GHashTable*  tracks;
 };
 
-struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GTree* tracks_, GSList** replaced_)
+struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_)
 {
     struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
 
@@ -795,8 +798,7 @@ int main (int argc, char *argv[])
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
-
-    GTree*  tracks = gpod_track_key_tree_create(itdb);
+    GHashTable*  tracks = gpod_track_htbl_create(itdb);
 
     Itdb_Playlist*  recentpl = NULL;
     Itdb_Track*  track = NULL;
@@ -858,7 +860,7 @@ int main (int argc, char *argv[])
     }
 
     if (tracks) {
-        gpod_track_key_tree_destroy(tracks);
+        gpod_track_htbl_destroy(tracks);
         tracks = NULL;
     }
 
