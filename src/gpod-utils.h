@@ -59,6 +59,9 @@ void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_);
 
 bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const Itdb_Track* track_, const char* path_);
 
+GTree*       gpod_track_key_tree_create(Itdb_iTunesDB *itdb_);
+void         gpod_track_key_tree_destroy(GTree* tree_);
+
 
 #ifdef __cplusplus
 }

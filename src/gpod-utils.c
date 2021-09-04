@@ -304,5 +304,41 @@ bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const 
     return g_slist_find_custom(what, path, _track_find_elem);
 }
 
-#endif
 
+static int  track_key_cmp(gconstpointer a_, gconstpointer b_)
+{
+    const Itdb_Track*  a = (const Itdb_Track*)a_;
+    const Itdb_Track*  b = (const Itdb_Track*)b_;
+
+    const char*  akeys[] = { a->title, a->album, a->artist, NULL };
+    const char*  bkeys[] = { b->title, b->album, b->artist, NULL };
+
+    if (g_strv_equal(akeys, bkeys)) return 0;
+
+    unsigned na = a->title ? strlen(a->title) : 0 + a->album ? strlen(a->album) : 0  + a->artist ? strlen(a->artist) : 0;
+    unsigned nb = b->title ? strlen(b->title) : 0 + b->album ? strlen(b->album) : 0  + b->artist ? strlen(b->artist) : 0;
+    return na < nb ? -1 : 1;
+}
+
+GTree*  gpod_track_key_tree_create(Itdb_iTunesDB *itdb_)
+{
+    g_return_val_if_fail(itdb_, NULL);
+
+    GTree *idtree = g_tree_new(track_key_cmp);
+    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
+    for (GList* gl=mpl->members; gl!=NULL; gl=gl->next)
+    {
+	Itdb_Track *tr = gl->data;
+	g_return_val_if_fail (tr, NULL);
+	g_tree_insert(idtree, tr, tr);
+    }
+    return idtree;
+}
+
+void  gpod_track_key_tree_destroy(GTree* tree_)
+{
+    g_return_if_fail(tree_);
+    g_tree_destroy(tree_);
+}
+
+#endif
