@@ -305,7 +305,7 @@ bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const 
 }
 
 
-static int  track_key_cmp(gconstpointer a_, gconstpointer b_)
+static int  _track_key_cmp(gconstpointer a_, gconstpointer b_)
 {
     const Itdb_Track*  a = (const Itdb_Track*)a_;
     const Itdb_Track*  b = (const Itdb_Track*)b_;
@@ -315,8 +315,8 @@ static int  track_key_cmp(gconstpointer a_, gconstpointer b_)
 
     if (g_strv_equal(akeys, bkeys)) return 0;
 
-    unsigned na = a->title ? strlen(a->title) : 0 + a->album ? strlen(a->album) : 0  + a->artist ? strlen(a->artist) : 0;
-    unsigned nb = b->title ? strlen(b->title) : 0 + b->album ? strlen(b->album) : 0  + b->artist ? strlen(b->artist) : 0;
+    const unsigned  na = a->title ? strlen(a->title) : 0 + a->album ? strlen(a->album) : 0  + a->artist ? strlen(a->artist) : 0;
+    const unsigned  nb = b->title ? strlen(b->title) : 0 + b->album ? strlen(b->album) : 0  + b->artist ? strlen(b->artist) : 0;
     return na < nb ? -1 : 1;
 }
 
@@ -324,7 +324,7 @@ GTree*  gpod_track_key_tree_create(Itdb_iTunesDB *itdb_)
 {
     g_return_val_if_fail(itdb_, NULL);
 
-    GTree *idtree = g_tree_new(track_key_cmp);
+    GTree *idtree = g_tree_new(_track_key_cmp);
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
     for (GList* gl=mpl->members; gl!=NULL; gl=gl->next)
     {
@@ -339,6 +339,62 @@ void  gpod_track_key_tree_destroy(GTree* tree_)
 {
     g_return_if_fail(tree_);
     g_tree_destroy(tree_);
+}
+
+
+static guint _track_key_hash(gconstpointer p_)
+{
+    const Itdb_Track*  t = (const Itdb_Track*)p_;
+    const char*  elems[] = { t->title, t->artist, t->album, NULL };
+
+    guint  hash = 0;
+    const char**  p = elems;
+    while (*p) {
+        hash += (**p) ? g_str_hash(*p) : 0;
+        ++p;
+    }
+    return hash;
+}
+
+static gboolean  _track_key_equal(gconstpointer a_, gconstpointer b_)
+{
+    return _track_key_cmp(a_,b_) == 0;
+}
+
+static void  _track_htbl_val_destroy(gpointer p_)
+{
+    if (p_) {
+        g_slist_free((GSList*)p_);
+    }
+}
+
+GHashTable*  gpod_track_htbl_create(Itdb_iTunesDB* itdb_)
+{
+    // GHashTable*  htbl = g_hash_table_new_full(_track_key_hash, _track_key_equal, NULL, _track_htbl_val_destroy);
+    GHashTable*  htbl = g_hash_table_new(_track_key_hash, _track_key_equal);
+
+    Itdb_Track*  track;
+    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
+    for (GList* i=mpl->members; i!=NULL; i=i->next)
+    {
+        track = (Itdb_Track*)i->data;
+        g_hash_table_insert(htbl, track,
+                            g_slist_append(g_hash_table_lookup(htbl, track), track)
+                           );
+    }
+
+    return htbl;
+}
+
+void  gpod_track_htbl_val_destroy(gpointer key_, gpointer value_, gpointer data_)
+{
+    g_slist_free(value_);
+}
+
+void  gpod_track_htbl_destroy(GHashTable* htbl_)
+{
+    g_hash_table_foreach(htbl_, gpod_track_htbl_val_destroy, NULL);
+    g_hash_table_destroy(htbl_);
 }
 
 #endif
