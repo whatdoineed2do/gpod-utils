@@ -251,7 +251,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
 
         if (ok)
         {
-            stats.xcode_time += xcodetime_;
+            stats.xcode_time += (xfrm_->path[0]) ? xcodetime_ : 0;
             ++(*added_);
             itdb_filename_ipod2fs(track->ipod_path);
             gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path='%s' }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", track->ipod_path);
