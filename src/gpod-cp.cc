@@ -38,6 +38,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
@@ -53,12 +54,13 @@ struct {
     bool enc_fallback;
     enum gpod_ff_transcode_quality  xcode_quality;
     bool  sanitize;
+    bool  replace;
     struct {
       const char*  pl;
       unsigned  limit;
     } recent;
     unsigned short  max_threads;
-} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true };
+} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true, true };
 
 struct {
     uint32_t  music;
@@ -67,6 +69,24 @@ struct {
     size_t    bytes;
     guint     xcode_time;
 } stats = { 0, 0, 0, 0, 0 };
+
+struct gpod_replaced {
+    char*  title;
+    char*  artist;
+    char*  album;
+    char  path[PATH_MAX];
+    char  new_path[PATH_MAX];
+};
+
+static void  replaced_destroy(gpointer obj_)
+{
+    struct gpod_replaced*  r = (struct gpod_replaced*)obj_;
+    g_free(r->title);
+    g_free(r->artist);
+    g_free(r->album);
+
+    g_free(obj_);
+}
 
 struct gpod_cp_log_ctx {
     uint32_t  requested;
@@ -85,6 +105,14 @@ static void  gpod_cp_log(const struct gpod_cp_log_ctx* ctx_, const char* fmt_, .
 
     g_print("[%3u/%u]  %s -> %s", ctx_->requested, ctx_->N, ctx_->path, tmp);
     g_free(tmp);
+}
+
+static bool  _track_key_valid(Itdb_Track* track_)
+{
+    return track_->title && track_->album && track_->artist &&
+           strlen(track_->title) && 
+           strlen(track_->album) && 
+           strlen(track_->artist);
 }
 
 /* parse the track info to make sure its a compatible format, if not supported 
@@ -200,6 +228,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
                           GSList** pending_,
                           struct gpod_track_fs_hash*  tfsh_,
                           Itdb_Playlist**  recentpl_,
+                          GTree* tracks_, GSList** replaced_,
                           GError** error_)
 {
     Itdb_Track*  track = *track_;
@@ -261,6 +290,37 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
                 }
             }
 
+            // replace any prev version of track
+            Itdb_Track*  existing_trk;
+            if (opts.replace &&
+                _track_key_valid(track) && 
+                (existing_trk = (Itdb_Track*)g_tree_lookup(tracks_, track)) &&
+                _track_key_valid(existing_trk))
+            {
+                // remove existing from all playlists, from the device and upd the tre
+                for (GList* i = itdb->playlists; i!=NULL; i=i->next) {
+                    Itdb_Playlist*  playlist = (Itdb_Playlist *)i->data;
+                    itdb_playlist_remove_track(playlist, existing_trk);
+                }
+                itdb_playlist_remove_track(itdb_playlist_mpl(existing_trk->itdb), existing_trk);
+
+                char  path[PATH_MAX] = { 0 };
+                sprintf(path, "%s/%s", itdb_get_mountpoint(itdb), existing_trk->ipod_path);
+                g_unlink(path);
+
+                struct gpod_replaced*  replaced = (struct gpod_replaced*)g_malloc0(sizeof(struct gpod_replaced));
+                replaced->title = g_strdup(existing_trk->title);
+                replaced->artist = g_strdup(existing_trk->artist);
+                replaced->album = g_strdup(existing_trk->album);
+                strncpy(replaced->path, existing_trk->ipod_path, PATH_MAX);
+                strncpy(replaced->new_path, track->ipod_path, PATH_MAX);
+
+                g_tree_replace(tracks_, track, track);
+                itdb_track_remove(existing_trk);
+
+                *(replaced_) = g_slist_append(*(replaced_), (gpointer)replaced);
+            }
+
             if ((*added_)%10 == 0) {
                 // force a upd of the db and clear down pending list 
                 if (gpod_write_db(itdb, mountpoint, pending_) < 0) {
@@ -288,20 +348,24 @@ struct gpod_cp_pool_args {
     GMutex  cp_lck;
 
     uint32_t*  added;
+    GSList**  replaced;
 
     GSList**  failed;
     GMutex  failed_lck;
     const Itdb_IpodInfo* ipodinfo;
+    GTree*  tracks;
 };
 
-struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_)
+struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GTree* tracks_, GSList** replaced_)
 {
     struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
 
     args->ipodinfo = ipodinfo_;
+    args->tracks = tracks_;
 
     args->added = added_;
     args->failed = failed_;
+    args->replaced = replaced_;
 
     g_mutex_init(&args->failed_lck);
     g_mutex_init(&args->cp_lck);
@@ -412,9 +476,11 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
         if (gpod_cp_track(&lctx,
                           args->itdb, args->mpl, &track, args->mountpoint, pargs->added,
                           &xfrm, then-now, args->path, args->pending, args->tfsh, &args->recentpl,
+                          pargs->tracks, pargs->replaced,
                           &error) < 0) {
             ++(pargs->fatal);
         }
+
         g_mutex_unlock(&pargs->cp_lck);
     }
 
@@ -510,7 +576,7 @@ static void  gpod_duration(char duration_[32], guint then_, guint now_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -523,6 +589,7 @@ void  _usage(const char* argv0_)
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k (not applicable for alac)\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              "\n"
+	     "    -r <0|1>       replace existing track of same title/album/artist\n"
 	     "    -P <name>      generate our 'recently added' playlist\n"
 	     "    -N <limit>     'recently added' pl limit'\n"
              "\n"
@@ -545,7 +612,7 @@ int main (int argc, char *argv[])
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:T:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:T:r:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -601,6 +668,13 @@ int main (int argc, char *argv[])
                     req_max_threads = opts.max_threads*2;
                 }
                 opts.max_threads = req_max_threads;
+            } break;
+
+            case 'r':
+            {
+                if      (toupper(optarg[0]) == 'Y')  opts.replace = true;
+                else if (toupper(optarg[0]) == 'N')  opts.replace = false;
+                else opts.replace = atoi(optarg) == 1;
             } break;
 
             case 'h':
@@ -667,6 +741,7 @@ int main (int argc, char *argv[])
 
     GSList*  files = NULL;
     GSList*  failed = NULL;
+    GSList*  replaced = NULL;
     int  i = optind;
     while (i < argc) {
         gpod_walk_dir(argv[i++], &files);
@@ -720,11 +795,14 @@ int main (int argc, char *argv[])
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
+
+    GTree*  tracks = gpod_track_key_tree_create(itdb);
+
     Itdb_Playlist*  recentpl = NULL;
     Itdb_Track*  track = NULL;
 
     // create thread pool and throw all tasks (direct cp and xcode)
-    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(ipodinfo, &added, &failed);
+    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(ipodinfo, &added, &failed, tracks, &replaced);
 
     GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
                                          opts.max_threads,
@@ -766,6 +844,23 @@ int main (int argc, char *argv[])
     g_slist_free_full(files, g_free);
     files = NULL;
 
+    if (replaced)
+    {
+	g_print("replaced tracks:\n");
+	for (p=replaced; p!=NULL; p=p->next)
+        {
+	    struct gpod_replaced*  r = (struct gpod_replaced*)p->data;
+	    g_print("  %s => %s { title='%s' artist='%s' album='%s' }\n", r->path, r->new_path, r->title, r->artist, r->album);
+        }
+
+	g_slist_free_full(replaced, replaced_destroy);
+	replaced = NULL;
+    }
+
+    if (tracks) {
+        gpod_track_key_tree_destroy(tracks);
+        tracks = NULL;
+    }
 
     if (added) {
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
