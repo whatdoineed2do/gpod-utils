@@ -350,6 +350,13 @@ struct gpod_cp_pool_args {
     unsigned  fatal;
     GMutex  cp_lck;
 
+    Itdb_iTunesDB* itdb;
+    Itdb_Playlist* mpl;
+    const char* mountpoint;
+    GSList** pending;
+    struct gpod_track_fs_hash*  tfsh;
+    Itdb_Playlist*  recentpl;
+
     uint32_t*  added;
     GSList**  replaced;
 
@@ -359,9 +366,21 @@ struct gpod_cp_pool_args {
     GHashTable*  tracks;
 };
 
-struct gpod_cp_pool_args*  gpod_cp_pa_init(const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_)
+struct gpod_cp_pool_args*  gpod_cp_pa_init(
+        Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
+        const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_,
+        GSList** pending_,
+        struct gpod_track_fs_hash*  tfsh_,
+        Itdb_Playlist*  recentpl_)
 {
     struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
+
+    args->itdb = itdb_;
+    args->mpl = mpl_;
+    args->mountpoint = mountpoint_;
+    args->pending = pending_;
+    args->tfsh = tfsh_;
+    args->recentpl = recentpl_;
 
     args->ipodinfo = ipodinfo_;
     args->tracks = tracks_;
@@ -384,33 +403,15 @@ void  gpod_cp_pa_free(struct gpod_cp_pool_args*  args_)
 }
 
 struct gpod_cp_thread_args {
-    Itdb_iTunesDB* itdb;
-    Itdb_Playlist* mpl;
-    const char* mountpoint;
-    GSList** pending;
-    struct gpod_track_fs_hash*  tfsh;
-    Itdb_Playlist*  recentpl;
-
     char*     path;
     unsigned  N;
     uint32_t  requested;
 };
 
 struct gpod_cp_thread_args*  gpod_cp_ta_init(
-        Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
-        GSList** pending_,
-        struct gpod_track_fs_hash*  tfsh_,
-        Itdb_Playlist*  recentpl_,
         const char* path_, unsigned N_, uint32_t requested_)
 {
     struct gpod_cp_thread_args*  args = (struct gpod_cp_thread_args*)g_malloc0(sizeof(struct gpod_cp_thread_args));
-
-    args->itdb = itdb_;
-    args->mpl = mpl_;
-    args->mountpoint = mountpoint_;
-    args->pending = pending_;
-    args->tfsh = tfsh_;
-    args->recentpl = recentpl_;
 
     args->path = g_strdup(path_);
     args->N = N_;
@@ -477,8 +478,8 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
 
         g_mutex_lock(&pargs->cp_lck);
         if (gpod_cp_track(&lctx,
-                          args->itdb, args->mpl, &track, args->mountpoint, pargs->added,
-                          &xfrm, then-now, args->path, args->pending, args->tfsh, &args->recentpl,
+                          pargs->itdb, pargs->mpl, &track, pargs->mountpoint, pargs->added,
+                          &xfrm, then-now, args->path, pargs->pending, pargs->tfsh, &pargs->recentpl,
                           pargs->tracks, pargs->replaced,
                           &error) < 0) {
             ++(pargs->fatal);
@@ -804,7 +805,9 @@ int main (int argc, char *argv[])
     Itdb_Track*  track = NULL;
 
     // create thread pool and throw all tasks (direct cp and xcode)
-    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(ipodinfo, &added, &failed, tracks, &replaced);
+    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,
+                                                           ipodinfo, &added, &failed, tracks, &replaced,
+                                                           &pending, &tfsh, recentpl);
 
     GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
                                          opts.max_threads,
@@ -820,7 +823,7 @@ int main (int argc, char *argv[])
         const char*  path = (const char*)(p->data);
         p = p->next;
 
-        struct gpod_cp_thread_args*  args = gpod_cp_ta_init(itdb, mpl, mountpoint, &pending, &tfsh, recentpl, path, N, requested);
+        struct gpod_cp_thread_args*  args = gpod_cp_ta_init(path, N, requested);
         g_thread_pool_push(tp, (void*)args, NULL);
     }
 
