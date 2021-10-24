@@ -65,6 +65,10 @@ void         gpod_track_key_tree_destroy(GTree* tree_);
 GHashTable*  gpod_track_htbl_create(Itdb_iTunesDB* itdb_);
 void         gpod_track_htbl_destroy(GHashTable* htbl_);
 
+// create recent playlists from given date
+void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_,
+	                   Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_);
+
 #ifdef __cplusplus
 }
 #endif
