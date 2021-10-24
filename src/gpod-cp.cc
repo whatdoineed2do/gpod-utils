@@ -68,7 +68,10 @@ struct {
     uint32_t  other;
     size_t    bytes;
     guint     xcode_time;
-} stats = { 0, 0, 0, 0, 0 };
+
+    unsigned  recent_playlists;
+    unsigned  recent_tracks;
+} stats = { 0 };
 
 struct gpod_replaced {
     char*  title;
@@ -216,8 +219,10 @@ static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** 
 	ret = false;
     }
 
-    g_slist_free_full(*pending, g_free);
-    *pending = NULL;
+    if (pending) {
+	g_slist_free_full(*pending, g_free);
+	*pending = NULL;
+    }
 
     return ret ? 0 : -1;
 }
@@ -580,7 +585,7 @@ static void  gpod_duration(char duration_[32], guint then_, guint now_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [[-P recent playlist name ] [-N playlist limit]] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -594,8 +599,8 @@ void  _usage(const char* argv0_)
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              "\n"
 	     "    -r <0|1>       replace existing track of same title/album/artist\n"
-	     "    -P <name>      generate our 'recently added' playlist\n"
-	     "    -N <limit>     'recently added' pl limit'\n"
+	     "    -P <name>      generate specific 'recently added' playlist - if not specified, default 'Recent' playlists are generated\n"
+	     "    -n <limit>     'recently added' pl limit - 0 to disable Recent playlists generation\n"
              "\n"
 	     "    -T <max threads>   number of threads for xcoding/copying\n"
              ,basename);
@@ -616,7 +621,7 @@ int main (int argc, char *argv[])
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:N:T:r:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:T:r:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -662,7 +667,7 @@ int main (int argc, char *argv[])
 	    } break;
 
             case 'P':  opts.recent.pl = optarg;  break;
-            case 'N':  opts.recent.limit = atoi(optarg);  break;
+            case 'n':  opts.recent.limit = atoi(optarg);  break;
 
             case 'S':  opts.sanitize = false;  break;
             case 'T':
@@ -868,11 +873,21 @@ int main (int argc, char *argv[])
     }
 
     if (added) {
+	if (opts.recent.pl == NULL &&  opts.recent.limit > 0) {
+	    g_print("generating Recent playlists...\n");
+	    gpod_playlist_recent(&stats.recent_playlists, &stats.recent_tracks,
+		    itdb, opts.recent.limit, time(NULL));
+	}
+
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
     }
 
     if (pending && g_slist_length(pending)) {
 	ret = gpod_write_db(itdb, mountpoint, &pending);
+    }
+    else {
+	// force the write for playlist generation
+	ret = gpod_write_db(itdb, mountpoint, NULL);
     }
 
     char duration[32] = { 0 };
