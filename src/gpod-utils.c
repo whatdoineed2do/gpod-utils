@@ -626,7 +626,7 @@ GSList*  gpod_recents_new(gint64  now_)
     when_now = when;
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: last wk");
+    when->name = g_strdup("Recent: 0d..7d");
     when->range.to = g_date_time_add_days(when_last->range.to, -1);
     g_date_time_get_ymd(when->range.to, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 0, 0, 0);
@@ -638,7 +638,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: last mth");
+    when->name = g_strdup("Recent: 7d..last mth");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -650,7 +650,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: last 3mth");
+    when->name = g_strdup("Recent: 1..3mth");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -662,7 +662,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: last 6mth");
+    when->name = g_strdup("Recent: 3..6mth");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -670,6 +670,19 @@ GSList*  gpod_recents_new(gint64  now_)
     when->from = g_date_time_to_unix(when->range.from);
     when->to   = g_date_time_to_unix(when->range.to);
     l = g_slist_append(l, when);
+    when_last = when;
+    g_date_time_unref(tmp);
+
+    when = gpod_recent_new();
+    when->name = g_strdup("Recent: 6..12mth");
+    g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
+    tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
+    when->range.to   = g_date_time_add_days(tmp, -1);
+    when->range.from = g_date_time_add_months(when_now->range.from, -12);
+    when->from = g_date_time_to_unix(when->range.from);
+    when->to   = g_date_time_to_unix(when->range.to);
+    l = g_slist_append(l, when);
+    when_last = when;
     g_date_time_unref(tmp);
 
     return l;
