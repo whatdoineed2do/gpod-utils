@@ -38,11 +38,11 @@
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB> [-n album_limit]<\n"
+    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB> [-n album_limit]\n"
              "\n"
              "    creates set of playlists of recently added albums\n"
              "\n"
-             "    Playlists of: 0wk (today), 1wk, 4wks, 12wks\n"
+             "    Playlists of: 0wk (most recent update), 1wk, 1months, 3months, 6months, 12months\n"
              "\n"
              "    -M <dir | file>   location of iPod data, as directory mount point or\n"
              "                      as a iTunesDB file  \n"
@@ -144,7 +144,7 @@ main (int argc, char *argv[])
         }
     }
 
-    g_print("iPod playlists=%u with tracks=%u\n", recent_pl, recent_tracks);
+    g_print("iPod playlists=%u (limited to %d) with tracks=%u\n", recent_pl, opts.album_limit, recent_tracks);
 
 
 cleanup:
