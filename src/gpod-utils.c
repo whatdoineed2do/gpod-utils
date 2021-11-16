@@ -602,7 +602,7 @@ static void  dump_recent_dt(gpointer data, gpointer user_data)
 }
 
 
-GSList*  gpod_recents_new(gint64  now_)
+GSList*  gpod_recents_new(gint64  now_, const char* extra_)
 {
     GSList*  l = NULL;
 
@@ -616,7 +616,7 @@ GSList*  gpod_recents_new(gint64  now_)
     const struct gpod_recent*  when_now;
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 0d");
+    when->name = g_strdup_printf("Recent%s: 0d", extra_ ? extra_ : "");
     when->range.to   = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.from = g_date_time_new_utc(dmy.y, dmy.m, dmy.d,  0,  0,  0);
     when->from = g_date_time_to_unix(when->range.from);
@@ -626,7 +626,7 @@ GSList*  gpod_recents_new(gint64  now_)
     when_now = when;
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 0d..7d");
+    when->name = g_strdup_printf("Recent%s: 0d..7d", extra_ ? extra_ : "");
     when->range.to = g_date_time_add_days(when_last->range.to, -1);
     g_date_time_get_ymd(when->range.to, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 0, 0, 0);
@@ -638,7 +638,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 7d..last mth");
+    when->name = g_strdup_printf("Recent%s: 7d..last mth", extra_ ? extra_ : "");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -650,7 +650,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 1..3mth");
+    when->name = g_strdup_printf("Recent%s: 1..3mth", extra_ ? extra_ : "");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -662,7 +662,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 3..6mth");
+    when->name = g_strdup_printf("Recent%s: 3..6mth", extra_ ? extra_ : "");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -674,7 +674,7 @@ GSList*  gpod_recents_new(gint64  now_)
     g_date_time_unref(tmp);
 
     when = gpod_recent_new();
-    when->name = g_strdup("Recent: 6..12mth");
+    when->name = g_strdup_printf("Recent%s: 6..12mth", extra_ ? extra_ : "");
     g_date_time_get_ymd(when_last->range.from, &dmy.y, &dmy.m, &dmy.d);
     tmp = g_date_time_new_utc(dmy.y, dmy.m, dmy.d, 23, 59, 59);
     when->range.to   = g_date_time_add_days(tmp, -1);
@@ -705,7 +705,9 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
 	g_list_foreach(itdb_playlist_mpl(itdb_)->members, track_mostrecent, &when_);
     }
 
-    GSList*  recents = gpod_recents_new(when_);  // define the playlist of interest and time ranges
+    char  extra[32] = { 0 };
+    g_snprintf(extra, sizeof(extra), " (%u)", album_limit_);
+    GSList*  recents = gpod_recents_new(when_, extra);  // define the playlist of interest and time ranges
     GSList*  albums = NULL;
 
     g_list_foreach(itdb_playlist_mpl(itdb_)->members, albums_index, &albums);
