@@ -70,7 +70,7 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
         return NULL;
     }
 
-    Itdb_Track*  track = gpod_ff_meta_to_track(&mi, sanitize_);
+    Itdb_Track*  track = gpod_ff_meta_to_track(&mi, 0, sanitize_);
 
     gpod_ff_media_info_free(&mi);
     return track;

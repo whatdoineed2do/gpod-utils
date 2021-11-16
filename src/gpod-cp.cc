@@ -41,6 +41,7 @@
 #include <ctype.h>
 
 #include <glib/gstdio.h>
+#include <glib/gdatetime.h>
 #include <gpod/itdb.h>
 
 #include "gpod-ffmpeg.h"
@@ -53,6 +54,7 @@ struct {
     enum gpod_ff_enc  enc;
     bool enc_fallback;
     enum gpod_ff_transcode_quality  xcode_quality;
+    time_t  time_added;
     bool  sanitize;
     bool  replace;
     struct {
@@ -60,7 +62,7 @@ struct {
       unsigned  limit;
     } recent;
     unsigned short  max_threads;
-} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, true, true };
+} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, 0, true, true };
 
 struct {
     uint32_t  music;
@@ -122,7 +124,7 @@ static bool  _track_key_valid(Itdb_Track* track_)
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, bool sanitize_, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, time_t time_added_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
@@ -180,7 +182,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 	}
     }
 
-    track = gpod_ff_meta_to_track(&mi, sanitize_);
+    track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
 
     gpod_ff_media_info_free(&mi);
     return track;
@@ -362,6 +364,7 @@ struct gpod_cp_pool_args {
     struct gpod_track_fs_hash*  tfsh;
     Itdb_Playlist*  recentpl;
 
+    time_t  time_added;
     uint32_t*  added;
     GSList**  replaced;
 
@@ -373,7 +376,7 @@ struct gpod_cp_pool_args {
 
 struct gpod_cp_pool_args*  gpod_cp_pa_init(
         Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
-        const Itdb_IpodInfo* ipodinfo_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_,
+        const Itdb_IpodInfo* ipodinfo_, time_t time_added_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_,
         GSList** pending_,
         struct gpod_track_fs_hash*  tfsh_,
         Itdb_Playlist*  recentpl_)
@@ -390,6 +393,7 @@ struct gpod_cp_pool_args*  gpod_cp_pa_init(
     args->ipodinfo = ipodinfo_;
     args->tracks = tracks_;
 
+    args->time_added = time_added_;
     args->added = added_;
     args->failed = failed_;
     args->replaced = replaced_;
@@ -465,7 +469,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
     uuid = tv.tv_sec * 1000000 + tv.tv_usec;
 
     then = g_get_monotonic_time();
-    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, opts.sanitize, &err)) == NULL) {
+    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, pargs->time_added, opts.sanitize, &err)) == NULL) {
         gpod_cp_log(&lctx, "{ } track err - %s\n", err ? err : "<>");
         g_free(err);
         err = NULL;
@@ -585,7 +589,7 @@ static void  gpod_duration(char duration_[32], guint then_, guint now_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] [-t time_added] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -601,6 +605,7 @@ void  _usage(const char* argv0_)
 	     "    -r <0|1>       replace existing track of same title/album/artist\n"
 	     "    -P <name>      generate specific 'recently added' playlist - if not specified, default 'Recent' playlists are generated\n"
 	     "    -n <limit>     'recently added' pl limit - 0 to disable Recent playlists generation\n"
+	     "    -t <time added>  spoof specific ISO8601 date\n"
              "\n"
 	     "    -T <max threads>   number of threads for xcoding/copying\n"
              ,basename);
@@ -621,7 +626,7 @@ int main (int argc, char *argv[])
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:T:r:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -670,6 +675,17 @@ int main (int argc, char *argv[])
             case 'n':  opts.recent.limit = atoi(optarg);  break;
 
             case 'S':  opts.sanitize = false;  break;
+            case 't':
+	    {
+		GDateTime*  dt;
+		if ( (dt = g_date_time_new_from_iso8601(optarg, NULL)) ) {
+		    opts.time_added = (time_t)g_date_time_to_unix(dt);
+		    g_date_time_unref(dt);
+		}
+		else {
+		    opts.time_added = -1;
+		}
+	    } break;
             case 'T':
             {
                 unsigned short  req_max_threads = (unsigned short)atoi(optarg);
@@ -692,7 +708,7 @@ int main (int argc, char *argv[])
         }
     }
 
-    if (opts.itdb_path == NULL || opts.enc == GPOD_FF_ENC_MAX) {
+    if (opts.itdb_path == NULL || opts.enc == GPOD_FF_ENC_MAX || opts.time_added == -1) {
         _usage(argv[0]);
     }
 
@@ -811,7 +827,7 @@ int main (int argc, char *argv[])
 
     // create thread pool and throw all tasks (direct cp and xcode)
     struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,
-                                                           ipodinfo, &added, &failed, tracks, &replaced,
+                                                           ipodinfo, opts.time_added, &added, &failed, tracks, &replaced,
                                                            &pending, &tfsh, recentpl);
 
     GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,

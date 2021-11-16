@@ -718,7 +718,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 }
 
 
-Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool sanitize_)
+Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_t time_added_, bool sanitize_)
 {
     if (!meta_->supported_ipod_fmt) {
         return NULL;
@@ -727,7 +727,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, bool 
     Itdb_Track*  track = itdb_track_new();
     
     track->mediatype = meta_->has_video ? ITDB_MEDIATYPE_MOVIE : ITDB_MEDIATYPE_AUDIO;
-    track->time_added = time(NULL);
+    track->time_added = time_added_ ? time_added_ : time(NULL);
     track->time_modified = track->time_added;
 
     track->filetype = gpod_sanitize_text(gpod_trim(meta_->description), sanitize_);
