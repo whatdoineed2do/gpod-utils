@@ -20,7 +20,22 @@ AX_CXX_COMPILE_STDCXX([14], [noext], [mandatory])
 PKG_CHECK_MODULES(GLIB, [glib-2.0])
 PKG_CHECK_MODULES(GPOD, [libgpod-1.0 >= 0.8.3])
 PKG_CHECK_MODULES(JSONC, [json-c >= 0.13])
-PKG_CHECK_MODULES(SQLITE3, [sqlite3])
+
+AC_ARG_ENABLE(sqlite3,
+	AS_HELP_STRING([--disable-sqlite3],[do not use generate db from iTunesDB]),
+	[ use_sqlite3="${enableval}" ], [ use_sqlite3=yes ] )
+
+if test "x$use_sqlite3" != xno ; then
+	PKG_CHECK_MODULES(SQLITE3, sqlite3, [ use_sqlite3=yes ], [ use_sqlite3=no ])
+        AH_TEMPLATE([HAVE_SQLITE3], [generate db from iTunesDB])
+	AS_IF([test "x$use_sqlite3" = "xyes"], [
+	        AC_DEFINE([HAVE_SQLITE3])
+		AC_SUBST(SQLITE3_CFLAGS)
+		AC_SUBST(SQLITE3_LIBS)
+	   ])
+fi
+AM_CONDITIONAL([HAVE_SQLITE3], [test "x$use_sqlite3" = xyes])
+
 
 PKG_CHECK_MODULES(FFMPEG, libavformat, have_ffmpeg=yes, have_ffmpeg=no)
 if test x"$have_ffmpeg" = xyes; then
