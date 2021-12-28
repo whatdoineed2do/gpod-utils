@@ -36,12 +36,17 @@
 #include <gmodule.h>
 #include <json.h>
 #include <gpod/itdb.h>
+#ifdef HAVE_SQLITE3
 #include <sqlite3.h>
+#else
+typedef void* sqlite3;
+#endif
 
 #include "gpod-db.h"
 #include "gpod-utils.h"
 
 
+#ifdef HAVE_SQLITE3
 bool  db_create(sqlite3 *hdl_)
 {
     int  ret;
@@ -109,7 +114,7 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
     }
     return true;
 }
-
+#endif
 
 static void
 json_object_add_string(json_object* obj_, const char* tag_, const char* data_)
@@ -311,6 +316,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_int(jobj, "rating", track->rating);
     }
 
+#ifdef HAVE_SQLITE3
     if (hdl_)
     {
         char*  err = NULL;
@@ -331,6 +337,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
             inscnt = 0;
         }
     }
+#endif
 
     if (htbl_)
     {
@@ -402,8 +409,12 @@ void  _usage(char* argv0_)
              "\n"
              "    -M <dir | file>   location of iPod data, as directory mount point or\n"
              "                      as a iTunesDB file  \n"
+#ifdef HAVE_SQLITE3
              "    -Q <sqlite3 db>   generate sqlite3 with a 'tracks' db, representing\n"
              "                      all tracks in iTunesDB\n"
+#else
+             "    -Q <sqlite3 db>   IGNORED, disabled at build time\n"
+#endif
              "    -c                generate checksum of each file in iTunesDB for \n"
              "                      analysis - this can be slow\n"
              "\n"
@@ -499,6 +510,7 @@ main (int argc, char *argv[])
         return -1;
     }
 
+#ifdef HAVE_SQLITE3
     if (opts.db_path) {
         if (g_file_test(opts.db_path, G_FILE_TEST_EXISTS)) {
             g_printerr("requested DB file exists, NOT overwritting '%s'\n", opts.db_path);
@@ -515,7 +527,7 @@ main (int argc, char *argv[])
             hdl = NULL;
         }
     }
-
+#endif
 
 /*
     { 
@@ -631,10 +643,12 @@ main (int argc, char *argv[])
         itdb_device_free(itdev);
     }
     itdb_free (itdb);
+#ifdef HAVE_SQLITE3
     if (hdl) {
         sqlite3_exec(hdl, "COMMIT TRANSACTION", NULL, NULL, NULL);
         sqlite3_close(hdl);
     }
+#endif
     hash_tbl_free(&htbl);
 
     return 0;
