@@ -39,7 +39,7 @@ AM_CONDITIONAL([HAVE_SQLITE3], [test "x$use_sqlite3" = xyes])
 
 PKG_CHECK_MODULES(FFMPEG, libavformat, have_ffmpeg=yes, have_ffmpeg=no)
 if test x"$have_ffmpeg" = xyes; then
-   AH_TEMPLATE([HAVE_FFMPEG], [Whether ffmpeg is installed, it's only used in a test program])
+   AH_TEMPLATE([HAVE_FFMPEG], [ffmpeg for autoformat conversion])
    AC_DEFINE_UNQUOTED(HAVE_FFMPEG, 1)
 fi
 AC_SUBST(FFMPEG_CFLAGS)
