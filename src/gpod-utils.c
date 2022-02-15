@@ -423,13 +423,6 @@ struct gpod_album*  gpod_album_new(Itdb_Track* track_)
     return obj;
 }
 
-static void  dump_album(gpointer a_, gpointer na_)
-{
-    struct gpod_album*  album = (struct gpod_album*)a_;
-    g_print("%u  %s - %s [ %u ]\n", album->time_added, album->key.album, album->key.artist, g_slist_length(album->tracks));
-}
-
-
 static void  gpod_album_free(struct gpod_album*  obj_)
 {
     g_slist_free(obj_->tracks);
@@ -533,6 +526,13 @@ static void  gpod_recent_free(struct gpod_recent* obj_)
     g_free(obj_);
 }
 
+#ifdef GPOD_UTILS_DEBUG_UTILS
+static void  dump_album(gpointer a_, gpointer na_)
+{
+    struct gpod_album*  album = (struct gpod_album*)a_;
+    g_print("%u  %s - %s [ %u ]\n", album->time_added, album->key.album, album->key.artist, g_slist_length(album->tracks));
+}
+
 static void  dump_track(gpointer data_, gpointer user_data_)
 {
     Itdb_Track*  obj = (Itdb_Track*)data_;
@@ -550,6 +550,7 @@ static void  dump_recent_elem(gpointer data_, gpointer user_data_)
     g_slist_foreach(obj->tracks, dump_track, NULL);
     g_print("]\n");
 }
+#endif
 
 struct recent_create_pl_args {
     Itdb_iTunesDB*  itdb;
@@ -713,8 +714,10 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
     g_list_foreach(itdb_playlist_mpl(itdb_)->members, albums_index, &albums);
     albums = g_slist_sort(albums, album_time_added_sort);  // newest/most recent upd album first
     
-    //g_slist_foreach(albums, dump_album, NULL);
-    //g_slist_foreach(recents, dump_recent_elem, NULL);
+#ifdef GPOD_UTILS_DEBUG_UTILS
+    g_slist_foreach(albums, dump_album, NULL);
+    g_slist_foreach(recents, dump_recent_elem, NULL);
+#endif
 
     // walk the sorted album list and generate the playlists
     unsigned  available = album_limit_;
@@ -745,7 +748,9 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
 	}
     }
 
-    //g_slist_foreach(recents, dump_recent_elem, NULL);
+#ifdef GPOD_UTILS_DEBUG_UTILS
+    g_slist_foreach(recents, dump_recent_elem, NULL);
+#endif
     struct recent_create_pl_args  rcp_args = { 0 };
     rcp_args.itdb = itdb_;
     g_slist_foreach(recents, gpod_recent_create_playlists, &rcp_args);
