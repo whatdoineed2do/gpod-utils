@@ -361,12 +361,14 @@ static gboolean  _track_key_equal(gconstpointer a_, gconstpointer b_)
     return _track_key_cmp(a_,b_) == 0;
 }
 
+#if 0
 static void  _track_htbl_val_destroy(gpointer p_)
 {
     if (p_) {
         g_slist_free((GSList*)p_);
     }
 }
+#endif
 
 GHashTable*  gpod_track_htbl_create(Itdb_iTunesDB* itdb_)
 {
@@ -533,6 +535,19 @@ static void  dump_album(gpointer a_, gpointer na_)
     g_print("%u  %s - %s [ %u ]\n", album->time_added, album->key.album, album->key.artist, g_slist_length(album->tracks));
 }
 
+static void  dump_recent_dt(gpointer data, gpointer user_data)
+{
+    struct gpod_recent*  obj = (struct gpod_recent*)data;
+
+    gchar*  from = g_date_time_format(obj->range.from, "%Y-%m-%d %H:%M:%S");
+    gchar*  to = g_date_time_format(obj->range.to, "%Y-%m-%d %H:%M:%S");
+
+    g_print("%.10s  %s to %s\n", obj->name, from, to);
+
+    g_free(from);
+    g_free(to);
+}
+
 static void  dump_track(gpointer data_, gpointer user_data_)
 {
     Itdb_Track*  obj = (Itdb_Track*)data_;
@@ -588,20 +603,6 @@ static void gpod_recent_create_playlists(gpointer recent_, gpointer args_)
 struct gpod_dmy {
     gint d, m, y;
 };
-
-static void  dump_recent_dt(gpointer data, gpointer user_data)
-{
-    struct gpod_recent*  obj = (struct gpod_recent*)data;
-
-    gchar*  from = g_date_time_format(obj->range.from, "%Y-%m-%d %H:%M:%S");
-    gchar*  to = g_date_time_format(obj->range.to, "%Y-%m-%d %H:%M:%S");
-
-    g_print("%.10s  %s to %s\n", obj->name, from, to);
-
-    g_free(from);
-    g_free(to);
-}
-
 
 GSList*  gpod_recents_new(gint64  now_, const char* extra_)
 {
