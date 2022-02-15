@@ -756,3 +756,48 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
     *tracks_ = rcp_args.stats.tracks;
     *playlists_ = rcp_args.stats.pl;
 }
+
+// modified glib2.0 impl from 2.66.2
+
+#ifndef GLIB_VERSION_2_60
+gboolean g_strv_equal(const gchar* const *strv1, const gchar* const *strv2)
+{
+    if (strv1 == NULL || strv2 == NULL) return false;
+    if (strv1 == strv2) return true;
+
+    for (; *strv1 != NULL && *strv2 != NULL; strv1++, strv2++) {
+	if (!g_str_equal(*strv1, *strv2)) {
+	    return false;
+	}
+    }
+    return (*strv1 == NULL && *strv2 == NULL);
+}
+#endif
+
+#ifndef GLIB_VERSION_2_62
+gchar* g_date_time_format_iso8601(GDateTime *datetime)
+{
+    GString *outstr = NULL;
+    gchar *main_date = NULL;
+    gint64 offset;
+    gchar *format = "%Y-%m-%dT%H:%M:%S";
+
+    main_date = g_date_time_format (datetime, format);
+    outstr = g_string_new (main_date);
+    g_free (main_date);
+    offset = g_date_time_get_utc_offset (datetime);
+    if (offset == 0)
+    {
+	g_string_append_c (outstr, 'Z');
+    }
+    else
+    {
+	gchar *time_zone = g_date_time_format (datetime, "%:::z");
+	g_string_append (outstr, time_zone);
+	g_free (time_zone);
+    }
+    return g_string_free (outstr, FALSE);
+}
+#endif
+
+

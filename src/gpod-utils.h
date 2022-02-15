@@ -69,6 +69,16 @@ void         gpod_track_htbl_destroy(GHashTable* htbl_);
 void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_,
 	                   Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_);
 
+
+// raspberry pi buster ships 2.58
+#ifndef GLIB_VERSION_2_60
+gboolean g_strv_equal(const gchar* const *strv1, const gchar* const *strv2);
+#endif
+
+#ifndef GLIB_VERSION_2_62
+gchar* g_date_time_format_iso8601(GDateTime *datetime);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
