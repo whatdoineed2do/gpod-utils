@@ -729,7 +729,10 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
 	    if (album->time_added >= recent->from && album->time_added <= recent->to) {
 		//recent->tracks = g_slist_concat(recent->tracks, album->tracks); // -- get stuck in g_slist_length(recent-tracks)
 		for (GSList* cp=album->tracks; cp!=NULL; cp=cp->next) {
-		    recent->tracks = g_slist_append(recent->tracks, cp->data);
+		    Itdb_Track*  track = cp->data;
+		    if (track->time_added >= recent->from && track->time_added <= recent->to) {
+			recent->tracks = g_slist_append(recent->tracks, track);
+		    }
 		}
 
 		--available;
