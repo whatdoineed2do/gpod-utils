@@ -351,6 +351,9 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     return 0;
 }
 
+extern "C" {
+int gpod_signal = 0;
+}
 static bool  gpod_stop = false;
 
 struct gpod_cp_pool_args {
@@ -509,6 +512,7 @@ thread_cleanup:
 
 static void  _sighandler(const int sig_)
 {
+    gpod_signal = sig_;
     gpod_stop = true;
 }
 
@@ -815,77 +819,84 @@ int main (int argc, char *argv[])
 	g_printf("requested transcoding NOT available%s\n", extra);
     }
 
+    guint  then = g_get_monotonic_time();
+
     struct gpod_track_fs_hash  tfsh;
     if (opts.cksum && (support & (SUPPORT_DEVICE|SUPPORT_FORCED) )) {
+	g_printf("generating internal cksums...\n");
         gpod_track_fs_hash_init(&tfsh, itdb);
     }
 
-    GHashTable*  tracks = gpod_track_htbl_create(itdb);
-
-    Itdb_Playlist*  recentpl = NULL;
-    Itdb_Track*  track = NULL;
-
-    // create thread pool and throw all tasks (direct cp and xcode)
-    struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,
-                                                           ipodinfo, opts.time_added, &added, &failed, tracks, &replaced,
-                                                           &pending, &tfsh, recentpl);
-
-    GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
-                                         opts.max_threads,
-                                         TRUE, NULL);
-
-    g_print("processing %u tracks over %u threads\n", N, opts.max_threads);
-
-    const guint  then = g_get_monotonic_time();
-    GSList*  p = files;
-    while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
+    // wrap this here since the fs_hash can take a long time
+    if (!gpod_stop)
     {
-        ++requested;
-        const char*  path = (const char*)(p->data);
-        p = p->next;
+	GHashTable*  tracks = gpod_track_htbl_create(itdb);
 
-        struct gpod_cp_thread_args*  args = gpod_cp_ta_init(path, N, requested);
-        g_thread_pool_push(tp, (void*)args, NULL);
-    }
+	Itdb_Playlist*  recentpl = NULL;
+	Itdb_Track*  track = NULL;
 
-    // wait for all tasks
-    g_thread_pool_free(tp, FALSE, TRUE);
-    gpod_cp_pa_free(pool_args);
-    pool_args = NULL;
-    tp = NULL;
+	// create thread pool and throw all tasks (direct cp and xcode)
+	struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,
+							       ipodinfo, opts.time_added, &added, &failed, tracks, &replaced,
+							       &pending, &tfsh, recentpl);
 
-    if (opts.cksum) {
-        gpod_track_fs_hash_destroy(&tfsh);
-    }
+	GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
+					     opts.max_threads,
+					     TRUE, NULL);
 
-    if (failed)
-    {
-	g_print("failed tracks:\n");
-	for (p=failed; p!=NULL; p=p->next) {
-	    g_print("  %s\n", p->data);
+	g_print("processing %u tracks over %u threads\n", N, opts.max_threads);
+
+	then = g_get_monotonic_time();
+	GSList*  p = files;
+	while (p && !gpod_stop && (support & (SUPPORT_DEVICE|SUPPORT_FORCED)) )
+	{
+	    ++requested;
+	    const char*  path = (const char*)(p->data);
+	    p = p->next;
+
+	    struct gpod_cp_thread_args*  args = gpod_cp_ta_init(path, N, requested);
+	    g_thread_pool_push(tp, (void*)args, NULL);
 	}
-	g_slist_free_full(failed, g_free);
-	failed = NULL;
-    }
-    g_slist_free_full(files, g_free);
-    files = NULL;
 
-    if (replaced)
-    {
-	g_print("replaced tracks:\n");
-	for (p=replaced; p!=NULL; p=p->next)
-        {
-	    struct gpod_replaced*  r = (struct gpod_replaced*)p->data;
-	    g_print("  %s => %s { title='%s' artist='%s' album='%s' }\n", r->path, r->new_path, r->title, r->artist, r->album);
-        }
+	// wait for all tasks
+	g_thread_pool_free(tp, FALSE, TRUE);
+	gpod_cp_pa_free(pool_args);
+	pool_args = NULL;
+	tp = NULL;
 
-	g_slist_free_full(replaced, replaced_destroy);
-	replaced = NULL;
-    }
+	if (opts.cksum) {
+	    gpod_track_fs_hash_destroy(&tfsh);
+	}
 
-    if (tracks) {
-        gpod_track_htbl_destroy(tracks);
-        tracks = NULL;
+	if (failed)
+	{
+	    g_print("failed tracks:\n");
+	    for (p=failed; p!=NULL; p=p->next) {
+		g_print("  %s\n", p->data);
+	    }
+	    g_slist_free_full(failed, g_free);
+	    failed = NULL;
+	}
+	g_slist_free_full(files, g_free);
+	files = NULL;
+
+	if (replaced)
+	{
+	    g_print("replaced tracks:\n");
+	    for (p=replaced; p!=NULL; p=p->next)
+	    {
+		struct gpod_replaced*  r = (struct gpod_replaced*)p->data;
+		g_print("  %s => %s { title='%s' artist='%s' album='%s' }\n", r->path, r->new_path, r->title, r->artist, r->album);
+	    }
+
+	    g_slist_free_full(replaced, replaced_destroy);
+	    replaced = NULL;
+	}
+
+	if (tracks) {
+	    gpod_track_htbl_destroy(tracks);
+	    tracks = NULL;
+	}
     }
 
     if (added) {
