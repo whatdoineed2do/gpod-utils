@@ -62,7 +62,22 @@ struct {
       unsigned  limit;
     } recent;
     unsigned short  max_threads;
-} opts = { NULL, false, false, GPOD_FF_ENC_FDKAAC, true, GPOD_FF_XCODE_VBR1, 0, true, true };
+} opts = {
+   .itdb_path =  NULL,
+   .cksum = false,
+   .force = false,
+   .enc = GPOD_FF_ENC_FDKAAC,
+   .enc_fallback = true,
+   .xcode_quality = GPOD_FF_XCODE_VBR1,
+   .time_added = 0,
+   .sanitize = true,
+   .replace = true,
+   .recent = {
+       .pl = NULL,
+       .limit = 50,
+   },
+   .max_threads = 1,
+};
 
 struct {
     uint32_t  music;
@@ -625,8 +640,6 @@ int main (int argc, char *argv[])
     Itdb_Device*  itdev = NULL;
     int  ret = 0;
 
-    opts.recent.pl = NULL;
-    opts.recent.limit = 50;
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
