@@ -19,6 +19,7 @@
 
 #include "gpod-utils.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <locale.h>
 #include <stdio.h>
@@ -258,7 +259,12 @@ void  gpod_track_fs_hash_init(struct gpod_track_fs_hash* htbl_, Itdb_iTunesDB* i
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
     for (GList* i=mpl->members; i!=NULL; i=i->next)
     {
-        track = (Itdb_Track*)i->data;
+       	if (gpod_signal > 0) {
+	    errno = EINTR;
+	    return;
+	}
+
+	track = (Itdb_Track*)i->data;
         _track_mkhash(track);
 
         g_hash_table_insert(htbl,
@@ -354,24 +360,6 @@ static void  _track_htbl_val_destroy(gpointer p_)
 }
 #endif
 
-GHashTable*  gpod_track_htbl_create(Itdb_iTunesDB* itdb_)
-{
-    // GHashTable*  htbl = g_hash_table_new_full(_track_key_hash, _track_key_equal, NULL, _track_htbl_val_destroy);
-    GHashTable*  htbl = g_hash_table_new(_track_key_hash, _track_key_equal);
-
-    Itdb_Track*  track;
-    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
-    for (GList* i=mpl->members; i!=NULL; i=i->next)
-    {
-        track = (Itdb_Track*)i->data;
-        g_hash_table_insert(htbl, track,
-                            g_slist_append(g_hash_table_lookup(htbl, track), track)
-                           );
-    }
-
-    return htbl;
-}
-
 void  gpod_track_htbl_val_destroy(gpointer key_, gpointer value_, gpointer data_)
 {
     g_slist_free(value_);
@@ -381,6 +369,29 @@ void  gpod_track_htbl_destroy(GHashTable* htbl_)
 {
     g_hash_table_foreach(htbl_, gpod_track_htbl_val_destroy, NULL);
     g_hash_table_destroy(htbl_);
+}
+
+GHashTable*  gpod_track_htbl_create(Itdb_iTunesDB* itdb_)
+{
+    // GHashTable*  htbl = g_hash_table_new_full(_track_key_hash, _track_key_equal, NULL, _track_htbl_val_destroy);
+    GHashTable*  htbl = g_hash_table_new(_track_key_hash, _track_key_equal);
+
+    Itdb_Track*  track;
+    Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb_);
+    for (GList* i=mpl->members; i!=NULL; i=i->next)
+    {
+	if (gpod_signal > 0) {
+	    gpod_track_htbl_destroy(htbl);
+	    errno = EINTR;
+	    return NULL;
+	}
+        track = (Itdb_Track*)i->data;
+        g_hash_table_insert(htbl, track,
+                            g_slist_append(g_hash_table_lookup(htbl, track), track)
+                           );
+    }
+
+    return htbl;
 }
 #endif
 

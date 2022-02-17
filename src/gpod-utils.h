@@ -29,6 +29,9 @@ extern "C" {
 #include <glib.h>
 #include <gpod/itdb.h>
 
+// define this signal if needed
+extern int __attribute__((weak)) gpod_signal;
+
 
 const char*  gpod_setlocale();
 char*  gpod_trim(const char* what_);
