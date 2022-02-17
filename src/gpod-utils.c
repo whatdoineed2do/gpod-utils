@@ -278,14 +278,6 @@ void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_)
     memset(htbl_, 0, sizeof(struct gpod_track_fs_hash));
 }
 
-static gint  _track_find_elem(gconstpointer x_, gconstpointer y_)
-{
-    const Itdb_Track*  track = (const Itdb_Track*)x_;
-    const char*  path = (const char*)y_;
-
-    return strcmp(track->ipod_path, path);
-}
-
 bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const Itdb_Track* track_, const char* path_)
 {
     const char*  path = track_->itdb ? track_->ipod_path : path_;
@@ -293,15 +285,7 @@ bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const 
 
     GSList*  what = g_hash_table_lookup(htbl_->tbl, &hash);
 
-    if (what == NULL) {
-        return false;
-    }
-
-    if (g_slist_length(what) == 1) {
-        return true;
-    }
-
-    return g_slist_find_custom(what, path, _track_find_elem);
+    return what == NULL ? false : true;
 }
 
 
