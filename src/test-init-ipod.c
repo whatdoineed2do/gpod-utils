@@ -35,7 +35,7 @@
 
 static void usage (const char *argv0)
 {
-    g_print ("Usage: %s mountpoint [modelnumber]\n", argv0);
+    g_print ("Usage: %s mountpoint [modelnumber]\n\n", argv0);
     g_print ("This test program will create the standard directories on your iPod\n");
     g_print ("including empty iTunesDB and ArtworkDB.\n\n");
     g_print ("Valid model numbers are listed in itdb_device.c, e.g. 'MA446' for a\n");
@@ -60,11 +60,9 @@ main (int argc, char **argv)
     g_type_init ();
 #endif
 
-    if (argc == 3)
-    {
 	GError *error = NULL;
 
-	if (!itdb_init_ipod (argv[1], argv[2], "iPod", &error))
+	if (!itdb_init_ipod (argv[1], argc == 3 ? argv[2] : "MA446", "iPod", &error))
 	{
 	    if (error)
 	    {
@@ -78,7 +76,7 @@ main (int argc, char **argv)
 		g_print (_("Error initialising iPod, unknown error\n"));
 	    }
 	}
-    }
+
     if (argc == 2)
     {
 	gchar *model_num;
