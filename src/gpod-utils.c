@@ -460,7 +460,7 @@ static void  albums_index(gpointer track_, gpointer albums_)
     Itdb_Track*  track = (Itdb_Track*)track_;
     GSList**  albums = (GSList**)albums_;  // gpod_album
 
-    if (track->mediatype != ITDB_MEDIATYPE_AUDIO) {
+    if (track->mediatype & ITDB_MEDIATYPE_AUDIO == 0) {
 	return;
     }
 
