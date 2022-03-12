@@ -62,6 +62,7 @@ struct {
       unsigned  limit;
     } recent;
     unsigned short  max_threads;
+    int  mediatype;
 } opts = {
    .itdb_path =  NULL,
    .cksum = false,
@@ -77,6 +78,7 @@ struct {
        .limit = 50,
    },
    .max_threads = 1,
+   .mediatype = ITDB_MEDIATYPE_AUDIO,
 };
 
 struct {
@@ -198,6 +200,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     }
 
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
+    track->mediatype |= opts.mediatype;
 
     gpod_ff_media_info_free(&mi);
     return track;
@@ -608,7 +611,7 @@ static void  gpod_duration(char duration_[32], guint then_, guint now_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] [-t time_added] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] [-t time_added] [-m <media type>] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -619,6 +622,7 @@ void  _usage(const char* argv0_)
 	     "    -e <mp3|aac|alac>   transcode to mp3/fdkaac/alac - default to aac\n"
 	     "    -E             disable encoding fallback\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k (not applicable for alac)\n"
+	     "    -m <media type>  podcast|audiobook (audio/video determined automatically)\n"
 	     "    -S             disable text sanitization; chars like ’ to '\n"
              "\n"
 	     "    -r <0|1>       replace existing track of same title/album/artist\n"
@@ -643,7 +647,7 @@ int main (int argc, char *argv[])
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:m:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -690,6 +694,29 @@ int main (int argc, char *argv[])
 
             case 'P':  opts.recent.pl = optarg;  break;
             case 'n':  opts.recent.limit = atoi(optarg);  break;
+
+            case 'm':  
+	    {
+		struct mediatype_map {
+		    const char*  type;
+		    const Itdb_Mediatype  mapping;
+		};
+		static const struct  mediatype_map  mtmap [] = {
+		    { "audiobook", ITDB_MEDIATYPE_AUDIOBOOK },
+		    { "podcast",   ITDB_MEDIATYPE_PODCAST   },
+		    { "audio",     ITDB_MEDIATYPE_AUDIO     },
+		    { NULL,        ITDB_MEDIATYPE_AUDIO     }
+		};
+
+		const struct mediatype_map*  p = mtmap;
+		while (p->type)
+		{
+		    if (strcmp(optarg, p->type) == 0) {
+			opts.mediatype |= p->mapping;
+		    }
+		    ++p;
+		}
+	    } break;
 
             case 'S':  opts.sanitize = false;  break;
             case 't':
