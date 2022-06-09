@@ -47,6 +47,7 @@
 #include <libavutil/frame.h>
 #include <libavutil/opt.h>
 #include <libavutil/avutil.h>
+#include <libavutil/dict.h>
 
 #include <libswresample/swresample.h>
 
@@ -906,6 +907,9 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     if (open_output_file(target_, input_codec_context,
                          &output_format_context, &output_codec_context, err_))
         goto cleanup;
+
+    av_dict_copy(&output_format_context->metadata, input_format_context->metadata, 0);
+
     /* Initialize the resampler to be able to convert audio sample formats. */
     if (init_resampler(input_codec_context, output_codec_context,
                        &resample_context, err_))
