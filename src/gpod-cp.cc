@@ -54,6 +54,7 @@ struct {
     enum gpod_ff_enc  enc;
     bool enc_fallback;
     enum gpod_ff_transcode_quality  xcode_quality;
+    bool  sync_meta;
     time_t  time_added;
     bool  sanitize;
     bool  replace;
@@ -70,6 +71,7 @@ struct {
    .enc = GPOD_FF_ENC_FDKAAC,
    .enc_fallback = true,
    .xcode_quality = GPOD_FF_XCODE_VBR1,
+   .sync_meta = true,
    .time_added = 0,
    .sanitize = true,
    .replace = true,
@@ -482,7 +484,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
         goto thread_cleanup;
     }
 
-    gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality);
+    gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality, opts.sync_meta);
 
     g_mutex_lock(&pargs->cp_lck);
     gettimeofday(&tv, NULL);
@@ -626,14 +628,16 @@ void  _usage(const char* argv0_)
 	     "    -t <time added>  spoof specific ISO8601 date\n"
 	     "    -T <max threads>   number of threads for xcoding/copying\n"
 	     "\n"
-	     "  Encoding\n"
+	     "  Encoding (forced xcode)\n"
 	     "    -e <mp3|aac|alac>   transcode to mp3/fdkaac/alac - default to aac\n"
-	     "    -E             disable encoding fallback\n"
+	     "    -E             disable encoding fallback to mp3 (when no fdkaac available)\n"
 	     "    -q <0-9,96,128,160,192,256,320>  VBR level (ffmpeg -q:a 0-9) or CBR 96..320k (not applicable for alac)\n"
+	     "    -d <Y|N>       sync metadata - default Y\n"
 	     "\n"
 	     "  Playlist\n"
 	     "    -P <name>      generate specific 'recently added' playlist - if not specified, default 'Recent' playlists are generated\n"
 	     "    -n <limit>     'recently added' pl limit - 0 to disable Recent playlists generation\n"
+             "\n"
              ,basename);
     g_free (basename);
     exit(-1);
@@ -650,7 +654,7 @@ int main (int argc, char *argv[])
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:m:")) != EOF)
+    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:m:d:")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -659,6 +663,11 @@ int main (int argc, char *argv[])
 
 	    case 'E':
 		opts.enc_fallback = false;
+		break;
+
+	    case 'd':
+                if      (toupper(optarg[0]) == 'Y')  opts.sync_meta = true;
+		else if (toupper(optarg[0]) == 'N')  opts.sync_meta = false;
 		break;
 
             case 'e':
