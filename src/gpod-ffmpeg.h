@@ -135,6 +135,8 @@ struct gpod_ff_transcode_ctx {
         float  quality_scale_factor;
     } audio_opts;
 
+    bool  sync_meta;
+
     const char*  extn;
     char  path[PATH_MAX];
     char  tmpprfx[PATH_MAX];
@@ -152,7 +154,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 bool  gpod_ff_enc_supported(enum gpod_ff_enc  enc_);
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
-                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_);
+                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_, bool sync_meta_);
 
 int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target, char** err_);
 

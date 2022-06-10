@@ -762,7 +762,7 @@ bool  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
 }
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
-                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_)
+                                 enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_, bool sync_meta_)
 {
     memset(obj_, 0, sizeof(struct gpod_ff_transcode_ctx));
 
@@ -811,6 +811,8 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
 	obj_->audio_opts.enc_name = "libmp3lame";
 	obj_->extn = ".mp3";
     }
+
+    obj_->sync_meta = sync_meta_;
 
 
     const char*  tmpdir = getenv("TMPDIR");

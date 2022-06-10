@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     while (p->name)
     {
         err = NULL;
-        gpod_ff_transcode_ctx_init(&xcode, p->enc, p->quality);
+        gpod_ff_transcode_ctx_init(&xcode, p->enc, p->quality, true);
         strcpy(xcode.path, p->name);
         xcode.audio_opts.samplerate = 44100;
 
