@@ -39,6 +39,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <getopt.h>
 
 #include <glib/gstdio.h>
 #include <glib/gdatetime.h>
@@ -613,7 +614,7 @@ static void  gpod_duration(char duration_[32], guint then_, guint now_)
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace 0/1>] [ -S ] [-n playlist limit] [-t time_added] [-m <media type>] <file0.mp3> [<file1.flac> ...]\n\n"
+    g_print ("usage: %s  -M <dir iPod mount>  [-c] [-F] [-e <encoder>] [-q <quality>] [-T <max threads>] [-r <replace Y/N>] [ -S ] [-n playlist limit] [-t time_added] [-m <media type>] <file0.mp3> [<file1.flac> ...]\n\n"
              "    adds specified files to iPod/iTunesDB\n"
              "    Will automatically transcode unsupported audio (flac,wav etc) to .m4a\n"
              "\n"
@@ -653,8 +654,46 @@ int main (int argc, char *argv[])
 
     opts.max_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
+    // no_argument = 0, required_argument = 1, optional_argument = 2 (has arg)
+    const struct option  long_opts[] = {
+	{"mount-point", 		1, 0, 'M' },
+	{"force-unsupported",		0, 0, 'F' },
+	{"threads", 			1, 0, 'T' },
+
+	{"tracks-checksum-validate",	0, 0, 'c' },
+	{"disable-tracks-sanitize",	2, 0, 'S' },
+	{"tracks-replace",		2, 0, 'r' },
+	{"tracks-media-type", 		1, 0, 'm' },
+	{"tracks-time-added", 		1, 0, 't' },
+
+	{"encoder", 			1, 0, 'e' },
+	{"disable-encoder-fallback", 	0, 0, 'E' },
+	{"encoder-quality", 		1, 0, 'q' },
+	{"encoder-metadata-sync", 	2, 0, 'd' },
+
+	{"playlist-name", 		1, 0, 'P' },
+	{"playlist-limit", 		1, 0, 'n' },
+
+	{"help", 			0, 0, 'h' },
+
+	{0, 0, 0,  0 }
+    };
+    char  opt_args[sizeof(long_opts)*2] = { 0 };
+    {
+	char*  og = opt_args;
+	const struct option* op = long_opts;
+	while (op->name) {
+	    *og++ = op->val;
+	    if (op->has_arg != no_argument) {
+		*og++ = ':';
+	    }
+	    ++op;
+	}
+    }
+
+
     int  c;
-    while ( (c=getopt(argc, argv, "M:cFhEe:Sq:P:n:t:T:r:m:d:")) != EOF)
+    while ( (c=getopt_long(argc, argv, opt_args, long_opts, NULL)) != -1)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -666,9 +705,13 @@ int main (int argc, char *argv[])
 		break;
 
 	    case 'd':
-                if      (toupper(optarg[0]) == 'Y')  opts.sync_meta = true;
-		else if (toupper(optarg[0]) == 'N')  opts.sync_meta = false;
-		break;
+	    {
+		opts.sync_meta = true;
+		if (optarg) {
+		    if      (toupper(optarg[0]) == 'Y')  opts.sync_meta = true;
+		    else if (toupper(optarg[0]) == 'N')  opts.sync_meta = false;
+		}
+	    } break;
 
             case 'e':
 	    {
@@ -730,7 +773,15 @@ int main (int argc, char *argv[])
 		}
 	    } break;
 
-            case 'S':  opts.sanitize = false;  break;
+            case 'S':
+	    {
+		opts.sanitize = false;
+		if (optarg) {
+		    if      (toupper(*optarg) == 'Y')  opts.sanitize = true;
+		    else if (toupper(*optarg) == 'N')  opts.sanitize = false;
+		}
+	    } break;
+
             case 't':
 	    {
 		GDateTime*  dt;
@@ -753,9 +804,12 @@ int main (int argc, char *argv[])
 
             case 'r':
             {
-                if      (toupper(optarg[0]) == 'Y')  opts.replace = true;
-                else if (toupper(optarg[0]) == 'N')  opts.replace = false;
-                else opts.replace = atoi(optarg) == 1;
+		opts.replace = true;
+		if (optarg) {
+		    if      (toupper(optarg[0]) == 'Y')  opts.replace = true;
+		    else if (toupper(optarg[0]) == 'N')  opts.replace = false;
+		    else opts.replace = atoi(optarg) == 1;
+		}
             } break;
 
             case 'h':
