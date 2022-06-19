@@ -19,8 +19,11 @@
 
 #include "gpod-utils.h"
 
+#include <sys/types.h>
+#include <pwd.h>
 #include <errno.h>
 #include <limits.h>
+#include <unistd.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,6 +76,26 @@ char*  gpod_trim(const char* what_)
     buf[p1] = '\0';
     memcpy(buf , p0, p1);
     return buf;
+}
+
+const char* gpod_default_mountpoint(char* dest_, size_t n_)
+{
+    struct passwd   pw = { 0 };
+    struct passwd*  res = &pw;
+    struct passwd*  ptr;
+    char buf[256] = { 0 };
+    int  len = sizeof(buf);
+
+    if (getpwuid_r(getuid(), res, buf, len, &ptr) < 0) {
+	return NULL;
+    }
+    char  path[PATH_MAX] = { 0 };
+    int  n = snprintf(path, sizeof(path), "/run/media/%s/IPOD", pw.pw_name);
+    if (n > n_) {
+	return NULL;
+    }
+    strcpy(dest_, path);
+    return dest_;
 }
 
 bool  gpod_write_supported(const Itdb_IpodInfo* ipi_)
