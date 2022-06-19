@@ -820,6 +820,11 @@ int main (int argc, char *argv[])
         }
     }
 
+    char  mountpoint[PATH_MAX];
+    if (opts.itdb_path == NULL) {
+	opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
+    }
+
     if (opts.itdb_path == NULL || opts.enc == GPOD_FF_ENC_MAX || opts.time_added == -1) {
         _usage(argv[0]);
     }
@@ -832,9 +837,6 @@ int main (int argc, char *argv[])
 
     gpod_setlocale();
     gpod_ff_init();
-
-    char  mountpoint[PATH_MAX];
-
 
     if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (opts.itdb_path, &error);
