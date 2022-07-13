@@ -349,6 +349,7 @@ const struct gpod_video_support {
     { .profile = NULL, .device = NULL }
 };
 
+#ifndef GPOD_FF_STANDALONE
 static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpod_ff_media_info* mi_)
 {
     const struct gpod_video_support*  p = video_support;
@@ -746,6 +747,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 
     return track;
 }
+#endif
 
 
 bool  gpod_ff_enc_supported(enum gpod_ff_enc enc_)

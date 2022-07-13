@@ -21,7 +21,9 @@ extern "C" {
 #include <stdbool.h>
 
 #include <libavcodec/avcodec.h>
+#ifndef GPOD_FF_STANDALONE
 #include <gpod/itdb.h>
+#endif
 
 
 struct gpod_ff_meta {
@@ -146,9 +148,11 @@ void  gpod_ff_meta_free(struct gpod_ff_meta*  obj_);
 void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_);
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_);
 
+#ifndef GPOD_FF_STANDALONE
 int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_IpodGeneration target_, char** err_);
 
 Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_t time_added_, bool sanitize_);
+#endif
 
 
 bool  gpod_ff_enc_supported(enum gpod_ff_enc  enc_);
