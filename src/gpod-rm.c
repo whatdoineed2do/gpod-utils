@@ -37,6 +37,32 @@
 
 #include "gpod-utils.h"
 
+int gpod_signal = 0;
+bool gpod_stop = false;
+
+static void  _sighandler(const int sig_)
+{
+    gpod_signal = sig_;
+    gpod_stop = true;
+}
+
+int  gpod_rm_init()
+{
+    struct sigaction  act, oact;
+
+    memset(&act,  0, sizeof(struct sigaction));
+    memset(&oact, 0, sizeof(struct sigaction));
+
+    act.sa_handler = _sighandler;
+    sigemptyset(&act.sa_mask);
+
+    const int   sigs[] = { SIGINT, SIGTERM, SIGHUP, -1 };
+    const int*  p = sigs;
+    while (*p != -1) {
+        sigaddset(&act.sa_mask, *p++);
+    }
+}
+
 
 static bool  _remove_confirm(bool interactv_, const char* fmt_, ...)
 {
@@ -294,7 +320,7 @@ main (int argc, char *argv[])
 
     GTree*  tree = NULL;
     GHashTable*  hash = NULL;
-    while (*p)
+    while (!gpod_stop && *p)
     {
         ++requested;
         const char*  arg = *p++;
