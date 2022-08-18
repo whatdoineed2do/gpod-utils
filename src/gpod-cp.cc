@@ -820,7 +820,7 @@ int main (int argc, char *argv[])
         }
     }
 
-    char  mountpoint[PATH_MAX];
+    char  mountpoint[PATH_MAX] = { 0 };
     if (opts.itdb_path == NULL) {
 	opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
     }
@@ -843,6 +843,14 @@ int main (int argc, char *argv[])
 	itdev = itdb_device_new();
         itdb_device_set_mountpoint(itdev, opts.itdb_path);
         strcpy(mountpoint, opts.itdb_path);
+    }
+
+    {
+	char* ptr;
+	int  len = strlen(mountpoint);
+	if (mountpoint[len-1] == '/') {
+	    mountpoint[len-1] = '\0';
+	}
     }
  
     if (error)
@@ -883,7 +891,18 @@ int main (int argc, char *argv[])
     GSList*  replaced = NULL;
     int  i = optind;
     while (i < argc) {
-        gpod_walk_dir(argv[i++], &files);
+	const char*  what = argv[i++];
+	int  arglen =  strlen(what);
+
+	if (what[arglen-1] == '/') {
+	    --arglen;
+	}
+
+	if (strncmp(what, mountpoint, arglen) == 0) {
+	    g_printerr("source includes ipod mount point, %s - ignoring\n", mountpoint);
+	    continue;
+	}
+        gpod_walk_dir(what, &files);
     }
     const uint32_t  N = g_slist_length(files);
 
