@@ -67,7 +67,7 @@ struct {
     int  mediatype;
 } opts = {
    .itdb_path =  NULL,
-   .cksum = false,
+   .cksum = true,
    .force = false,
    .enc = GPOD_FF_ENC_FDKAAC,
    .enc_fallback = true,
@@ -599,7 +599,7 @@ void  _usage(const char* argv0_)
              "    -M  --mount-point              <iPod dir>               location of iPod data, as directory mount point\n"
 	     "    -T  --threads                  <max threads>            number of threads for xcoding/copying - default: #system vCPUs\n"
 	     "\n"
-             "    -c  --tracks-checksum-validate                          generate checksum of each file in iTunesDB for \n"
+             "    -c  --disable-tracks-checksum-validate                  disable generate checksum validation of each file in iTunesDB\n"
              "                                                            comparison to prevent duplicate\n"
 	     "    -S  --disable-tracks-sanitize                           disable text sanitization; chars like ’ to '\n"
 	     "    -r  --tracks-replace           <Y|N>                    replace existing track of same title/album/artist - default: Y\n"
@@ -675,7 +675,7 @@ int main (int argc, char *argv[])
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
-            case 'c':  opts.cksum = true;  break;
+            case 'c':  opts.cksum = false;  break;
             case 'F':  opts.force = true;  break;
 
 	    case 'E':
