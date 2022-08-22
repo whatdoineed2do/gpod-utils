@@ -54,6 +54,11 @@ void   gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wra
 guint  gpod_hash(const Itdb_Track* track_);
 guint  gpod_hash_file(const char* track_);
 
+// util to generatu:e!
+// a hash of track and add to structure
+void   gpod_store_cksum(Itdb_Track* track_, const char* file_);
+guint  gpod_saved_cksum(const Itdb_Track* track_);
+
 
 struct gpod_track_fs_hash {
     GHashTable*  tbl;

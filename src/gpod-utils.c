@@ -206,7 +206,7 @@ void  gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wrap
 #ifdef WANT_GPOD_HASH
 guint  gpod_hash(const Itdb_Track* track_)
 { 
-    char  path[PATH_MAX];
+    char  path[PATH_MAX] = { 0 };
     sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
     itdb_filename_ipod2fs(path);
 
@@ -231,7 +231,15 @@ guint  gpod_hash_file(const char* path_)
     return g_str_hash(sha1str);
 }
 
+void   gpod_store_cksum(Itdb_Track* track_, const char* file_)
+{
+    track_->unk196 = gpod_hash_file(file_);
+}
 
+guint  gpod_saved_cksum(const Itdb_Track* track_)
+{
+    return track_->unk196;
+}
 
 static guint  _track_mkhash(Itdb_Track* track_)
 { 
