@@ -181,9 +181,26 @@ static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_
         GSList*  l = (GSList*)value;
         if (g_slist_length(l) > 1)
         {
+	    const Itdb_Track*  h = (Itdb_Track*)l->data;
+	    const guint  h_cksum = gpod_saved_cksum(h);
+
             for (GSList* j=l->next; j!=NULL; j=j->next) {
 		Itdb_Track*  track = (Itdb_Track*)j->data;
-                _remove_track(interactv_, itdb_, track, removed_, bytes_, *removed_+1, 0);
+		const guint  t_cksum = gpod_saved_cksum(track);
+
+		if (h->size == track->size &&
+		     ( (h_cksum == 0 || t_cksum == 0) ||
+			(t_cksum == h_cksum) )
+		   )
+		{
+		    _remove_track(interactv_, itdb_, track, removed_, bytes_, *removed_+1, 0);
+		}
+		else {
+                    g_print("[---]  ignoring, cksum/size mismatch %s -> { id=%d cksum=%ld size=%ld title='%s' artist='%s' album='%s' } vs %s -> { id=%d cksum=%ld size=%ld title='%s' artist='%s' album='%s' }\n",
+			    h->ipod_path, h->id, h_cksum, h->size, h->title ? h->title : "", h->artist ? h->artist : "", h->album ? h->album : "",
+			    track->ipod_path, track->id, t_cksum, track->size, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+
+		}
             }
         }
     }
