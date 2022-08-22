@@ -833,3 +833,29 @@ gchar* g_date_time_format_iso8601(GDateTime *datetime)
 #endif
 
 
+
+void  gpod_duration(char duration_[32], guint then_, guint now_)
+{
+    const unsigned  sec = (now_-then_)/1000000;
+    unsigned  h, m, s;
+    h = (sec/3600);
+    m = (sec -(3600*h))/60;
+    s = (sec -(3600*h)-(m*60));
+    if (sec < 60) {
+        sprintf(duration_, "%.3f secs", (now_-then_)/1000000.0);
+    }
+    else
+    {
+        if (sec < 3600) {
+            sprintf(duration_, "%02d:%02d mins:secs", m,s);
+        }
+        else {
+            if (sec < 3600*60) {
+                sprintf(duration_, "%02d:%02d:%02d", h,m,s);
+            }
+            else {
+                strcpy(duration_, "inf");
+            }
+        }
+    }
+}
