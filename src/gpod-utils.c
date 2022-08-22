@@ -243,7 +243,7 @@ guint  gpod_saved_cksum(const Itdb_Track* track_)
 
 static guint  _track_mkhash(Itdb_Track* track_)
 { 
-    const guint  hash = gpod_hash(track_);
+    const guint  hash = gpod_saved_cksum(track_) ? gpod_saved_cksum(track_) : gpod_hash(track_);
     track_->userdata = malloc(sizeof(guint));
     *((guint*)track_->userdata) = hash;
     track_->userdata_destroy = free;
