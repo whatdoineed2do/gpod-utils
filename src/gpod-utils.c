@@ -206,7 +206,7 @@ void  gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wrap
 #ifdef WANT_GPOD_HASH
 guint  gpod_hash(const Itdb_Track* track_)
 { 
-    char  path[PATH_MAX];
+    char  path[PATH_MAX] = { 0 };
     sprintf(path, "%s/%s", itdb_get_mountpoint(track_->itdb), track_->ipod_path);
     itdb_filename_ipod2fs(path);
 
@@ -231,11 +231,19 @@ guint  gpod_hash_file(const char* path_)
     return g_str_hash(sha1str);
 }
 
+void   gpod_store_cksum(Itdb_Track* track_, const char* file_)
+{
+    track_->unk196 = gpod_hash_file(file_);
+}
 
+guint  gpod_saved_cksum(const Itdb_Track* track_)
+{
+    return track_->unk196;
+}
 
 static guint  _track_mkhash(Itdb_Track* track_)
 { 
-    const guint  hash = gpod_hash(track_);
+    const guint  hash = gpod_saved_cksum(track_) ? gpod_saved_cksum(track_) : gpod_hash(track_);
     track_->userdata = malloc(sizeof(guint));
     *((guint*)track_->userdata) = hash;
     track_->userdata_destroy = free;
@@ -825,3 +833,29 @@ gchar* g_date_time_format_iso8601(GDateTime *datetime)
 #endif
 
 
+
+void  gpod_duration(char duration_[32], guint then_, guint now_)
+{
+    const unsigned  sec = (now_-then_)/1000000;
+    unsigned  h, m, s;
+    h = (sec/3600);
+    m = (sec -(3600*h))/60;
+    s = (sec -(3600*h)-(m*60));
+    if (sec < 60) {
+        sprintf(duration_, "%.3f secs", (now_-then_)/1000000.0);
+    }
+    else
+    {
+        if (sec < 3600) {
+            sprintf(duration_, "%02d:%02d mins:secs", m,s);
+        }
+        else {
+            if (sec < 3600*60) {
+                sprintf(duration_, "%02d:%02d:%02d", h,m,s);
+            }
+            else {
+                strcpy(duration_, "inf");
+            }
+        }
+    }
+}

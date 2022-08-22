@@ -54,6 +54,11 @@ void   gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wra
 guint  gpod_hash(const Itdb_Track* track_);
 guint  gpod_hash_file(const char* track_);
 
+// util to generatu:e!
+// a hash of track and add to structure
+void   gpod_store_cksum(Itdb_Track* track_, const char* file_);
+guint  gpod_saved_cksum(const Itdb_Track* track_);
+
 
 struct gpod_track_fs_hash {
     GHashTable*  tbl;
@@ -74,6 +79,7 @@ void         gpod_track_htbl_destroy(GHashTable* htbl_);
 void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_,
 	                   Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_);
 
+void  gpod_duration(char duration_[32], guint then_, guint now_);
 
 // raspberry pi buster ships 2.58
 #ifndef GLIB_VERSION_2_60

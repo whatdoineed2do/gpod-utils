@@ -67,7 +67,7 @@ struct {
     int  mediatype;
 } opts = {
    .itdb_path =  NULL,
-   .cksum = false,
+   .cksum = true,
    .force = false,
    .enc = GPOD_FF_ENC_FDKAAC,
    .enc_fallback = true,
@@ -206,6 +206,9 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     track->mediatype |= opts.mediatype;
 
     gpod_ff_media_info_free(&mi);
+
+    // needs full path because the track has no itdb structure at this point
+    gpod_store_cksum(track, file_);
     return track;
 }
 
@@ -584,33 +587,6 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
-static void  gpod_duration(char duration_[32], guint then_, guint now_)
-{
-    const unsigned  sec = (now_-then_)/1000000;
-    unsigned  h, m, s;
-    h = (sec/3600);
-    m = (sec -(3600*h))/60;
-    s = (sec -(3600*h)-(m*60));
-    if (sec < 60) {
-        sprintf(duration_, "%.3f secs", (now_-then_)/1000000.0);
-    }
-    else
-    {
-        if (sec < 3600) {
-            sprintf(duration_, "%02d:%02d mins:secs", m,s);
-        }
-        else {
-            if (sec < 3600*60) {
-                sprintf(duration_, "%02d:%02d:%02d", h,m,s);
-            }
-            else {
-                strcpy(duration_, "inf");
-            }
-        }
-    }
-}
-
-
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
@@ -623,7 +599,7 @@ void  _usage(const char* argv0_)
              "    -M  --mount-point              <iPod dir>               location of iPod data, as directory mount point\n"
 	     "    -T  --threads                  <max threads>            number of threads for xcoding/copying - default: #system vCPUs\n"
 	     "\n"
-             "    -c  --tracks-checksum-validate                          generate checksum of each file in iTunesDB for \n"
+             "    -c  --disable-tracks-checksum-validate                  disable generate checksum validation of each file in iTunesDB\n"
              "                                                            comparison to prevent duplicate\n"
 	     "    -S  --disable-tracks-sanitize                           disable text sanitization; chars like ’ to '\n"
 	     "    -r  --tracks-replace           <Y|N>                    replace existing track of same title/album/artist - default: Y\n"
@@ -699,7 +675,7 @@ int main (int argc, char *argv[])
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
-            case 'c':  opts.cksum = true;  break;
+            case 'c':  opts.cksum = false;  break;
             case 'F':  opts.force = true;  break;
 
 	    case 'E':

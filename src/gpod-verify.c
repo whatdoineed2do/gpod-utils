@@ -41,6 +41,8 @@
 #define GPOD_MODE_LS  1<<0
 #define GPOD_MODE_DB  1<<1
 #define GPOD_MODE_FS  1<<2
+#define GPOD_MODE_CKSUM  1<<3
+#define GPOD_MODE_CKSUM_REGEN  1<<4
 
 
 static gint  _track_path_cmp(gconstpointer x_, gconstpointer y_)
@@ -73,6 +75,8 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
     Itdb_Track*  track = gpod_ff_meta_to_track(&mi, 0, sanitize_);
 
     gpod_ff_media_info_free(&mi);
+
+    gpod_store_cksum(track, file_);
     return track;
 }
 
@@ -80,7 +84,7 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> [ -a | -d ] [ -S ]\n"
+    g_print ("usage: %s -M <dir ipod mount> OPTIONS\n"
              "\n"
              "    validates the integrity of the iTunesDB (entries in iTunesDB compared to filessystem)\n"
              "    will [CLEAN] db of entries that don't have filesystem entries and optionally add/remove\n"
@@ -93,6 +97,8 @@ void  _usage(char* argv0_)
              "    -d         [REMVE] sync files iTunesDB as files on device\n"
              "               all db entries must have corresponding file on device\n"
              "               db entries with no files are removed\n"
+	     "    -c         generate cksums for all files on device\n"
+	     "    -C         regenerate cksums for all files on device\n"
 	     "    -S         disable text sanitization; chars like ’ to '\n"
              , basename);
     g_free (basename);
@@ -113,12 +119,14 @@ int main (int argc, char *argv[])
     } opts = { NULL, 0, true };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:daS")) != EOF)
+    while ( (c=getopt(argc, argv, "M:daScC")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'a':  opts.mode |= GPOD_MODE_FS;  break;
             case 'd':  opts.mode |= GPOD_MODE_DB;  break;
+	    case 'c':  opts.mode |= GPOD_MODE_CKSUM; break;
+	    case 'C':  opts.mode |= GPOD_MODE_CKSUM_REGEN; break;
 
             case 'S':  opts.sanitize = false;  break;
 
@@ -190,13 +198,15 @@ int main (int argc, char *argv[])
 	size_t  rm_bytes;
 	size_t  add_bytes;
 	size_t  orphan_bytes;
-    } stats = { 0, 0, 0, 0 };
+	guint   cksum_time;
+    } stats = { 0, 0, 0, 0, 0 };
 
 
     bool  first = true;
     uint32_t  removed = 0;
     uint32_t  added = 0;
     uint32_t  orphaned = 0;
+    uint32_t  checksumed = 0;
     char  path[PATH_MAX] = { 0 };
     strcpy(path, mountpoint);
     char*  pbase = path+strlen(mountpoint)-1;
@@ -210,7 +220,7 @@ int main (int argc, char *argv[])
     {
 	track = (Itdb_Track *)it->data;
 	itdb_filename_ipod2fs(track->ipod_path);
-	if (!g_hash_table_insert(hash, track->ipod_path, track->ipod_path))
+	if (!g_hash_table_insert(hash, track->ipod_path, track))
 	{
 	    /* theres already something with the same file name -- this is wrong
 	     * drop it
@@ -257,8 +267,17 @@ int main (int argc, char *argv[])
     {
         const char*  resolved_path = i->data;
 
-        if (g_hash_table_contains(hash, resolved_path+strlen(mountpoint)-1)) {
+        if ( (track = g_hash_table_lookup(hash, resolved_path+strlen(mountpoint)-1)) ) {
 	    // name on fs is in (hash of paths) db
+	    if ( (opts.mode & GPOD_MODE_CKSUM && gpod_saved_cksum(track) == 0) || opts.mode & GPOD_MODE_CKSUM_REGEN) {
+		const guint  then = g_get_monotonic_time();
+		gpod_store_cksum(track, resolved_path);
+		stats.cksum_time += g_get_monotonic_time() - then;
+		if (++checksumed%100 == 0) {
+		    g_print("checksumed %d, remaining/possile %d\n", checksumed, g_slist_length(i));
+		}
+	    }
+
             continue;
         }
 
@@ -321,7 +340,7 @@ int main (int argc, char *argv[])
     hash = NULL;
 
 
-    if (supported && added || removed) {
+    if (supported && (added || removed || checksumed)) {
         g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 
@@ -339,7 +358,10 @@ int main (int argc, char *argv[])
     char  orphan_size[32] = { 0 };
     gpod_bytes_to_human(orphan_size, sizeof(orphan_size), stats.orphan_bytes, true);
 
-    g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size);
+    char cksum_duration[32] = { 0 };
+    gpod_duration(cksum_duration, 0, stats.cksum_time);
+
+    g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s, checksumed %u (total %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size, checksumed, cksum_duration);
 
     if (itdev) {
         itdb_device_free(itdev);

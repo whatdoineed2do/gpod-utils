@@ -38,8 +38,9 @@ gpod_extract_SOURCES = gpod-extract.c gpod-utils.c gpod-ffmpeg.c
 gpod_extract_LDADD = $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
 GPOD_OPT+=gpod-verify
+gpod_verify_CPPFLAGS = -DWANT_GPOD_HASH
 gpod_verify_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
-gpod_verify_SOURCES = gpod-verify.c gpod-utils.c gpod-ffmpeg.c
+gpod_verify_SOURCES = gpod-verify.c gpod-utils.c gpod-ffmpeg.c sha1.c
 gpod_verify_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS) -DGPOD_FF_STANDALONE
