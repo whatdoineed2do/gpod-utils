@@ -70,18 +70,21 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
   "INSERT INTO tracks (" \
     "id, ipod_path, mediatype," \
     "title, artist, album, genre, filetype, composer, grouping, albumartist, sort_artist, sort_title, sort_album, sort_albumartist, sort_composer," \
-    "size, tracklen, cd_nr, cds, track_nr, tracks, bitrate, samplerate, year, time_added, time_modified, time_played, rating, playcount, playcount2, recent_playcount" \
+    "size, tracklen, cd_nr, cds, track_nr, tracks, bitrate, samplerate, year, time_added, time_modified, time_played, rating, playcount, playcount2, recent_playcount," \
+    "checksum" \
     "    )" \
     "  VALUES (%d, '%q', %d," \
     "          %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q," \
-    "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d" \
+    "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d," \
+    "          %u" \
     "         );"
 
   char*  err = NULL;
   char*  query = sqlite3_mprintf(QADD_TMPL, 
                                 track_->id, track_->ipod_path, track_->mediatype,
                                 track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer, 
-                                track_->size, track_->tracklen, track_->cd_nr, track_->cds, track_->track_nr, track_->tracks, track_->bitrate, track_->samplerate, track_->year, track_->time_added, track_->time_modified, track_->time_played, track_->rating, track_->playcount, track_->playcount2, track_->recent_playcount);
+                                track_->size, track_->tracklen, track_->cd_nr, track_->cds, track_->track_nr, track_->tracks, track_->bitrate, track_->samplerate, track_->year, track_->time_added, track_->time_modified, track_->time_played, track_->rating, track_->playcount, track_->playcount2, track_->recent_playcount,
+				gpod_saved_cksum(track_));
 
 #undef QADD_TMPL
 
@@ -126,6 +129,12 @@ static void
 json_object_add_int(json_object* obj_, const char* tag_, const int data_)
 {
     json_object_object_add(obj_, tag_, json_object_new_int(data_));
+}
+
+static void
+json_object_add_uint(json_object* obj_, const char* tag_, const uint64_t data_)
+{
+    json_object_object_add(obj_, tag_, json_object_new_uint64(data_));
 }
 
 static void
@@ -302,6 +311,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_int(jobj, "playcount", track->playcount);
         json_object_add_int(jobj, "playcount2", track->playcount2);
         json_object_add_int(jobj, "recent_playcount", track->recent_playcount);
+        json_object_add_uint(jobj, "checksum", gpod_saved_cksum(track));
     }
     else
     {
@@ -314,6 +324,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_string(jobj, "genre", track->genre);
         json_object_add_string(jobj, "albumartist", track->albumartist);
         json_object_add_int(jobj, "rating", track->rating);
+        json_object_add_uint(jobj, "checksum", gpod_saved_cksum(track));
     }
 
 #ifdef HAVE_SQLITE3

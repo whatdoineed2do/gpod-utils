@@ -206,6 +206,9 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     track->mediatype |= opts.mediatype;
 
     gpod_ff_media_info_free(&mi);
+
+    // needs full path because the track has no itdb structure at this point
+    gpod_store_cksum(track, file_);
     return track;
 }
 
