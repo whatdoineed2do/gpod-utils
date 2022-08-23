@@ -28,6 +28,8 @@
 #include <time.h>
 #include <limits.h>
 #include <unistd.h>
+#include <getopt.h>
+#include <ctype.h>
 
 #include <glib.h>
 #include <gpod/itdb.h>
@@ -95,12 +97,21 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
-    g_print ("usage: %s  -M <dir iPod mount>  [-t <title>] [-a <artist>] [-A <album>] [-g <genre>] [-T <track>] [-y <year>] [-r <rating 0-5>]  [-s]  <file id/ipod path> [ ...]\n\n"
-             "    update meta tags for files as known in iPod/iTunesDB\n"
-	     "    empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
-             "    use gpod-ls to determine ipod path/id\n"
+    g_print ("usage: %s  OPTIONS  <file id/ipod path> [...]\n"
+	     "    -t  --title    <title>\n"
+	     "    -a  --artist   <artist>\n"
+	     "    -A  --album    <album>\n"
+	     "    -g  --genre    <genre>\n"
+	     "    -T  --track    <track>\n"
+	     "    -y  --year     <year>\n"
+	     "    -r  --rating   <rating 0-5>\n"
 	     "\n"
-	     "    -s    to sanitize text tags, chars like ’ to '\n"
+             "  update meta tags for files as known in iPod/iTunesDB\n"
+	     "  empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
+             "  use gpod-ls to determine ipod path/id\n"
+	     "\n"
+	     "    -M  --mount-point  <iPod mount>>\n"
+	     "    -S  --santize  [Y|N]    sanitize text tags, chars like ’ to '\n"
              , basename);
     g_free (basename);
     exit(-1);
@@ -130,8 +141,39 @@ main (int argc, char *argv[])
 
     const char*  mpt = NULL;
 
-    int c;
-    while ( (c=getopt(argc, argv, "M:a:t:A:g:T:y:r:hs")) != EOF) {
+    // no_argument = 0, required_argument = 1, optional_argument = 2 (has arg)
+    const struct option  long_opts[] = {
+	{ "mount-point", 	1, 0, 'M' },
+
+	{ "artist", 		1, 0, 'a' },
+	{ "album",		1, 0, 'A' },
+	{ "title",		1, 0, 't' },
+	{ "genre", 		1, 0, 'g' },
+	{ "year", 		1, 0, 'Y' },
+	{ "track-number", 	1, 0, 'T' },
+	{ "rating", 		1, 0, 'r' },
+
+	{ "santize", 		2, 0, 'S' },
+	{ "help", 		0, 0, 'h' },
+	{ 0, 0, 0,  0 }
+    };
+    char  opt_args[sizeof(long_opts)*2] = { 0 };
+    {
+	char*  og = opt_args;
+	const struct option* op = long_opts;
+	while (op->name) {
+	    *og++ = op->val;
+	    if (op->has_arg != no_argument) {
+		*og++ = ':';
+	    }
+	    ++op;
+	}
+    }
+
+
+    int  c;
+    while ( (c=getopt_long(argc, argv, opt_args, long_opts, NULL)) != -1)
+    {
         switch (c) {
             case 'M':  mpt = optarg;  break;
 
@@ -148,7 +190,14 @@ main (int argc, char *argv[])
 		}
 	        break;
 
-            case 's':  opts.sanitize = true;  break;
+            case 'S':
+            {
+                opts.sanitize = false;
+                if (optarg) {
+                    if      (toupper(*optarg) == 'Y')  opts.sanitize = true;
+                    else if (toupper(*optarg) == 'N')  opts.sanitize = false;
+                }
+            } break;
 
             case 'h':
             default:
@@ -157,9 +206,17 @@ main (int argc, char *argv[])
     }
 
 
-    if (mpt == NULL && opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
-        g_printerr("invalid opts\n");
+    if (opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
+        g_printerr("invalid/unspecified tagging options\n");
         _usage(argv[0]);
+    }
+
+    char  mountpoint[PATH_MAX] = { 0 };
+    if (mpt == NULL) {
+        mpt = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
+    }
+    else {
+	strcpy(mountpoint, mpt);
     }
 
     if ( !(optind < argc) ) {
@@ -169,12 +226,8 @@ main (int argc, char *argv[])
 
     _sanitize(&opts);
 
-
     gpod_setlocale();
 
-    char  mountpoint[PATH_MAX];
-
-    strcpy(mountpoint, mpt);
     if (g_file_test(mpt, G_FILE_TEST_IS_DIR)) {
 	itdb = itdb_parse (mpt, &error);
 	itdev = itdb_device_new();
