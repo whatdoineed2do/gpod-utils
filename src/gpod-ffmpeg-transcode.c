@@ -64,7 +64,7 @@ static int open_input_file(const char *filename,
                            AVCodecContext **input_codec_context, int* audio_stream_idx, char** err_)
 {
     AVCodecContext *avctx;
-    AVCodec *input_codec;
+    const AVCodec *input_codec;
     int error;
     int  i;
 
