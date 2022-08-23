@@ -638,7 +638,7 @@ int main (int argc, char *argv[])
 	{"force-unsupported",		0, 0, 'F' },
 	{"threads", 			1, 0, 'T' },
 
-	{"tracks-checksum-validate",	0, 0, 'c' },
+	{"disable-tracks-checksum-validate", 0, 0, 'c' },
 	{"disable-tracks-sanitize",	2, 0, 'S' },
 	{"tracks-replace",		2, 0, 'r' },
 	{"tracks-media-type", 		1, 0, 'm' },
