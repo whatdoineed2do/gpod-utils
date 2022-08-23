@@ -149,7 +149,7 @@ static int  _extract(const char* src_, const char* dest_, const Itdb_Track* trac
     }
 
     number_of_streams = in_fmt_ctx->nb_streams;
-    stream_mapping = av_mallocz_array (number_of_streams, sizeof (*stream_mapping));
+    stream_mapping = av_calloc(number_of_streams, sizeof (*stream_mapping));
 
     if (!stream_mapping) {
 	ret = AVERROR (ENOMEM);
