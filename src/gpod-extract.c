@@ -385,6 +385,11 @@ int main (int argc, char **argv)
         _usage(argv[0]);
     }
 
+    if (strcmp(opts.itdb_path, opts.output_path) == 0) {
+        g_printerr("output, %s, is same as source\n", opts.output_path);
+        _usage(argv[0]);
+    }
+
 
     stat(opts.output_path, &st);
     if (!S_ISDIR(st.st_mode)) {
