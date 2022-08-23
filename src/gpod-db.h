@@ -68,7 +68,8 @@
     "  has_artwork  INTEGER DEFAULT -1," \
     "  samplecount  INTEGER DEFAULT -1," \
     "  season_nr  INTEGER DEFAULT -1," \
-    "  episode_nr  INTEGER DEFAULT -1" \
+    "  episode_nr  INTEGER DEFAULT -1," \
+    "  checksum INTEGER DEFAULT 0" \
     ");"
 
 #define QUERY_IDX \
