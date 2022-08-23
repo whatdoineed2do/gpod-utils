@@ -376,7 +376,12 @@ int main (int argc, char **argv)
         }
     }
 
-    if (opts.itdb_path == NULL || opts.output_path == NULL) {
+    char  mountpoint[PATH_MAX] = { 0 };
+    if (opts.itdb_path == NULL) {
+        opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
+    }
+
+    if (opts.output_path == NULL) {
         _usage(argv[0]);
     }
 
@@ -398,7 +403,6 @@ int main (int argc, char **argv)
 
     gpod_setlocale();
 
-    char  mountpoint[PATH_MAX];
     strcpy(mountpoint, opts.itdb_path);
 
     GError *error = NULL;

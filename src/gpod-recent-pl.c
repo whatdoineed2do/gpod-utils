@@ -81,8 +81,12 @@ main (int argc, char *argv[])
         }
     }
 
+    char  mountpoint[PATH_MAX] = { 0 };
     if (opts.itdb_path == NULL) {
-        _usage(argv[0]);
+        opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
+    }
+    else {
+	strcpy(mountpoint, opts.itdb_path);
     }
 
     gpod_setlocale();
@@ -101,8 +105,6 @@ main (int argc, char *argv[])
 
             // the Device info is /mnt/iPod_Control/Device - if we've been given a db 
             // location /mnt/iPod_Control/iTunes/iTunesDB we can figure this out
-            char mountpoint[PATH_MAX];
-            strcpy(mountpoint, opts.itdb_path);
 
             char*  dmp;
             if ( (dmp = strstr(mountpoint, "iPod_Control/"))) {
