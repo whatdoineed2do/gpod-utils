@@ -31,6 +31,7 @@
 #include <time.h>
 #include <limits.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include <glib.h>
 #include <gmodule.h>
@@ -412,23 +413,23 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB>  [-Q sqlite3 db outfile] [-c]\n"
+    g_print ("usage: %s  OPTIONS\n"
              "\n"
              "    dumps the iTunesDB as a json object listing internal (iPod,\n"
              "    podcasts) and user (smartpl, normal) playlists\n"
              "\n"
              "    Each playlist will display track information but fully on 'master'\n"
              "\n"
-             "    -M <dir | file>   location of iPod data, as directory mount point or\n"
-             "                      as a iTunesDB file  \n"
+             "    -M  --mount-point <dir | file>   location of iPod data, as directory mount point or\n"
+             "                                     as a iTunesDB file  \n"
 #ifdef HAVE_SQLITE3
-             "    -Q <sqlite3 db>   generate sqlite3 with a 'tracks' db, representing\n"
-             "                      all tracks in iTunesDB\n"
+             "    -Q  --db-file     <sqlite3 db>   generate sqlite3 with a 'tracks' db, representing\n"
+             "                                     all tracks in iTunesDB\n"
 #else
-             "    -Q <sqlite3 db>   IGNORED, disabled at build time\n"
+             "    -Q   --db-file    <sqlite3 db>   IGNORED, disabled at build time\n"
 #endif
-             "    -c                generate checksum of each file in iTunesDB for \n"
-             "                      analysis - this can be slow\n"
+             "    -c   --enable-checksum           generate checksum of each file in iTunesDB for \n"
+             "        --disable-checksum           analysis - this can be slow if checksums not stored\n"
              "\n"
              "\n"
              "    Use 'jq' for basic data mining and sqlite3 for more involved work\n"
@@ -459,15 +460,39 @@ main (int argc, char *argv[])
         const char*  itdb_path;
         const char*  db_path;
         bool cksum;
-    } opts = { NULL, NULL, false };
+    } opts = { NULL, NULL, true };
+
+    const struct option  long_opts[] = {
+        { "mount-point",        1, 0, 'M' },
+
+        { "db-file",            1, 0, 'Q' },
+        { "enable-checksum",    0, 0, 'c' },
+        { "disable-checksum",   0, 0, 'c'+255 },
+        { "help",               0, 0, 'h' },
+        { 0, 0, 0, 0 }
+    };
+    char  opt_args[sizeof(long_opts)*2] = { 0 };
+    {
+        char*  og = opt_args;
+        const struct option* op = long_opts;
+        while (op->name) {
+            *og++ = op->val;
+            if (op->has_arg != no_argument) {
+                *og++ = ':';
+            }
+            ++op;
+        }
+    }
+
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:Q:ch")) != EOF)
+    while ( (c=getopt_long(argc, argv, opt_args, long_opts, NULL)) != -1)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'Q':  opts.db_path = optarg;  break;
             case 'c':  opts.cksum = true;  break;
+            case 'c'+255:  opts.cksum = false;  break;
 
             case 'h':
             default:
