@@ -162,7 +162,8 @@ static TrkHash*  hash_trk_init(const Itdb_Track* track_, bool cksum_)
        o->high = o->low + o->med + (track_->album ? g_str_hash(track_->album) : 0);
    }
    else {
-       o->high = gpod_hash(track_);
+       const guint  hash = gpod_saved_cksum(track_);
+       o->high = hash > 0 ? hash : gpod_hash(track_);
    }
 
    return o;
