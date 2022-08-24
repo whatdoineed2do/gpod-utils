@@ -260,7 +260,7 @@ static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
         json_object_add_string(jtrack, "album", ((Itdb_Track*)i->data)->album);
         json_object_add_string(jtrack, "genre", ((Itdb_Track*)i->data)->genre);
 
-        gmtime_r(&(((Itdb_Track*)l->data)->time_added), &tm);
+        gmtime_r(&(((Itdb_Track*)i->data)->time_added), &tm);
         strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
         json_object_add_string(jtrack, "date_added", dt);
 
