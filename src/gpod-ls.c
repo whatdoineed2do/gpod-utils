@@ -264,6 +264,9 @@ static void  hash_tbl_json(gpointer k_, gpointer v_, gpointer d_)
         strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
         json_object_add_string(jtrack, "date_added", dt);
 
+        json_object_add_uint(jtrack, "size", ((Itdb_Track*)i->data)->size);
+        json_object_add_uint(jtrack, "checksum", gpod_saved_cksum((Itdb_Track*)i->data));
+
         json_object_array_add(jtracks, jtrack);
     }
     json_object_add_int(jobj, "count", count-1);
