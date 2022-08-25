@@ -83,6 +83,77 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
 }
 
 
+struct Stats {
+    unsigned  ttl;
+    size_t  rm_bytes;
+    size_t  add_bytes;
+    size_t  orphan_bytes;
+    guint   cksum_time;
+} stats = { 0, 0, 0, 0, 0 };
+
+
+struct _cksum_args {
+    const char*  resolved_path;
+    Itdb_Track*  track;
+};
+
+struct _cksum_pool_args {
+    const char* mountpoint;
+    Itdb_iTunesDB*  itdb;
+
+    unsigned short  sync_limit;
+
+    struct Stats*  stats;
+    uint32_t*  checksumed;
+    guint  ttl;
+    GMutex  lck;
+};
+
+
+static void  _cksum_thread(gpointer args_, gpointer pool_args_)
+{
+    Itdb_Track*  track = args_;
+    struct _cksum_pool_args*  pool_args = pool_args_;
+
+    char resolved_path[PATH_MAX] = { 0 };
+    sprintf(resolved_path, "%s%s", pool_args->mountpoint, track->ipod_path);
+
+    const guint  existing = gpod_saved_cksum(track);
+
+    const guint  then = g_get_monotonic_time();
+    gpod_store_cksum(track, resolved_path);
+    const guint  now = g_get_monotonic_time();
+    if (existing > 0 && existing != gpod_saved_cksum(track)) {
+	g_print("checksumed id=%5ld path=%s -> %lld (updating from %lld)\n", track->id, resolved_path, gpod_saved_cksum(track), existing);
+    }
+    g_debug("checksumed %s -> %ld  %lld\n", resolved_path, track->id, gpod_saved_cksum(track));
+
+    g_mutex_lock(&pool_args->lck);
+    {
+	pool_args->stats->cksum_time += now - then;
+
+	if ((++*(pool_args->checksumed))%pool_args->sync_limit == 0) {
+	    GError *error = NULL;
+	    g_print("checksumed %d / %d (possible)\n", *(pool_args->checksumed), pool_args->ttl);
+	    itdb_write(pool_args->itdb, &error);
+
+	    if (error) {
+		g_printerr("failed to write iPod database - %s\n", error->message ? error->message : "<unknown error>");
+		g_error_free (error);
+	    }
+	}
+    }
+    g_mutex_unlock(&pool_args->lck);
+}
+
+static void  _cksum_q(Itdb_Track* track_, GThreadPool* cksum_tp_, const unsigned mode_)
+{
+    if ( (mode_ & GPOD_MODE_CKSUM && gpod_saved_cksum(track_) == 0) || mode_ & GPOD_MODE_CKSUM_REGEN) {
+	g_thread_pool_push(cksum_tp_, (void*)track_, NULL);
+    }
+}
+
+
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
@@ -101,6 +172,8 @@ void  _usage(char* argv0_)
              "                               db entries with no files are removed\n"
 	     "    -c  --checksum-missing     generate missing cksums for all files on device\n"
 	     "    -C  --checksum-regen       regenerate cksums for all files on device\n"
+	     "    -T  --checksum-threads     max threads used for generating cksums\n"
+	     "    -n  --checksum-snyc  <n>   sync after N cksums\n"
 	     "    -S  --sanitize             disable text sanitization; chars like ’ to '\n"
              , basename);
     g_free (basename);
@@ -118,7 +191,10 @@ int main (int argc, char *argv[])
         const char*  itdb_path;
         unsigned  mode;
 	bool  sanitize;
-    } opts = { NULL, 0, true };
+	unsigned short  threads;
+	unsigned short  sync_limit;
+    } opts = { NULL, 0, true, 4, 100 };
+
 
     const struct option  long_opts[] = {
 	{ "mount-point", 	1, 0, 'M' },
@@ -127,6 +203,8 @@ int main (int argc, char *argv[])
 	{ "delete",		0, 0, 'd' },
 	{ "checksum-missing",	0, 0, 'c' },
 	{ "checksum-regen",	0, 0, 'C' },
+	{ "checksum-threads",	1, 0, 'T' },
+	{ "checksum-sync",	1, 0, 'n' },
 	{ "santize", 		2, 0, 'S' },
 	{ "help", 		0, 0, 'h' },
 	{ 0, 0, 0, 0 }
@@ -154,6 +232,15 @@ int main (int argc, char *argv[])
             case 'd':  opts.mode |= GPOD_MODE_DB;  break;
 	    case 'c':  opts.mode |= GPOD_MODE_CKSUM; break;
 	    case 'C':  opts.mode |= GPOD_MODE_CKSUM_REGEN; break;
+	    case 'n':  opts.sync_limit = atol(optarg); break;
+	    case 'T': 
+	    {
+		const unsigned short  t = opts.threads;
+		opts.threads = (unsigned short)atoi(optarg);
+		if (opts.threads > t) {
+		    opts.threads = t;
+		}
+	    } break;
 
             case 'S':
             {
@@ -229,15 +316,6 @@ int main (int argc, char *argv[])
              ipodinfo->model_number,
              dbcount, fscount, supported ? "" : " - DB updates NOT supported");
 
-    struct Stats {
-	unsigned  ttl;
-	size_t  rm_bytes;
-	size_t  add_bytes;
-	size_t  orphan_bytes;
-	guint   cksum_time;
-    } stats = { 0, 0, 0, 0, 0 };
-
-
     bool  first = true;
     uint32_t  removed = 0;
     uint32_t  added = 0;
@@ -298,22 +376,12 @@ int main (int argc, char *argv[])
 	clean = NULL;
     }
 
-
-    for (GSList* i=files; i!=NULL; i=i->next)
+    for (GSList* i=files ; i!=NULL; i=i->next)
     {
         const char*  resolved_path = i->data;
 
         if ( (track = g_hash_table_lookup(hash, resolved_path+strlen(mountpoint)-1)) ) {
 	    // name on fs is in (hash of paths) db
-	    if ( (opts.mode & GPOD_MODE_CKSUM && gpod_saved_cksum(track) == 0) || opts.mode & GPOD_MODE_CKSUM_REGEN) {
-		const guint  then = g_get_monotonic_time();
-		gpod_store_cksum(track, resolved_path);
-		stats.cksum_time += g_get_monotonic_time() - then;
-		if (++checksumed%100 == 0) {
-		    g_print("checksumed %d, remaining/possile %d\n", checksumed, g_slist_length(i));
-		}
-	    }
-
             continue;
         }
 
@@ -370,13 +438,13 @@ int main (int argc, char *argv[])
             track = NULL;
         }
     }
+
     g_slist_free_full(files, g_free);
     files = NULL;
     g_hash_table_destroy(hash);
     hash = NULL;
 
-
-    if (supported && (added || removed || checksumed)) {
+    if (supported && (added || removed)) {
         g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 
@@ -386,6 +454,66 @@ int main (int argc, char *argv[])
              ret = 1;
         }
     }
+
+
+    // work on tracks that are now in master playlist in case of re-adds above
+    const guint  cksum_then = g_get_monotonic_time();
+    if ( supported && (opts.mode & GPOD_MODE_CKSUM | opts.mode & GPOD_MODE_CKSUM_REGEN) )
+    {
+	// reset everything
+	mpl = itdb_playlist_mpl(itdb);
+	GList*  i = mpl->members;
+
+	struct _cksum_pool_args  pool_args = { 
+	    .mountpoint = mountpoint,
+	    .itdb = itdb,
+	    .sync_limit = opts.sync_limit,
+	    .stats = &stats,
+	    .checksumed = &checksumed,
+	    .ttl = -1
+	};
+	g_mutex_init(&pool_args.lck);
+
+	GThreadPool*  cksum_tp = g_thread_pool_new((GFunc)_cksum_thread, (void*)&pool_args, opts.threads, TRUE, NULL);
+
+	if (argc == optind)
+	{
+	    pool_args.ttl = g_list_length(i);
+	    for (; i!=NULL; i=i->next) {
+		_cksum_q(i->data, cksum_tp, opts.mode);
+	    }
+	}
+	else
+	{
+	    pool_args.ttl = argc - optind;
+	    GTree*  tree = itdb_track_id_tree_create(itdb);
+	    while (optind < argc)
+	    {
+		const unsigned  track_id = atol(argv[optind++]);
+		track = itdb_track_id_tree_by_id(tree, track_id);
+		if (track) {
+		    _cksum_q(track, cksum_tp, opts.mode);
+		}
+	    }
+	    itdb_track_id_tree_destroy(tree);
+	}
+
+	g_thread_pool_free(cksum_tp, FALSE, TRUE);
+	g_mutex_clear(&pool_args.lck);
+
+	if (checksumed) {
+	    g_print("sync'ing iPod ...\n");
+	    itdb_write(itdb, &error);
+
+	    if (error) {
+		g_printerr("failed to write iPod database - %s\n", error->message ? error->message : "<unknown error>");
+		 g_error_free (error);
+		 ret = 1;
+	    }
+	}
+    }
+    const guint  cksum_now = g_get_monotonic_time();
+
 
     char  add_size[32] = { 0 };
     gpod_bytes_to_human(add_size, sizeof(add_size), stats.add_bytes, true);
@@ -397,7 +525,11 @@ int main (int argc, char *argv[])
     char cksum_duration[32] = { 0 };
     gpod_duration(cksum_duration, 0, stats.cksum_time);
 
-    g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s, checksumed %u (total %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size, checksumed, cksum_duration);
+    char cksum_elapsed[32] = { 0 };
+    gpod_duration(cksum_elapsed, cksum_then, cksum_now);
+
+
+    g_print("iPod total tracks=%u  orphaned %u %s, removed %u %s, added %u %s, checksumed %u (total %s, elapsed %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), orphaned, orphan_size, removed, rm_size, added, add_size, checksumed, cksum_duration, cksum_elapsed);
 
     if (itdev) {
         itdb_device_free(itdev);
