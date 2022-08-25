@@ -27,6 +27,8 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <ctype.h>
+#include <getopt.h>
 
 #include <glib.h>
 #include <gmodule.h>
@@ -90,16 +92,16 @@ void  _usage(char* argv0_)
              "    will [CLEAN] db of entries that don't have filesystem entries and optionally add/remove\n"
              "    files on filesystem but not in db\n"
              "\n"
-             "    -M <dir>   location of iPod data, as directory mount point or\n"
-             "               as a iTunesDB file  \n"
-             "    -a         [ADD]   sync iTunesDB as files on device\n"
-             "               all files on device will have entry to db\n"
-             "    -d         [REMVE] sync files iTunesDB as files on device\n"
-             "               all db entries must have corresponding file on device\n"
-             "               db entries with no files are removed\n"
-	     "    -c         generate cksums for all files on device\n"
-	     "    -C         regenerate cksums for all files on device\n"
-	     "    -S         disable text sanitization; chars like ’ to '\n"
+             "    -M  --mount-point  <dir>   location of iPod data, as directory mount point or\n"
+             "                               as a iTunesDB file  \n"
+             "    -a  --add                  [ADD]   sync iTunesDB as files on device\n"
+             "                               all files on device will have entry to db\n"
+             "    -d  --delete               [REMVE] sync files iTunesDB as files on device\n"
+             "                               all db entries must have corresponding file on device\n"
+             "                               db entries with no files are removed\n"
+	     "    -c  --checksum-missing     generate missing cksums for all files on device\n"
+	     "    -C  --checksum-regen       regenerate cksums for all files on device\n"
+	     "    -S  --sanitize             disable text sanitization; chars like ’ to '\n"
              , basename);
     g_free (basename);
     exit(-1);
@@ -118,8 +120,33 @@ int main (int argc, char *argv[])
 	bool  sanitize;
     } opts = { NULL, 0, true };
 
+    const struct option  long_opts[] = {
+	{ "mount-point", 	1, 0, 'M' },
+
+	{ "add", 		0, 0, 'a' },
+	{ "delete",		0, 0, 'd' },
+	{ "checksum-missing",	0, 0, 'c' },
+	{ "checksum-regen",	0, 0, 'C' },
+	{ "santize", 		2, 0, 'S' },
+	{ "help", 		0, 0, 'h' },
+	{ 0, 0, 0, 0 }
+    };
+    char  opt_args[sizeof(long_opts)*2] = { 0 };
+    {
+	char*  og = opt_args;
+	const struct option* op = long_opts;
+	while (op->name) {
+	    *og++ = op->val;
+	    if (op->has_arg != no_argument) {
+		*og++ = ':';
+	    }
+	    ++op;
+	}
+    }
+
+
     int  c;
-    while ( (c=getopt(argc, argv, "M:daScC")) != EOF)
+    while ( (c=getopt_long(argc, argv, opt_args, long_opts, NULL)) != -1)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -128,7 +155,14 @@ int main (int argc, char *argv[])
 	    case 'c':  opts.mode |= GPOD_MODE_CKSUM; break;
 	    case 'C':  opts.mode |= GPOD_MODE_CKSUM_REGEN; break;
 
-            case 'S':  opts.sanitize = false;  break;
+            case 'S':
+            {
+                opts.sanitize = false;
+                if (optarg) {
+                    if      (toupper(*optarg) == 'Y')  opts.sanitize = true;
+                    else if (toupper(*optarg) == 'N')  opts.sanitize = false;
+                }
+            } break;
 
             case 'h':
             default:
