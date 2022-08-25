@@ -228,6 +228,8 @@ guint  gpod_hash_file(const char* path_)
 
     sprintf(sha1str, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9], sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
 
+    // this sha1str is the sha1 digest, but to make lives easier we covert it to a unsigned int that we can store
+
     return g_str_hash(sha1str);
 }
 
@@ -323,6 +325,16 @@ bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const 
     GSList*  what = g_hash_table_lookup(htbl_->tbl, &hash);
 
     return what == NULL ? false : true;
+}
+
+GSList* gpod_track_fs_hash_lookup(const struct gpod_track_fs_hash* htbl_, const Itdb_Track* track_)
+{
+    const guint  hash = gpod_saved_cksum(track_);
+    if (hash <= 0) {
+	return NULL;  // no valid hash
+    }
+
+    return g_hash_table_lookup(htbl_->tbl, &hash);
 }
 
 
