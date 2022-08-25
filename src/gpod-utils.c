@@ -20,6 +20,7 @@
 #include "gpod-utils.h"
 
 #include <sys/types.h>
+#include <stdint.h>
 #include <pwd.h>
 #include <errno.h>
 #include <limits.h>
@@ -213,24 +214,45 @@ guint  gpod_hash(const Itdb_Track* track_)
     return gpod_hash_file(path);
 }
 
-guint  gpod_hash_file(const char* path_)
+// this is the same function as g_str_hash() as of 2.73.3
+// we're impl to ensure that the glib impl doesnt get upgrade and break any persistance of the hash
+static uint32_t  _djbhash(const char* str_)
+{
+    uint32_t  hash = 5381L;
+    int  c;
+    while ((c = *str_++)) {
+	hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+}
+
+int  gpod_hash_digest_file(struct gpod_hash_digest* res_, const char* path_)
 {
     FILE*  f;
     if ( (f=fopen(path_, "r")) == NULL) {
-        return 0;
+        return -1;
     }
 
     unsigned char  sha1[20];  // hex buffer
-    char  sha1str[41];
     sha1_stream(f, sha1);
     fclose(f);
     f = NULL;
 
-    sprintf(sha1str, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9], sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
+    sprintf(res_->digest, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+	    sha1[0], sha1[1], sha1[2], sha1[3], sha1[4], sha1[5], sha1[6], sha1[7], sha1[8], sha1[9],
+	    sha1[10], sha1[11], sha1[12], sha1[13], sha1[14], sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
 
-    // this sha1str is the sha1 digest, but to make lives easier we covert it to a unsigned int that we can store
+    res_->hash = _djbhash(res_->digest);
+    return 0;
+}
 
-    return g_str_hash(sha1str);
+guint  gpod_hash_file(const char* path_)
+{
+    struct gpod_hash_digest  res = { 0 };
+    int  ret;
+
+    ret = gpod_hash_digest_file(&res, path_);
+    return ret == 0 ? res.hash : 0;
 }
 
 void   gpod_store_cksum(Itdb_Track* track_, const char* file_)

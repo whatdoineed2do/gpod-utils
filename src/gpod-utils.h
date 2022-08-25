@@ -54,6 +54,12 @@ void   gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wra
 guint  gpod_hash(const Itdb_Track* track_);
 guint  gpod_hash_file(const char* track_);
 
+struct gpod_hash_digest {
+    guint  hash;
+    char   digest[41];
+};
+int  gpod_hash_digest_file(struct gpod_hash_digest* res_, const char* track_);
+
 // util to generatu:e!
 // a hash of track and add to structure
 void   gpod_store_cksum(Itdb_Track* track_, const char* file_);
