@@ -2,6 +2,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) -Wunused-function -Wno-unused-variable -Wshadow -fno-common -D_XOPEN_SOURCE=500
 AM_CXXFLAGS = $(AM_CFLAGS)
+LDADD = -L. -lgpod-utils
 
 GPOD_OPT=
 noinst_LIBRARIES = libgpod-utils.a
@@ -20,23 +21,18 @@ endif
 # using git version instead of the am values in config.h
 gpod_ls_DEPENDENCIES = libgpod-utils.a
 gpod_ls_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
-gpod_ls_LDADD =  -L. -lgpod-utils
 gpod_ls_SOURCES = gpod-ls.c
 
 gpod_rm_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(JSONC_LIBS) $(SQLITE3_LIBS) -lz
-gpod_rm_LDADD =  -L. -lgpod-utils
 gpod_rm_SOURCES = gpod-rm.c
 
 gpod_tag_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS)
-gpod_tag_LDADD =  -L. -lgpod-utils
 gpod_tag_SOURCES = gpod-tag.c
 
 gpod_recent_pl_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS)
-gpod_recent_pl_LDADD = -L. -lgpod-utils
 gpod_recent_pl_SOURCES = gpod-recent-pl.c
 
 gpod_hashsum_LDFLAGS =  $(GLIB_LIBS) $(GPOD_LIBS)
-gpod_hashsum_LDADD =  -L. -lgpod-utils
 gpod_hashsum_SOURCES = gpod-hashsum.c
 
 
@@ -47,23 +43,19 @@ gpod_cp_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
 gpod_cp_CXXFLAGS = $(gpod_cp_CPPFLAGS) $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
 gpod_cp_SOURCES = gpod-cp.cc
 gpod_cp_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
-gpod_cp_LDADD = -L. -lgpod-utils
 
 GPOD_OPT+=gpod-extract
 gpod_extract_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
 gpod_extract_SOURCES = gpod-extract.c
 gpod_extract_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
-gpod_extract_LDADD = -L. -lgpod-utils
 
 GPOD_OPT+=gpod-verify
 gpod_verify_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
 gpod_verify_SOURCES = gpod-verify.c
 gpod_verify_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
-gpod_verify_LDADD = -L. -lgpod-utils
 
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS) -DGPOD_FF_STANDALONE
 test_ff_xcode_LDFLAGS =  $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample -zundefs
-test_ff_xcode_LDADD =  -L. -lgpod-utils
 test_ff_xcode_SOURCES = test-ff-xcode.c
 endif
 
