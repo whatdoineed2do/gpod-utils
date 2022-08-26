@@ -178,7 +178,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 
 	    if (gpod_ff_transcode(&mi, xfrm_, err_) < 0) {
 		char err[1024];
-		snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%s) - %s", mi.file_size, mi.type, mi.codectype, *err_ ? *err_ : "");
+		snprintf(err, 1024, "unsupported iPod file type %u bytes %s (%d %d/%d/%d) - %s", mi.file_size, mi.type, mi.audio.codec_id, mi.audio.bitrate, mi.audio.samplerate, mi.audio.channels, *err_ ? *err_ : "");
 		if (*err_) {
 		    free(*err_);
 		}
@@ -200,6 +200,11 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 		*err_ = g_strdup(err);
 	    }
 	}
+    }
+
+    // couldnt be transcoded ....
+    if (!mi.supported_ipod_fmt) {
+	return NULL;
     }
 
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
