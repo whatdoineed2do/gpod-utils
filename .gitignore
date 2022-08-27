@@ -3,8 +3,11 @@ gpod-ls
 gpod-rm
 gpod-tag
 gpod-verify
-test-ff-xcode
-test-init-ipod
+gpod-extract
+gpod-hashsum
+gpod-recent-pl
+libgpod-utils.a
+test-*
 *.swp
 Makefile.in
 Makefile
