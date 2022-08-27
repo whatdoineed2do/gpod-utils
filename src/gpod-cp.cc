@@ -149,7 +149,8 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
 
-    if (gpod_ff_scan(&mi, file_, idevice_, err_) < 0) {
+    const char*  file = file_;
+    if (gpod_ff_scan(&mi, file, idevice_, err_) < 0) {
 	if (!mi.has_audio) {
             if (*err_) {
                 const char*  err = "no audio - ";
@@ -187,6 +188,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 	    else {
 		mi.supported_ipod_fmt = true;
 		mi.description = "audio (transcoded)";
+		file = xfrm_->path;
 	    }
 	}
 	else
@@ -213,7 +215,7 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     gpod_ff_media_info_free(&mi);
 
     // needs full path because the track has no itdb structure at this point
-    gpod_store_cksum(track, file_);
+    gpod_store_cksum(track, file);
     return track;
 }
 
