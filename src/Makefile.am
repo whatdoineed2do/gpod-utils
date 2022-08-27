@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) -Wunused-function -Wno-unused-variable -Wshadow -fno-common -D_XOPEN_SOURCE=500
+AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) -Wunused-function -Wunused-variable -Wshadow -fno-common -D_XOPEN_SOURCE=500
 AM_CXXFLAGS = $(AM_CFLAGS)
 LDADD = libgpod-utils.a
 

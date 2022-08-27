@@ -341,7 +341,6 @@ void  gpod_track_fs_hash_destroy(struct gpod_track_fs_hash* htbl_)
 
 bool  gpod_track_fs_hash_contains(const struct gpod_track_fs_hash* htbl_, const Itdb_Track* track_, const char* path_)
 {
-    const char*  path = track_->itdb ? track_->ipod_path : path_;
     const guint  hash = track_->itdb ? gpod_hash(track_) : gpod_hash_file(path_);
 
     GSList*  what = g_hash_table_lookup(htbl_->tbl, &hash);

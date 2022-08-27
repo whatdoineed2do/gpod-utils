@@ -311,7 +311,6 @@ main (int argc, char *argv[])
     Itdb_Track*  track;
     GList*  it;
 
-    bool  first = true;
     uint64_t  removed = 0;
     uint64_t  requested = 0;
 

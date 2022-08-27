@@ -270,7 +270,6 @@ main (int argc, char *argv[])
     opts.rating *= ITDB_RATING_STEP;
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
-    const uint32_t  current = g_list_length(mpl->members);
 
     Itdb_Track*  track;
     GList*  it;

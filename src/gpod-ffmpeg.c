@@ -397,7 +397,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     AVStream *video_stream;
     AVStream *audio_stream;
 
-    int mdcount;
     int sample_rate;
     int channels;
     int i;

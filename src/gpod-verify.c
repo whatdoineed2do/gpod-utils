@@ -316,7 +316,6 @@ int main (int argc, char *argv[])
              ipodinfo->model_number,
              dbcount, fscount, supported ? "" : " - DB updates NOT supported");
 
-    bool  first = true;
     uint32_t  removed = 0;
     uint32_t  added = 0;
     uint32_t  orphaned = 0;

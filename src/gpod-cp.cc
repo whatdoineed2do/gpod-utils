@@ -829,7 +829,6 @@ int main (int argc, char *argv[])
     }
 
     {
-	char* ptr;
 	int  len = strlen(mountpoint);
 	if (mountpoint[len-1] == '/') {
 	    mountpoint[len-1] = '\0';
@@ -860,14 +859,8 @@ int main (int argc, char *argv[])
 
     Itdb_Playlist*  mpl = itdb_playlist_mpl(itdb);
 
-    GList*  it;
-    char*  err = NULL;
-
-    bool  first = true;
     uint32_t  added = 0;
     uint32_t  requested = 0;
-    struct tm  tm;
-    char dt[20];
 
     GSList*  files = NULL;
     GSList*  failed = NULL;
@@ -945,7 +938,6 @@ int main (int argc, char *argv[])
 	GHashTable*  tracks = gpod_track_htbl_create(itdb);
 
 	Itdb_Playlist*  recentpl = NULL;
-	Itdb_Track*  track = NULL;
 
 	// create thread pool and throw all tasks (direct cp and xcode)
 	struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,

@@ -85,7 +85,6 @@ static int  _set_metadata(AVDictionary* meta_, const Itdb_Track* track_, const s
 static int  _sync_metadata(AVDictionary* ctx_meta_, AVDictionary* stream_meta_, const AVCodecParameters* codecpar_, const Itdb_Track* track_)
 {
     const struct Metadata*  p = NULL;
-    char  buf[128];
 
     if (ctx_meta_)
     {
@@ -441,10 +440,6 @@ int main (int argc, char **argv)
     char  dest_full[PATH_MAX];
     Itdb_Track*  track;
     GList*  it;
-
-    bool  first = true;
-    uint64_t  removed = 0;
-    uint64_t  requested = 0;
 
     char**  p = &argv[optind];
     if (*p == NULL) {
