@@ -51,6 +51,9 @@
 
 #include <libswresample/swresample.h>
 
+#define GPOD_MAX_SAMPLERATE  48000
+#define GPOD_PREF_SAMPLERATE 44100
+
 
 /**
  * Open an input file and the required decoder.
@@ -158,6 +161,44 @@ static int open_input_file(const char *filename,
     return 0;
 }
 
+static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigned input_samplerate_)
+{
+    const int*  output_samplerates = output_codec_->supported_samplerates;
+    if (output_samplerates == NULL) {
+	return input_samplerate_;
+    }
+
+    unsigned  sr = 0;
+    unsigned  min_sr = *output_samplerates;
+
+    while (*output_samplerates) {
+	if (*output_samplerates <= GPOD_MAX_SAMPLERATE && *output_samplerates >= sr) {
+	    sr = *output_samplerates;
+	}
+	if (*output_samplerates < min_sr) {
+	    min_sr = *output_samplerates;
+	}
+	++output_samplerates;
+    }
+
+    // input > max sr
+    if (input_samplerate_ >= sr) {
+	return sr;
+    }
+
+    // validate that this sample rate is supported, or find the nearest one down
+    output_samplerates = output_codec_->supported_samplerates;
+    sr = min_sr;
+
+    while (*output_samplerates) {
+	if (input_samplerate_ >= *output_samplerates && sr < *output_samplerates) {
+	    sr = *output_samplerates;
+	}
+	++output_samplerates;
+    }
+    return sr;
+}
+
 /**
  * Open an output file and the required encoder.
  * Also set some basic encoder parameters.
@@ -249,10 +290,11 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     }
 
     /* Set the basic encoder parameters.
-     * The input file's sample rate is used to avoid a sample rate conversion. */
+     * validate the sample rate is not higher than max supported / setup for resample
+     */
     avctx->channels       = target_->audio_opts.channels;
     avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
-    avctx->sample_rate    = input_codec_context->sample_rate;
+    avctx->sample_rate    = _select_samplerate(output_codec, target_->audio_opts.samplerate ? target_->audio_opts.samplerate : input_codec_context->sample_rate);
     avctx->sample_fmt     = target_->audio_opts.samplefmt == AV_SAMPLE_FMT_NONE ? output_codec->sample_fmts[0] : target_->audio_opts.samplefmt;
     const int  quality = (int)(target_->audio_opts.quality);
     if (quality != GPOD_FF_XCODE_MAX)
@@ -271,7 +313,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     avctx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
 
     /* Set the sample rate for the container. */
-    stream->time_base.den = input_codec_context->sample_rate;
+    stream->time_base.den = avctx->sample_rate;
     stream->time_base.num = 1;
 
     /* Some container formats (like MP4) require global headers to be present.
@@ -383,12 +425,6 @@ static int init_resampler(AVCodecContext *input_codec_context,
             *err_ = strdup(err);
             return AVERROR(ENOMEM);
         }
-        /*
-        * Perform a sanity check so that the number of converted samples is
-        * not greater than the number of samples to be converted.
-        * If the sample rates differ, this case has to be handled differently
-        */
-        av_assert0(output_codec_context->sample_rate == input_codec_context->sample_rate);
 
         /* Open the resampler with the specified parameters. */
         if ((error = swr_init(*resample_context)) < 0) {
@@ -576,25 +612,42 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
  *                              (for multi-channel audio), sample.
  * @param      frame_size       Number of samples to be converted
  * @param      resample_context Resample context for the conversion
- * @return Error code (0 if successful)
+ * @return Error code (converted samnples if successful)
  */
-static int convert_samples(const uint8_t **input_data,
-                           uint8_t **converted_data, const int frame_size,
+static int convert_samples(const uint8_t **input_data, const int in_samples,
+                           uint8_t **converted_data, const int out_samples,
                            SwrContext *resample_context, char** err_)
 {
     int error;
 
+/*
+ * https://ffmpeg.org/doxygen/3.4/group__lswr.html
+
+    uint8_t **input;
+    int in_samples;
+    while (get_input(&input, &in_samples)) {
+	uint8_t *output;
+	int out_samples = av_rescale_rnd(swr_get_delay(swr, 48000) +
+					 in_samples, 44100, 48000, AV_ROUND_UP);
+	av_samples_alloc(&output, NULL, 2, out_samples,
+			 AV_SAMPLE_FMT_S16, 0);
+	out_samples = swr_convert(swr, &output, out_samples,
+				  input, in_samples);
+	handle_output(output, out_samples);
+	av_freep(&output);
+    }
+ */
+
     /* Convert the samples using the resampler. */
     if ((error = swr_convert(resample_context,
-                             converted_data, frame_size,
-                             input_data    , frame_size)) < 0) {
+                             converted_data, out_samples,
+                             input_data    , in_samples)) < 0) {
         char  err[1024];
         snprintf(err, 1024, "Could not convert input samples (error '%s')", av_err2str(error));
         *err_ = strdup(err);
-        return error;
     }
 
-    return 0;
+    return error;
 }
 
 /**
@@ -681,8 +734,9 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
 
         /* Convert the input samples to the desired output sample format.
          * This requires a temporary storage provided by converted_input_samples. */
-        if (convert_samples((const uint8_t**)input_frame->extended_data, converted_input_samples,
-                            input_frame->nb_samples, resampler_context, err_))
+        if (convert_samples((const uint8_t**)input_frame->extended_data, input_frame->nb_samples,
+		            converted_input_samples,
+		            input_frame->nb_samples, resampler_context, err_) < 0)
             goto cleanup;
 
         /* Add the converted input samples to the FIFO buffer for later processing. */
@@ -698,6 +752,41 @@ cleanup:
         av_freep(&converted_input_samples[0]);
         free(converted_input_samples);
     }
+    av_frame_free(&input_frame);
+
+    return ret;
+}
+
+static int read_decode_and_store(AVAudioFifo *fifo,
+				 AVFormatContext *input_format_context,
+				 AVCodecContext *input_codec_context,
+				 const int audio_stream_idx,
+				 int *finished, char** err_)
+{
+    AVFrame *input_frame = NULL;
+    int data_present = 0;
+    int ret = AVERROR_EXIT;
+
+    if (init_input_frame(&input_frame, err_))
+        goto cleanup;
+
+    if (decode_audio_frame(input_frame, input_format_context,
+                           input_codec_context, audio_stream_idx, &data_present, finished, err_))
+        goto cleanup;
+
+    if (*finished) {
+        ret = 0;
+        goto cleanup;
+    }
+
+    if (data_present) {
+        /* Add the converted input samples to the FIFO buffer for later processing. */
+        if (add_samples_to_fifo(fifo, (uint8_t**)input_frame->extended_data, input_frame->nb_samples, err_))
+            goto cleanup;
+    }
+    ret = 0;
+
+cleanup:
     av_frame_free(&input_frame);
 
     return ret;
@@ -737,7 +826,7 @@ static int init_output_frame(AVFrame **frame,
      * sure that the audio frame can hold as many samples as specified. */
     if ((error = av_frame_get_buffer(*frame, 0)) < 0) {
         char  err[1024];
-        snprintf(err, 1024, "Could not allocate output frame samples (error '%s')", av_err2str(error));
+	snprintf(err, 1024, "Could not allocate output frame samples (error '%s')", av_err2str(error));
         *err_ = strdup(err);
         av_frame_free(frame);
         return error;
@@ -826,6 +915,66 @@ cleanup:
     return error;
 }
 
+static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, const AVFormatContext* output_context, AVCodecContext* output_codec_context, int output_frame_size,
+	                           AVAudioFifo* input_samples_fifo,  const AVFormatContext* input_context, AVCodecContext* input_codec_context,
+				   SwrContext* resample_context, char** err_)
+{
+    uint8_t **converted_input_samples = NULL;
+    int  ret = AVERROR_EXIT;
+
+    AVFrame *input_frame;
+    const int frame_size = FFMIN(av_audio_fifo_size(input_samples_fifo),
+                                 output_frame_size);
+
+    // yes this is init_output_frame
+    if (init_output_frame(&input_frame, input_codec_context, frame_size, err_))
+        return AVERROR_EXIT;
+
+    /* Read as many samples from the FIFO buffer as required to fill the frame.
+     * The samples are stored in the frame temporarily. */
+    if (av_audio_fifo_read(input_samples_fifo, (void **)input_frame->data, frame_size) < frame_size) {
+        *err_ = strdup("Could not read data from input samples FIFO");
+        av_frame_free(&input_frame);
+        return AVERROR_EXIT;
+    }
+
+    int  nb_samples = (output_codec_context->sample_rate == input_codec_context->sample_rate) ?
+	input_frame->nb_samples :
+	av_rescale_rnd(swr_get_delay(resample_context, input_codec_context->sample_rate) + input_frame->nb_samples, output_codec_context->sample_rate, input_codec_context->sample_rate, AV_ROUND_UP);
+
+#ifdef GPOD_XCODE_SWR_DEBUG
+    printf("load/convert  frame size=%d  -> nb_samples=%d   out ctx frame=%d\n", frame_size, input_frame->nb_samples, output_codec_context->frame_size);
+#endif
+
+    /* Initialize the temporary storage for the converted input samples. */
+    if (init_converted_samples(&converted_input_samples, output_codec_context,
+		nb_samples, err_))
+	goto cleanup;
+
+    /* Convert the input samples to the desired output sample format.
+     * This requires a temporary storage provided by converted_input_samples. */
+    if ( (nb_samples = convert_samples((const uint8_t**)input_frame->extended_data, input_frame->nb_samples,
+		converted_input_samples, output_codec_context->frame_size,
+		resample_context, err_)) < 0)
+	goto cleanup;
+
+    /* Add the converted input samples to the FIFO buffer for later processing. */
+    if (add_samples_to_fifo(output_samples_fifo, converted_input_samples,
+		nb_samples, err_))
+	goto cleanup;
+
+    ret = 0;
+
+cleanup:
+    if (converted_input_samples) {
+        av_freep(&converted_input_samples[0]);
+        free(converted_input_samples);
+    }
+    av_frame_free(&input_frame);
+
+    return ret;
+}
+
 /**
  * Load one audio frame from the FIFO buffer, encode and write it to the
  * output file.
@@ -896,6 +1045,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
                     *output_codec_context = NULL;
     SwrContext  *resample_context = NULL;
     AVAudioFifo  *fifo = NULL;
+    AVAudioFifo  *input_samples_fifo = NULL;
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
 
@@ -907,6 +1057,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     if (open_input_file(info_->path, &input_format_context,
                         &input_codec_context, &audio_stream_idx, err_))
         goto cleanup;
+    input_codec_context->channel_layout = av_get_default_channel_layout(input_codec_context->channels);
 
     /* Open the output file for writing. */
     if (open_output_file(target_, input_codec_context,
@@ -917,6 +1068,13 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 	av_dict_copy(&output_format_context->metadata, input_format_context->metadata, 0);
     }
 
+#ifdef GPOD_XCODE_SWR_DEBUG
+    printf("input: file=%s  channels=%d  layout=%d  format=%s  sample_rate=%d  output: channels=%d  layout=%d  format=%s  sample_rate=%d\n",
+	    info_->path, input_codec_context->channels, input_codec_context->channel_layout, av_get_sample_fmt_name(input_codec_context->sample_fmt), input_codec_context->sample_rate,
+	    output_codec_context->channels, output_codec_context->channel_layout, av_get_sample_fmt_name(output_codec_context->sample_fmt), output_codec_context->sample_rate
+	    );
+#endif
+
     /* Initialize the resampler to be able to convert audio sample formats. */
     if (init_resampler(input_codec_context, output_codec_context,
                        &resample_context, err_))
@@ -924,6 +1082,10 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     /* Initialize the FIFO buffer to store audio samples to be encoded. */
     if (init_fifo(&fifo, output_codec_context, err_))
         goto cleanup;
+
+    if (init_fifo(&input_samples_fifo, input_codec_context, err_))
+        goto cleanup;
+
     /* Write the header of the output file container. */
     if (write_output_file_header(output_format_context, err_))
         goto cleanup;
@@ -940,21 +1102,69 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
          * Since the decoder's and the encoder's frame size may differ, we
          * need to FIFO buffer to store as many frames worth of input samples
          * that they make up at least one frame worth of output samples. */
-        while (av_audio_fifo_size(fifo) < output_frame_size) {
-            /* Decode one frame worth of audio samples, convert it to the
-             * output sample format and put it into the FIFO buffer. */
-            if (read_decode_convert_and_store(fifo, input_format_context,
-                                              input_codec_context,
-					      audio_stream_idx,
-                                              output_codec_context,
-                                              resample_context, &finished, err_))
-                goto cleanup;
+	if (output_codec_context->sample_rate == input_codec_context->sample_rate)
+	{
+	    while (av_audio_fifo_size(fifo) < output_frame_size) {
+		/* Decode one frame worth of audio samples, convert it to the
+		 * output sample format and put it into the FIFO buffer. */
+		if (read_decode_convert_and_store(fifo, input_format_context,
+			    input_codec_context,
+			    audio_stream_idx,
+			    output_codec_context,
+			    resample_context, &finished, err_))
+		    goto cleanup;
 
-            /* If we are at the end of the input file, we continue
-             * encoding the remaining audio samples to the output file. */
-            if (finished)
-                break;
-        }
+		/* If we are at the end of the input file, we continue
+		 * encoding the remaining audio samples to the output file. */
+		if (finished)
+		    break;
+	    }
+	}
+	else
+	{
+	    // sample rate conversion case
+	    /* Re: Resample frame to specified number of samples
+	     * https://ffmpeg.org/pipermail/libav-user/2017-July/010496.html
+	     * Yes, you need to buffer sufficient audio frames to feed to the encoder.
+	     *
+	     * Calculate the number of in samples:
+		    in_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, c->sample_rate) +
+		out_nb_samples,
+				    in_sample_rate, c->sample_rate, AV_ROUND_DOWN);
+
+		then allocate buffers to concatenate the in samples until you have enough
+		to pass to swr_ctx.
+	     */
+	    while (av_audio_fifo_size(input_samples_fifo) < output_frame_size) {
+		if (read_decode_and_store(input_samples_fifo,
+			    input_format_context, input_codec_context,
+			    audio_stream_idx,
+			    &finished, err_))
+		    goto cleanup;
+
+		if (finished)
+		    break;
+	    }
+#ifdef GPOD_XCODE_SWR_DEBUG
+	    printf("fifo buf can convert:  input samples=%d  frame size=%d  input frame size=%d  channels=%d  channel_layout=%d sample fmt=%s  sample rate=%d  -> output codec frame size=%d  channels=%d  layout=%d  sample format=%s  sample rate=%d  swr delay=%d  finished=%d\n", av_audio_fifo_size(input_samples_fifo),
+		    output_frame_size,
+		    input_codec_context->frame_size, input_codec_context->channels, input_codec_context->channel_layout, av_get_sample_fmt_name(input_codec_context->sample_fmt), input_codec_context->sample_rate, 
+		    output_codec_context->frame_size, output_codec_context->channels, output_codec_context->channel_layout, av_get_sample_fmt_name(output_codec_context->sample_fmt), output_codec_context->sample_rate, 
+		    swr_get_delay(resample_context, input_codec_context->sample_rate), finished);
+#endif
+
+	    while (av_audio_fifo_size(input_samples_fifo) >= output_frame_size ||
+		    (finished && av_audio_fifo_size(input_samples_fifo) > 0)) {
+		/* take all input samples and convert them before handing off to encoder
+		*/
+		if (load_convert_and_store(fifo,
+			    output_format_context, output_codec_context, output_frame_size,
+			    input_samples_fifo, input_format_context, input_codec_context,
+			    resample_context, err_))
+		    goto cleanup;
+	    }
+	}
+
 
         /* If we have enough samples for the encoder, we encode them.
          * At the end of the file, we pass the remaining samples to
@@ -993,6 +1203,8 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     ret = 0;
 
 cleanup:
+    if (input_samples_fifo)
+        av_audio_fifo_free(input_samples_fifo);
     if (fifo)
         av_audio_fifo_free(fifo);
     swr_free(&resample_context);

@@ -507,7 +507,9 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
                     audio_stream = ctx->streams[i];
 
                     info_->audio.codec_id = audio_codec_id = codec_id;
-                    info_->audio.samplerate = sample_rate;
+                    if (info_->audio.samplerate == 0) {
+			info_->audio.samplerate = sample_rate;
+		    }
                     info_->audio.bits_per_sample = 8 * av_get_bytes_per_sample(sample_fmt);
 
                     if (info_->audio.bits_per_sample == 0) {
