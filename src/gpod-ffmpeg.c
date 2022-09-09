@@ -441,7 +441,11 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         codec_id    = ctx->streams[i]->codecpar->codec_id;
         sample_rate = ctx->streams[i]->codecpar->sample_rate;
         sample_fmt  = ctx->streams[i]->codecpar->format;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+        channels    = (ctx->streams[i]->codecpar->ch_layout.nb_channels);
+#else
         channels    = ctx->streams[i]->codecpar->channels;
+#endif
         switch (codec_type)
         {
 	    case AVMEDIA_TYPE_VIDEO:

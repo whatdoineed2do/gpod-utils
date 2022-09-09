@@ -44,6 +44,9 @@
 #include <libavutil/audio_fifo.h>
 #include <libavutil/avassert.h>
 #include <libavutil/avstring.h>
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+#include <libavutil/channel_layout.h>
+#endif
 #include <libavutil/frame.h>
 #include <libavutil/opt.h>
 #include <libavutil/avutil.h>
@@ -154,6 +157,12 @@ static int open_input_file(const char *filename,
     }
 
     avctx->pkt_timebase = stream->time_base;
+
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    av_channel_layout_copy(&avctx->ch_layout, &(stream->codecpar->ch_layout));
+#else
+    avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
+#endif
 
     /* Save the decoder context for easier access later. */
     *input_codec_context = avctx;
@@ -292,8 +301,12 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     /* Set the basic encoder parameters.
      * validate the sample rate is not higher than max supported / setup for resample
      */
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    av_channel_layout_default(&avctx->ch_layout, target_->audio_opts.channels);
+#else
     avctx->channels       = target_->audio_opts.channels;
     avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
+#endif
     avctx->sample_rate    = _select_samplerate(output_codec, target_->audio_opts.samplerate ? target_->audio_opts.samplerate : input_codec_context->sample_rate);
     avctx->sample_fmt     = target_->audio_opts.samplefmt == AV_SAMPLE_FMT_NONE ? output_codec->sample_fmts[0] : target_->audio_opts.samplefmt;
     const int  quality = (int)(target_->audio_opts.quality);
@@ -411,6 +424,22 @@ static int init_resampler(AVCodecContext *input_codec_context,
          * are assumed for simplicity (they are sometimes not detected
          * properly by the demuxer and/or decoder).
          */
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+        error = swr_alloc_set_opts2(resample_context,
+                                             &output_codec_context->ch_layout,
+                                              output_codec_context->sample_fmt,
+                                              output_codec_context->sample_rate,
+                                             &input_codec_context->ch_layout,
+                                              input_codec_context->sample_fmt,
+                                              input_codec_context->sample_rate,
+                                              0, NULL);
+        if (error < 0) {
+	    char  err[1024];
+            snprintf(err, 1024,"Could not allocate resample context - %s", av_err2str(error));
+            *err_ = strdup(err);
+            return error;
+        }
+#else
         *resample_context = swr_alloc_set_opts(NULL,
                                               av_get_default_channel_layout(output_codec_context->channels),
                                               output_codec_context->sample_fmt,
@@ -419,12 +448,14 @@ static int init_resampler(AVCodecContext *input_codec_context,
                                               input_codec_context->sample_fmt,
                                               input_codec_context->sample_rate,
                                               0, NULL);
+
         if (!*resample_context) {
-        char  err[1024];
+	    char  err[1024];
             snprintf(err, 1024,"Could not allocate resample context");
             *err_ = strdup(err);
             return AVERROR(ENOMEM);
         }
+#endif
 
         /* Open the resampler with the specified parameters. */
         if ((error = swr_init(*resample_context)) < 0) {
@@ -448,7 +479,12 @@ static int init_fifo(AVAudioFifo **fifo, AVCodecContext *output_codec_context, c
 {
     /* Create the FIFO buffer based on the specified output sample format. */
     if (!(*fifo = av_audio_fifo_alloc(output_codec_context->sample_fmt,
-                                      output_codec_context->channels, 1))) {
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+				      output_codec_context->ch_layout.nb_channels,
+#else
+                                      output_codec_context->channels,
+#endif
+				      1))) {
         char  err[1024];
         snprintf(err, 1024, "Could not allocate FIFO");
         *err_ = strdup(err);
@@ -578,7 +614,12 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
      * Each pointer will later point to the audio samples of the corresponding
      * channels (although it may be NULL for interleaved formats).
      */
-    if (!(*converted_input_samples = calloc(output_codec_context->channels,
+    if (!(*converted_input_samples = calloc(
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+					    output_codec_context->ch_layout.nb_channels,
+#else
+					    output_codec_context->channels,
+#endif
                                             sizeof(**converted_input_samples)))) {
         *err_ = strdup("Could not allocate converted input sample pointers");
         return AVERROR(ENOMEM);
@@ -587,7 +628,11 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
     /* Allocate memory for the samples of all channels in one consecutive
      * block for convenience. */
     if ((error = av_samples_alloc(*converted_input_samples, NULL,
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+				  output_codec_context->ch_layout.nb_channels,
+#else
                                   output_codec_context->channels,
+#endif
                                   frame_size,
                                   output_codec_context->sample_fmt, 0)) < 0) {
         char  err[1024];
@@ -818,7 +863,11 @@ static int init_output_frame(AVFrame **frame,
      * Default channel layouts based on the number of channels
      * are assumed for simplicity. */
     (*frame)->nb_samples     = frame_size;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    av_channel_layout_copy(&(*frame)->ch_layout, &output_codec_context->ch_layout);
+#else
     (*frame)->channel_layout = output_codec_context->channel_layout;
+#endif
     (*frame)->format         = output_codec_context->sample_fmt;
     (*frame)->sample_rate    = output_codec_context->sample_rate;
 
@@ -1057,7 +1106,6 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     if (open_input_file(info_->path, &input_format_context,
                         &input_codec_context, &audio_stream_idx, err_))
         goto cleanup;
-    input_codec_context->channel_layout = av_get_default_channel_layout(input_codec_context->channels);
 
     /* Open the output file for writing. */
     if (open_output_file(target_, input_codec_context,
