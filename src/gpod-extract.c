@@ -325,6 +325,7 @@ static void  _output_name(char* dest_, unsigned avail_, enum FilenameFormat ofmt
 static void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s -M  <ipod mount point>  -o <output dir>  [-s]  [ all | <file0> ... ]\n\n"
              "    extracts all or specified files from iPod/iTunesDB and optionally syncs metadata\n"
              "\n"

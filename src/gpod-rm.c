@@ -211,6 +211,7 @@ static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ -i ] [-P] [ <file | ipod id> ... ]\n"
 	     "\n"
 	     "    Removes specified file(s) the iPod/iTunesDB\n"

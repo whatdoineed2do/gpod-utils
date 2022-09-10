@@ -97,6 +97,7 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s  OPTIONS  <file id/ipod path> [...]\n"
 	     "    -t  --title    <title>\n"
 	     "    -a  --artist   <artist>\n"

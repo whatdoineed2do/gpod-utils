@@ -157,6 +157,7 @@ static void  _cksum_q(Itdb_Track* track_, GThreadPool* cksum_tp_, const unsigned
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s -M <dir ipod mount> OPTIONS\n"
              "\n"
              "    validates the integrity of the iTunesDB (entries in iTunesDB compared to filessystem)\n"

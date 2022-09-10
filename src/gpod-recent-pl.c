@@ -38,6 +38,7 @@
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s -M <dir ipod mount> | <file iTunesDB> [-n album_limit]\n"
              "\n"
              "    creates set of playlists of recently added albums\n"

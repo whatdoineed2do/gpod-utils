@@ -416,6 +416,7 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s  OPTIONS\n"
              "\n"
              "    dumps the iTunesDB as a json object listing internal (iPod,\n"

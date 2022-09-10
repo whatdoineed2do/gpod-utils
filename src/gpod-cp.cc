@@ -597,6 +597,7 @@ void  gpod_cp_destroy()
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
+    g_print ("%s\n", PACKAGE_STRING);
     g_print ("usage: %s  [OPTIONS] <file|directory> [<file|directory> ...]\n"
 	     "\n"
              "    adds specified files to iPod/iTunesDB\n"
