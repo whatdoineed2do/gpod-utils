@@ -1,8 +1,8 @@
 /*
- * Copyright 2021 Ray whatdoineed2do at gmail com
+ * Copyright 2021-22 Ray whatdoineed2do at gmail com
  *
  * based on ffmpeg/doc/examples/transcode_aac.c
- * Copyright (c) 2013-2018 Andreas Unterweger
+ * Copyright (c) 2013-2022 Andreas Unterweger
  *
  * FFmpeg is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -156,6 +156,7 @@ static int open_input_file(const char *filename,
         return error;
     }
 
+    /* Set the packet timebase for the decoder. */
     avctx->pkt_timebase = stream->time_base;
 
 #if LIBAVCODEC_VERSION_MAJOR >= 59
@@ -228,6 +229,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     AVStream *stream               = NULL;
     const AVCodec *output_codec    = NULL;
     int error;
+    const char*  filename = target_->path;
 
     /* Find the encoder to be used by its name. */
     if (target_->audio_opts.enc_name == NULL) {
@@ -243,11 +245,11 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     }
 
     /* Open the output file to write to it. */
-    if ((error = avio_open(&output_io_context, target_->path,
+    if ((error = avio_open(&output_io_context, filename,
                            AVIO_FLAG_WRITE)) < 0) {
         char  err[1024];
         snprintf(err, 1024,"Could not open output file '%s' (error '%s')",
-                target_->path, av_err2str(error));
+                filename, av_err2str(error));
             *err_ = strdup(err);
         return error;
     }
@@ -264,7 +266,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     (*output_format_context)->pb = output_io_context;
 
     /* Guess the desired container format based on the file extension. */
-    if (!((*output_format_context)->oformat = av_guess_format(NULL, target_->path,
+    if (!((*output_format_context)->oformat = av_guess_format(NULL, filename,
                                                               NULL))) {
         char  err[1024];
         snprintf(err, 1024,"Could not find output file format");
@@ -272,7 +274,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
         goto cleanup;
     }
 
-    if (!((*output_format_context)->url = av_strdup(target_->path))) {
+    if (!((*output_format_context)->url = av_strdup(filename))) {
         char  err[1024];
         snprintf(err, 1024,"Could not allocate url.");
             *err_ = strdup(err);
@@ -322,8 +324,10 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
 	}
     }
 
+#if LIBAVCODEC_VERSION_MAJOR < 59
     /* Allow the use of the experimental AAC encoder. */
     avctx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
+#endif
 
     /* Set the sample rate for the container. */
     stream->time_base.den = avctx->sample_rate;
@@ -537,6 +541,8 @@ static int decode_audio_frame(AVFrame *frame,
     if (error < 0)
         return error;
 
+    *data_present = 0;
+    *finished = 0;
     /* Read one audio frame from the input file into a temporary packet. */
     input_packet->stream_index = -1;
     while (!*finished && input_packet->stream_index != audio_stream_idx) {
@@ -753,7 +759,7 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
     AVFrame *input_frame = NULL;
     /* Temporary storage for the converted input samples. */
     uint8_t **converted_input_samples = NULL;
-    int data_present = 0;
+    int data_present;
     int ret = AVERROR_EXIT;
 
     /* Initialize temporary storage for one input frame. */
@@ -809,7 +815,7 @@ static int read_decode_and_store(AVAudioFifo *fifo,
 				 int *finished, char** err_)
 {
     AVFrame *input_frame = NULL;
-    int data_present = 0;
+    int data_present;
     int ret = AVERROR_EXIT;
 
     if (init_input_frame(&input_frame, err_))
@@ -913,15 +919,13 @@ static int encode_audio_frame(AVFrame *frame,
         *pts += frame->nb_samples;
     }
 
+    *data_present = 0;
     /* Send the audio frame stored in the temporary packet to the encoder.
      * The output audio stream encoder is used to do this. */
     error = avcodec_send_frame(output_codec_context, frame);
-    /* The encoder signals that it has nothing more to encode. */
-    if (error == AVERROR_EOF) {
-        error = 0;
-	// this is a bug in ffmpeg's example - need this to go an drain
-        // goto cleanup;
-    } else if (error < 0) {
+    /* Check for errors, but proceed with fetching encoded samples if the
+     *  encoder signals that it has nothing more to encode. */
+    if (error < 0 && error != AVERROR_EOF) {
         char  err[1024];
         snprintf(err, 1024, "Could not send packet for encoding (error '%s')",
                 av_err2str(error));
@@ -989,7 +993,7 @@ static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, const AVFor
 
     int  nb_samples = (output_codec_context->sample_rate == input_codec_context->sample_rate) ?
 	input_frame->nb_samples :
-	av_rescale_rnd(swr_get_delay(resample_context, input_codec_context->sample_rate) + input_frame->nb_samples, output_codec_context->sample_rate, input_codec_context->sample_rate, AV_ROUND_UP);
+	av_rescale_rnd(swr_get_delay(resample_context, input_codec_context->sample_rate) + input_frame->nb_samples, output_codec_context->sample_rate, input_codec_context->sample_rate, AV_ROUND_DOWN);
 
 #ifdef GPOD_XCODE_SWR_DEBUG
     printf("load/convert  frame size=%d  -> nb_samples=%d   out ctx frame=%d\n", frame_size, input_frame->nb_samples, output_codec_context->frame_size);
@@ -1088,10 +1092,8 @@ static int write_output_file_trailer(AVFormatContext *output_format_context, cha
 
 int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcode_ctx* target_, char** err_)
 {
-    AVFormatContext  *input_format_context = NULL,
-                     *output_format_context = NULL;
-    AVCodecContext  *input_codec_context = NULL, 
-                    *output_codec_context = NULL;
+    AVFormatContext  *input_format_context = NULL, *output_format_context = NULL;
+    AVCodecContext  *input_codec_context = NULL, *output_codec_context = NULL;
     SwrContext  *resample_context = NULL;
     AVAudioFifo  *fifo = NULL;
     AVAudioFifo  *input_samples_fifo = NULL;
@@ -1231,7 +1233,6 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
             int data_written;
             /* Flush the encoder as it may have delayed frames. */
             do {
-                data_written = 0;
                 if (encode_audio_frame(NULL, output_format_context,
                                        output_codec_context, &pts, &data_written, err_))
                     goto cleanup;
