@@ -598,6 +598,16 @@ void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
     g_print ("%s\n", PACKAGE_STRING);
+    g_print ("  ffmpeg %s:\n"
+	     "    libavutil:     %d.%d.%d\n"
+	     "    libavcodec:    %d.%d.%d\n"
+	     "    libavformat:   %d.%d.%d\n"
+	     "    libswresample: %d.%d.%d\n",
+	       av_version_info(),
+	       AV_VERSION_MAJOR(avutil_version()), AV_VERSION_MINOR(avutil_version()), AV_VERSION_MICRO(avutil_version()),
+	       AV_VERSION_MAJOR(avcodec_version()), AV_VERSION_MINOR(avcodec_version()), AV_VERSION_MICRO(avcodec_version()),
+	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
+	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
     g_print ("usage: %s  [OPTIONS] <file|directory> [<file|directory> ...]\n"
 	     "\n"
              "    adds specified files to iPod/iTunesDB\n"
