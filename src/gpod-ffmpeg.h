@@ -21,6 +21,9 @@ extern "C" {
 #include <stdbool.h>
 
 #include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libswresample/swresample.h>
 #ifndef GPOD_FF_STANDALONE
 #include <gpod/itdb.h>
 #endif
