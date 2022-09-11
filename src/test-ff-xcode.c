@@ -115,7 +115,20 @@ int main(int argc, char* argv[])
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
     strcpy(mi.path, path);
-    printf("testing xcode with %s\n", mi.path);
+
+
+    printf("testing xcode with %s\n"
+           "  ffmpeg %s:\n"
+	   "    libavutil:     %d.%d.%d\n"
+	   "    libavcodec:    %d.%d.%d\n"
+	   "    libavformat:   %d.%d.%d\n"
+	   "    libswresample: %d.%d.%d\n",
+	       mi.path,
+	       av_version_info(),
+	       AV_VERSION_MAJOR(avutil_version()), AV_VERSION_MINOR(avutil_version()), AV_VERSION_MICRO(avutil_version()),
+	       AV_VERSION_MAJOR(avcodec_version()), AV_VERSION_MINOR(avcodec_version()), AV_VERSION_MICRO(avcodec_version()),
+	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
+	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
 
     struct gpod_ff_transcode_ctx  xcode;
     char*  err;
