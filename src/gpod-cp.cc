@@ -732,11 +732,19 @@ int main (int argc, char *argv[])
 
 	    case 'q':
 	    {
-		const unsigned  q = (unsigned)atol(optarg);
-	        if (q <= GPOD_FF_XCODE_VBR_MAX) {
-		    opts.xcode_quality = (enum gpod_ff_transcode_quality)q;
+		const char*  arg = optarg;
+		while (*arg && *arg >= 'A' && *arg <= 'z') {
+		    ++arg;
 		}
-		else {
+		const unsigned  q = *arg ? (unsigned)atol(arg) : 0;
+
+		if (strncasecmp(optarg, "vbr", 3) == 0) {
+		    if (q <= GPOD_FF_XCODE_VBR_MAX) {
+			opts.xcode_quality = (enum gpod_ff_transcode_quality)q;
+		    }
+		}
+
+		if (strncasecmp(optarg, "cbr", 3) == 0) {
 		    switch (q) {
 			case 96:   opts.xcode_quality = GPOD_FF_XCODE_CBR96  ; break;
 			case 128:  opts.xcode_quality = GPOD_FF_XCODE_CBR128 ; break;
