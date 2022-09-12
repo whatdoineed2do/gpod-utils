@@ -718,14 +718,22 @@ int main (int argc, char *argv[])
 		    opts.enc = GPOD_FF_ENC_ALAC;
 		    opts.xcode_quality = GPOD_FF_XCODE_MAX;
 		}
-                else if (strcasecmp(optarg, "aac-broken") == 0)  opts.enc = GPOD_FF_ENC_AAC;
-                else                                      opts.enc = GPOD_FF_ENC_MAX;
+                else if (strcasecmp(optarg, "aac-ffmpeg") == 0)
+		{
+		    // ffmpeg website notes aac VBR is (still??) experimental and worse than CBR
+		    // default to cb
+		    opts.enc = GPOD_FF_ENC_AAC;
+		    opts.xcode_quality = GPOD_FF_XCODE_CBR256;
+		}
+                else {
+		    opts.enc = GPOD_FF_ENC_MAX;
+		}
             } break;
 
 	    case 'q':
 	    {
 		const unsigned  q = (unsigned)atol(optarg);
-	        if (q < 10) {
+	        if (q <= GPOD_FF_XCODE_VBR_MAX) {
 		    opts.xcode_quality = (enum gpod_ff_transcode_quality)q;
 		}
 		else {
