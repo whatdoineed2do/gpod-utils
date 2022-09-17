@@ -44,7 +44,7 @@
 #include <libavutil/audio_fifo.h>
 #include <libavutil/avassert.h>
 #include <libavutil/avstring.h>
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
 #include <libavutil/channel_layout.h>
 #endif
 #include <libavutil/frame.h>
@@ -159,7 +159,7 @@ static int open_input_file(const char *filename,
     /* Set the packet timebase for the decoder. */
     avctx->pkt_timebase = stream->time_base;
 
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
     av_channel_layout_copy(&avctx->ch_layout, &(stream->codecpar->ch_layout));
 #else
     avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
@@ -303,7 +303,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     /* Set the basic encoder parameters.
      * validate the sample rate is not higher than max supported / setup for resample
      */
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
     av_channel_layout_default(&avctx->ch_layout, target_->audio_opts.channels);
 #else
     avctx->channels       = target_->audio_opts.channels;
@@ -324,7 +324,7 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
 	}
     }
 
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
     /* Allow the use of the experimental AAC encoder. */
     avctx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
 #endif
@@ -428,7 +428,7 @@ static int init_resampler(AVCodecContext *input_codec_context,
          * are assumed for simplicity (they are sometimes not detected
          * properly by the demuxer and/or decoder).
          */
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
         error = swr_alloc_set_opts2(resample_context,
                                              &output_codec_context->ch_layout,
                                               output_codec_context->sample_fmt,
@@ -483,7 +483,7 @@ static int init_fifo(AVAudioFifo **fifo, AVCodecContext *output_codec_context, c
 {
     /* Create the FIFO buffer based on the specified output sample format. */
     if (!(*fifo = av_audio_fifo_alloc(output_codec_context->sample_fmt,
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
 				      output_codec_context->ch_layout.nb_channels,
 #else
                                       output_codec_context->channels,
@@ -621,7 +621,7 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
      * channels (although it may be NULL for interleaved formats).
      */
     if (!(*converted_input_samples = calloc(
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
 					    output_codec_context->ch_layout.nb_channels,
 #else
 					    output_codec_context->channels,
@@ -634,7 +634,7 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
     /* Allocate memory for the samples of all channels in one consecutive
      * block for convenience. */
     if ((error = av_samples_alloc(*converted_input_samples, NULL,
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
 				  output_codec_context->ch_layout.nb_channels,
 #else
                                   output_codec_context->channels,
@@ -869,7 +869,7 @@ static int init_output_frame(AVFrame **frame,
      * Default channel layouts based on the number of channels
      * are assumed for simplicity. */
     (*frame)->nb_samples     = frame_size;
-#ifdef FF_API_OLD_CHANNEL_LAYOUT
+#ifdef HAVE_FF5_CH_LAYOUT
     av_channel_layout_copy(&(*frame)->ch_layout, &output_codec_context->ch_layout);
 #else
     (*frame)->channel_layout = output_codec_context->channel_layout;
