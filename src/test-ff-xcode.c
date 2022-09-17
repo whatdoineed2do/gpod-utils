@@ -9,6 +9,9 @@
 #include "gpod-ffmpeg.h"
 #include "test-ff-wav.h"
 #include <libavutil/log.h>
+#include <libavutil/error.h>
+#include <libavutil/hash.h>
+#include <libavformat/avformat.h>
 
 
 char  path[PATH_MAX] = { 0 };
@@ -29,6 +32,135 @@ int _generate_sample()
 
     strcpy(path, TEST_FF_XCODE_WAV_SAMPLE);
     return 0;
+}
+
+static char* ff_hash_fin(struct AVHashContext*  hash_ctx_, bool want_b64_)
+{
+    char  res[2 * AV_HASH_MAX_SIZE + 4] = { 0 };
+
+    if (want_b64_) {
+        av_hash_final_b64(hash_ctx_, res, sizeof(res));
+    } else {
+        av_hash_final_hex(hash_ctx_, res, sizeof(res));
+    }
+
+    return strdup(res);
+}
+
+
+int  ff_hash(char** hash_, const char* file_)
+{
+    AVFormatContext *ctx = NULL;
+    const AVCodec *codec = NULL;
+    AVCodecContext *codec_ctx = NULL;
+    AVPacket *pkt = NULL;
+    AVFrame  *frame = NULL;
+    int64_t pktnum  = 0;
+    int err;
+    int audio_stream_idx = -1;
+    int ret = -1;
+    bool  has_finished;
+
+    struct AVHashContext *hash;
+
+    err = avformat_open_input(&ctx, file_, NULL, NULL);
+    if (err < 0) {
+        fprintf(stderr, "cannot open input '%s' - %s\n", av_err2str(err));
+        goto cleanup;
+    }
+
+    err = avformat_find_stream_info(ctx, NULL);
+    if (err < 0) {
+        fprintf(stderr, "failed to find stream - %s\n", av_err2str(err));
+        goto cleanup;
+    }
+
+    for (int i=0; i<ctx->nb_streams; ++i)
+    {
+        if (ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            audio_stream_idx = i;
+            break;
+        }
+    }
+
+    if (audio_stream_idx < 0) {
+        fprintf(stderr, "invalid stream on input\n");
+	goto cleanup;
+    }
+
+    codec = avcodec_find_decoder(ctx->streams[audio_stream_idx]->codecpar->codec_id);
+    if (!codec) {
+        fprintf(stderr, "failed to find decoding context\n");
+        goto cleanup;
+    }
+    codec_ctx = avcodec_alloc_context3(codec);
+    avcodec_parameters_to_context(codec_ctx, ctx->streams[audio_stream_idx]->codecpar);
+
+    err = avcodec_open2(codec_ctx, codec, NULL);
+    if (err < 0) {
+        fprintf(stderr, "failed to find decoding context\n");
+        goto cleanup;
+    }
+
+    pkt = av_packet_alloc();
+    if (!pkt) {
+        fprintf(stderr, "failed to alloc pkt\n");
+        goto cleanup;
+    }
+
+    frame = av_frame_alloc();
+
+    err = av_hash_alloc(&hash, "sha256");
+    if (err < 0) {
+        fprintf(stderr, "failed to alloc hash - %s\n", err == EINVAL ? "unknown hash" : strerror(err));
+        goto cleanup;
+    }
+    av_hash_init(hash);
+
+    has_finished = false;
+    while (!has_finished) 
+    {
+	while ((err = av_read_frame(ctx, pkt)) >= 0)
+	{
+	    if (pkt->stream_index != audio_stream_idx) {
+		av_packet_unref(pkt);
+		continue;
+	    }
+
+	    // ask decoder for an uncompressed audio frame
+	    avcodec_send_packet(codec_ctx, pkt);
+
+	    err = avcodec_receive_frame(codec_ctx, frame);
+	    break;
+	}
+	if (err == AVERROR(EAGAIN)) {
+	    av_packet_unref(pkt);
+	    continue;
+	}
+
+	if (err == AVERROR_EOF) {
+	    has_finished = true;
+	}
+	else {
+	    fprintf(stderr, ".");
+	    av_hash_update(hash, pkt->data, pkt->size);
+	    av_packet_unref(pkt);
+	    av_frame_unref(frame);
+	    pktnum++;
+	}
+    }
+
+    *hash_ = ff_hash_fin(hash, false);
+    ret = 0;
+
+cleanup:
+    if (pkt)        av_packet_free(&pkt);
+    if (frame)      av_frame_free(&frame);
+    if (ctx)      { avformat_close_input(&ctx); avformat_close_input(&ctx); }
+    if (codec_ctx)  avcodec_free_context(&codec_ctx);
+    if (hash)       av_hash_freep(&hash);
+
+    return ret;
 }
 
 
@@ -154,6 +286,12 @@ int main(int argc, char* argv[])
 		    fprintf(stderr, "failed xcode '%s' - %s\n", xcode.path, err);
 		    free(err);
 		}
+	    }
+	    else {
+		char*  hash = NULL;
+		int  ret = ff_hash(&hash, xcode.path);
+		printf(" audio hash=%s\n", ret < 0 ? "n/a" : hash);
+		free(hash);
 	    }
 	    putchar('\n');
 	}
