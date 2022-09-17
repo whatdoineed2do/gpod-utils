@@ -41,6 +41,9 @@ PKG_CHECK_MODULES(FFMPEG, libavformat >= 58.20.100 libavcodec >= 58.35.100 libav
 if test x"$have_ffmpeg" = xyes; then
    AH_TEMPLATE([HAVE_FFMPEG], [ffmpeg for autoformat conversion])
    AC_DEFINE_UNQUOTED(HAVE_FFMPEG, 1)
+   PKG_CHECK_EXISTS([libavcodec >= 59.24.100],
+		    [AC_DEFINE([HAVE_FF5_CH_LAYOUT], 1,
+			       [Defined if ffmpeg/libavcodec defines new 5.1.x ch_layout])])
 fi
 AC_SUBST(FFMPEG_CFLAGS)
 AC_SUBST(FFMPEG_LIBS)

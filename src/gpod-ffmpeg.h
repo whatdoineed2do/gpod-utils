@@ -28,11 +28,6 @@ extern "C" {
 #include <gpod/itdb.h>
 #endif
 
-#if LIBAVCODEC_VERSION_MAJOR >= 59 && LIBAVCODEC_VERSION_MINOR >= 24
-#define HAVE_FF5_CH_LAYOUT
-#endif
-
-
 struct gpod_ff_meta {
     bool  has_meta;
     char *title;
