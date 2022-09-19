@@ -31,8 +31,13 @@ gpod_tag_SOURCES = gpod-tag.c
 gpod_recent_pl_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS)
 gpod_recent_pl_SOURCES = gpod-recent-pl.c
 
+gpod_hashsum_CFLAGS = ${AM_CFLAGS}
 gpod_hashsum_LDFLAGS =  $(GLIB_LIBS) $(GPOD_LIBS)
 gpod_hashsum_SOURCES = gpod-hashsum.c
+if HAVE_FFMPEG
+gpod_hashsum_CFLAGS +=  $(FFMPEG_CFLAGS)
+gpod_hashsum_LDFLAGS +=  $(FFMPEG_LDFLAGS) -lavformat -lavutil -lavcodec
+endif
 
 
 
