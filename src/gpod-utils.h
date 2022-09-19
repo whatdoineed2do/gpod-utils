@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <glib.h>
 #include <gpod/itdb.h>
@@ -53,6 +54,8 @@ void   gpod_bytes_to_human(char* buf_, unsigned bufsz_, size_t  bytes_, bool wra
 // mountpoint is alternative
 guint  gpod_hash(const Itdb_Track* track_);
 guint  gpod_hash_file(const char* track_);
+
+uint32_t  gpod_djbhash(const char* str_);
 
 struct gpod_hash_digest {
     guint  hash;
