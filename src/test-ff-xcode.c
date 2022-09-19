@@ -34,34 +34,18 @@ int _generate_sample()
     return 0;
 }
 
-static char* ff_hash_fin(struct AVHashContext*  hash_ctx_, bool want_b64_)
-{
-    char  res[2 * AV_HASH_MAX_SIZE + 4] = { 0 };
 
-    if (want_b64_) {
-        av_hash_final_b64(hash_ctx_, res, sizeof(res));
-    } else {
-        av_hash_final_hex(hash_ctx_, res, sizeof(res));
-    }
-
-    return strdup(res);
-}
-
-
-int  ff_hash(char** hash_, const char* file_)
+int  gpod_ff_audio_hash(char** hash_, const char* file_)
 {
     AVFormatContext *ctx = NULL;
-    const AVCodec *codec = NULL;
-    AVCodecContext *codec_ctx = NULL;
     AVPacket *pkt = NULL;
-    AVFrame  *frame = NULL;
     int64_t pktnum  = 0;
     int err;
     int audio_stream_idx = -1;
-    int ret = -1;
-    bool  has_finished;
 
     struct AVHashContext *hash;
+
+    *hash_ = NULL;
 
     err = avformat_open_input(&ctx, file_, NULL, NULL);
     if (err < 0) {
@@ -88,79 +72,48 @@ int  ff_hash(char** hash_, const char* file_)
 	goto cleanup;
     }
 
-    codec = avcodec_find_decoder(ctx->streams[audio_stream_idx]->codecpar->codec_id);
-    if (!codec) {
-        fprintf(stderr, "failed to find decoding context\n");
-        goto cleanup;
-    }
-    codec_ctx = avcodec_alloc_context3(codec);
-    avcodec_parameters_to_context(codec_ctx, ctx->streams[audio_stream_idx]->codecpar);
-
-    err = avcodec_open2(codec_ctx, codec, NULL);
-    if (err < 0) {
-        fprintf(stderr, "failed to find decoding context\n");
-        goto cleanup;
-    }
-
     pkt = av_packet_alloc();
     if (!pkt) {
         fprintf(stderr, "failed to alloc pkt\n");
+	err = ENOMEM;
         goto cleanup;
     }
-
-    frame = av_frame_alloc();
 
     err = av_hash_alloc(&hash, "sha256");
     if (err < 0) {
         fprintf(stderr, "failed to alloc hash - %s\n", err == EINVAL ? "unknown hash" : strerror(err));
+	if (err != EINVAL)  {
+	    err = ENOMEM;
+	}
         goto cleanup;
     }
     av_hash_init(hash);
 
-    has_finished = false;
-    while (!has_finished) 
+    while ((err = av_read_frame(ctx, pkt)) >= 0)
     {
-	while ((err = av_read_frame(ctx, pkt)) >= 0)
-	{
-	    if (pkt->stream_index != audio_stream_idx) {
-		av_packet_unref(pkt);
-		continue;
-	    }
-
-	    // ask decoder for an uncompressed audio frame
-	    avcodec_send_packet(codec_ctx, pkt);
-
-	    err = avcodec_receive_frame(codec_ctx, frame);
-	    break;
-	}
-	if (err == AVERROR(EAGAIN)) {
+	if (pkt->stream_index != audio_stream_idx) {
 	    av_packet_unref(pkt);
 	    continue;
 	}
 
-	if (err == AVERROR_EOF) {
-	    has_finished = true;
-	}
-	else {
-	    fprintf(stderr, ".");
-	    av_hash_update(hash, pkt->data, pkt->size);
-	    av_packet_unref(pkt);
-	    av_frame_unref(frame);
-	    pktnum++;
-	}
+	av_hash_update(hash, pkt->data, pkt->size);
+	av_packet_unref(pkt);
+	pktnum++;
     }
 
-    *hash_ = ff_hash_fin(hash, false);
-    ret = 0;
+    char  res[2 * AV_HASH_MAX_SIZE + 4] = { 0 };
+    av_hash_final_hex(hash, res, sizeof(res));
+
+    *hash_ = strdup(res);
+
+    err = 0;
 
 cleanup:
-    if (pkt)        av_packet_free(&pkt);
-    if (frame)      av_frame_free(&frame);
-    if (ctx)      { avformat_close_input(&ctx); avformat_close_input(&ctx); }
-    if (codec_ctx)  avcodec_free_context(&codec_ctx);
-    if (hash)       av_hash_freep(&hash);
+    if (pkt)   av_packet_free(&pkt);
+    if (ctx) { avformat_close_input(&ctx); avformat_close_input(&ctx); }
+    if (hash)  av_hash_freep(&hash);
 
-    return ret;
+    return err;
 }
 
 
@@ -262,6 +215,11 @@ int main(int argc, char* argv[])
 	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
 	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
 
+    char*  hash = NULL;
+    int  ret = gpod_ff_audio_hash(&hash, path);
+    printf("original %' 33s..  audio hash %s\n", path, ret < 0 ? "n/a" : hash);
+    free(hash);
+
     struct gpod_ff_transcode_ctx  xcode;
     char*  err;
 
@@ -279,7 +237,7 @@ int main(int argc, char* argv[])
 
 	    ++p;
 
-	    printf("xcoding %s.. ", xcode.path);
+	    printf("xcoding  %' 33s.. ", xcode.path);
 	    fflush(stdout);
 	    if (gpod_ff_transcode(&mi, &xcode, &err) < 0) {
 		if (err) {
@@ -288,9 +246,8 @@ int main(int argc, char* argv[])
 		}
 	    }
 	    else {
-		char*  hash = NULL;
-		int  ret = ff_hash(&hash, xcode.path);
-		printf(" audio hash=%s\n", ret < 0 ? "n/a" : hash);
+		ret = gpod_ff_audio_hash(&hash, xcode.path);
+		printf(" audio hash %s", ret < 0 ? "n/a" : hash);
 		free(hash);
 	    }
 	    putchar('\n');
