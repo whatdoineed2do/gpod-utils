@@ -6,9 +6,7 @@
 #include <inttypes.h>
 
 #include <gpod-utils.h>
-#ifdef HAVE_FFMPEG
 #include <gpod-ffmpeg.h>
-#endif
 
 
 int main(int argc, char* argv[])
@@ -20,9 +18,7 @@ int main(int argc, char* argv[])
 	return -1;
     }
 
-#ifdef HAVE_FFMPEG
     gpod_ff_init();
-#endif
 
     struct gpod_hash_digest  res;
     int  ret;
@@ -34,12 +30,8 @@ int main(int argc, char* argv[])
 	memset(&res, 0, sizeof(res));
 
 	ret = gpod_hash_digest_file(&res, path);
-#ifdef HAVE_FFMPEG
 	gpod_ff_audio_hash(&streamhash, path);
 	printf("%-11" PRIu64 "  %s   %-11" PRIu32 " %s %s\n", ret == 0 ? res.hash : 0, ret == 0 ? res.digest : "", streamhash ? gpod_djbhash(streamhash) : 0, streamhash ? streamhash : "", path);
-#else
-	printf("%-11" PRIu64 "  %s  %s\n", ret == 0 ? res.hash : 0, ret == 0 ? res.digest : "", path);
-#endif
 	free(streamhash);
     }
 
