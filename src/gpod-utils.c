@@ -33,6 +33,7 @@
 #include <gpod/itdb.h>
 
 #include "sha1.h"
+#include "gpod-ffmpeg.h"
 
 
 const char*  gpod_setlocale()
@@ -248,11 +249,12 @@ int  gpod_hash_digest_file(struct gpod_hash_digest* res_, const char* path_)
 
 guint  gpod_hash_file(const char* path_)
 {
-    struct gpod_hash_digest  res = { 0 };
-    int  ret;
+    char*  streamhash = NULL;
+    gpod_ff_audio_hash(&streamhash, path_);
+    guint  ret = gpod_djbhash(streamhash);
+    free(streamhash);
 
-    ret = gpod_hash_digest_file(&res, path_);
-    return ret == 0 ? res.hash : 0;
+    return ret;
 }
 
 void   gpod_store_cksum(Itdb_Track* track_, const char* file_)
