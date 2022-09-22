@@ -276,7 +276,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     const bool  dupl = opts.cksum && _track_exists(track, tfsh_, xfrm_->path[0] ? xfrm_->path : path_);
 
     if (dupl) {
-        gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path= *** DUPL *** }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+        gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path= *** DUPL %lu *** }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", gpod_saved_cksum(track));
         itdb_track_free(*track_);
         *track_ = NULL;
     }
