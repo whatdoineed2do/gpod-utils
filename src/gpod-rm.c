@@ -117,9 +117,9 @@ static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* tr
     strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
     if (!_remove_confirm(interactv_, 
-            "[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)", 
+            "[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)  cksum=%ld", 
 	    current_, N_,
-	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt)) {
+	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt), gpod_saved_cksum(track_)) {
 	return;
     }
 
