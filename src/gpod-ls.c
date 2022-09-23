@@ -99,9 +99,9 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
   int  n = 5;
   while (n--) 
   {
-      if (sqlite3_prepare_v2(hdl_, query, -1, &stmt, NULL) != SQLITE_OK) {
+      if ( (ret = sqlite3_prepare_v2(hdl_, query, -1, &stmt, NULL)) != SQLITE_OK) {
           sqlite3_free(query);
-          g_printerr("failed to prepare DB query - %s\n", sqlite3_errmsg(hdl_));
+          g_printerr("failed to prepare DB query - %s (%s)\n", sqlite3_errmsg(hdl_), sqlite3_errstr(ret));
           return false;
       }
 
@@ -117,7 +117,7 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
     sqlite3_free(err);
     sqlite3_free(query);
     if (ret != SQLITE_OK) {
-        g_printerr("failed to insert data %d - %s\n", ret, sqlite3_errmsg(hdl_));
+        g_printerr("failed to insert data - %s (%s)\n", sqlite3_errmsg(hdl_), sqlite3_errstr(ret));
         return false;
     }
     return true;
