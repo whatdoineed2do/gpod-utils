@@ -166,7 +166,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 
 /* On success, returns 0 and hash_ is non-NULL and must be freeed
  */
-int  gpod_ff_audio_hash(char** hash_, const char* file_);
+int  gpod_ff_audio_hash(char** hash_, const char* file_, char** err_);
 
 void  gpod_ff_init();
 

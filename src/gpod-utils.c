@@ -249,10 +249,12 @@ int  gpod_hash_digest_file(struct gpod_hash_digest* res_, const char* path_)
 
 guint  gpod_hash_file(const char* path_)
 {
+    char*  err = NULL;
     char*  streamhash = NULL;
-    gpod_ff_audio_hash(&streamhash, path_);
+    gpod_ff_audio_hash(&streamhash, path_, &err);
     guint  ret = gpod_djbhash(streamhash);
     free(streamhash);
+    free(err);
 
     return ret;
 }

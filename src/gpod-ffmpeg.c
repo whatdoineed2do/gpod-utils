@@ -829,54 +829,58 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
 }
 
 
-int  gpod_ff_audio_hash(char** hash_, const char* file_)
+int  gpod_ff_audio_hash(char** hash_, const char* file_, char** err_)
 {
     AVFormatContext *ctx = NULL;
     AVPacket *pkt = NULL;
     int64_t pktnum  = 0;
-    int err;
+    int ret;
     int audio_stream_idx = -1;
+    char  err[1024];
 
     struct AVHashContext *hash;
 
     *hash_ = NULL;
 
-    err = avformat_open_input(&ctx, file_, NULL, NULL);
-    if (err < 0) {
-        fprintf(stderr, "cannot open input '%s' - %s\n", av_err2str(err));
+    ret = avformat_open_input(&ctx, file_, NULL, NULL);
+    if (ret < 0) {
+        snprintf(err, sizeof(err), "unable to open input '%s' - %s", av_err2str(ret));
+        *err_ = strdup(err);
         goto cleanup;
     }
 
-    err = avformat_find_stream_info(ctx, NULL);
-    if (err < 0) {
-        fprintf(stderr, "failed to find stream - %s\n", av_err2str(err));
+    ret = avformat_find_stream_info(ctx, NULL);
+    if (ret < 0) {
+        snprintf(err, sizeof(err), "unable to find streams - %s", av_err2str(ret));
+        *err_ = strdup(err);
         goto cleanup;
     }
 
     audio_stream_idx = av_find_best_stream(ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
     if (audio_stream_idx < 0) {
-        fprintf(stderr, "invalid stream on input\n");
+        *err_ = strdup("unable to find audio stream");
 	goto cleanup;
     }
 
     pkt = av_packet_alloc();
     if (!pkt) {
-        fprintf(stderr, "failed to alloc pkt\n");
-	err = ENOMEM;
+        *err_ = strdup("unable to alloc pkt");
+	ret = ENOMEM;
         goto cleanup;
     }
 
-    err = av_hash_alloc(&hash, "sha256");
-    if (err < 0) {
-        fprintf(stderr, "failed to alloc hash - %s\n", err == EINVAL ? "unknown hash" : strerror(err));
-	if (err != EINVAL)  {
-	    err = ENOMEM;
+    ret = av_hash_alloc(&hash, "sha256");
+    if (ret < 0) {
+        snprintf(err, sizeof(err), "failed to alloc hash - %s\n", ret == EINVAL ? "unknown hash" : strerror(ret));
+        *err_ = strdup(err);
+	if (ret != EINVAL)  {
+	    ret = ENOMEM;
 	}
         goto cleanup;
     }
     av_hash_init(hash);
 
-    while ((err = av_read_frame(ctx, pkt)) >= 0)
+    while ((ret = av_read_frame(ctx, pkt)) >= 0)
     {
 	if (pkt->stream_index != audio_stream_idx) {
 	    av_packet_unref(pkt);
@@ -893,14 +897,14 @@ int  gpod_ff_audio_hash(char** hash_, const char* file_)
 
     *hash_ = strdup(res);
 
-    err = 0;
+    ret = 0;
 
 cleanup:
     if (pkt)   av_packet_free(&pkt);
     if (ctx) { avformat_close_input(&ctx); avformat_close_input(&ctx); }
     if (hash)  av_hash_freep(&hash);
 
-    return err;
+    return ret;
 }
 
 
