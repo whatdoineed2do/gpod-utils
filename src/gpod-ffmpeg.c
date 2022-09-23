@@ -838,7 +838,7 @@ int  gpod_ff_audio_hash(char** hash_, const char* file_, char** err_)
     int audio_stream_idx = -1;
     char  err[1024];
 
-    struct AVHashContext *hash;
+    struct AVHashContext *hash = NULL;
 
     *hash_ = NULL;
 
