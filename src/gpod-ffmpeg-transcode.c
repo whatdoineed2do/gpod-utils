@@ -73,7 +73,6 @@ static int open_input_file(const char *filename,
     const AVCodec *input_codec;
     const AVStream *stream;
     int error;
-    int  i;
 
     /* Open the input file to read from it. */
     if ((error = avformat_open_input(input_format_context, filename, NULL,
@@ -97,15 +96,7 @@ static int open_input_file(const char *filename,
     }
 
     /* Make sure that there is an audio stream in the input file. */
-    *audio_stream_idx = -1;
-    for (i=0; i<(*input_format_context)->nb_streams; ++i)
-    {
-	if ((*input_format_context)->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-	    *audio_stream_idx = i;
-	    break;
-	}
-    }
-
+    *audio_stream_idx = av_find_best_stream(*input_format_context, AVMEDIA_TYPE_AUDIO, -1, -1, &input_codec, 0);
     if (*audio_stream_idx < 0)
     {
         char  err[1024];
@@ -117,15 +108,6 @@ static int open_input_file(const char *filename,
     }
 
     stream = (*input_format_context)->streams[*audio_stream_idx];
-
-    /* Find a decoder for the audio stream. */
-    if (!(input_codec = avcodec_find_decoder(stream->codecpar->codec_id))) {
-        char  err[1024];
-        snprintf(err, 1024,"Could not find input codec");
-            *err_ = strdup(err);
-        avformat_close_input(input_format_context);
-        return AVERROR_EXIT;
-    }
 
     /* Allocate a new decoding context. */
     avctx = avcodec_alloc_context3(input_codec);

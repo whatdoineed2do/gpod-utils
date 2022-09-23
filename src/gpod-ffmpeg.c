@@ -853,14 +853,7 @@ int  gpod_ff_audio_hash(char** hash_, const char* file_)
         goto cleanup;
     }
 
-    for (int i=0; i<ctx->nb_streams; ++i)
-    {
-        if (ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-            audio_stream_idx = i;
-            break;
-        }
-    }
-
+    audio_stream_idx = av_find_best_stream(ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
     if (audio_stream_idx < 0) {
         fprintf(stderr, "invalid stream on input\n");
 	goto cleanup;
