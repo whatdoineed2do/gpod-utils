@@ -69,7 +69,25 @@
     "  samplecount  INTEGER DEFAULT -1," \
     "  season_nr  INTEGER DEFAULT -1," \
     "  episode_nr  INTEGER DEFAULT -1," \
-    "  checksum INTEGER DEFAULT 0" \
+    "  checksum INTEGER DEFAULT 0," \
+    \
+    "  unk126 INTEGER DEFAULT -1," \
+    "  unk132 INTEGER DEFAULT -1," \
+    "  unk144 INTEGER DEFAULT -1," \
+    "  unk148 INTEGER DEFAULT -1," \
+    "  unk152 INTEGER DEFAULT -1," \
+    "  unk179 INTEGER DEFAULT -1," \
+    "  unk180 INTEGER DEFAULT -1," \
+    "  unk196 INTEGER DEFAULT -1," \
+    "  unk204 INTEGER DEFAULT -1," \
+    "  unk220 INTEGER DEFAULT -1," \
+    "  unk224 INTEGER DEFAULT -1," \
+    "  unk228 INTEGER DEFAULT -1," \
+    "  unk232 INTEGER DEFAULT -1," \
+    "  unk236 INTEGER DEFAULT -1," \
+    "  unk240 INTEGER DEFAULT -1," \
+    "  unk244 INTEGER DEFAULT -1," \
+    "  unk252 INTEGER DEFAULT -1"  \
     ");"
 
 #define QUERY_IDX \
