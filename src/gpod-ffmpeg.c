@@ -57,7 +57,7 @@ void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_)
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_)
 {
     memset(obj_, 0, sizeof(struct gpod_ff_media_info));
-    obj_->type = obj_->codectype = obj_->description = "unknown";
+    obj_->type = obj_->description = "unknown";
 }
 
 
@@ -623,37 +623,31 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         switch (audio_codec_id)
         {
             case AV_CODEC_ID_MP3:
-                info_->codectype = "mpeg";
                 info_->supported_ipod_fmt = true;
 
                 extra_md_map = md_map_id3;
                 break;
 
             case AV_CODEC_ID_AAC:
-                info_->codectype = "mp4a";
                 info_->supported_ipod_fmt = true;
                 break;
 
             case AV_CODEC_ID_ALAC:
-                info_->codectype = "alac";
                 info_->supported_ipod_fmt = true;
                 break;
 
     // this block of types will needs transcoding to go onto iPod
 
             case AV_CODEC_ID_FLAC:
-                info_->codectype = "flac";
 
                 extra_md_map = md_map_vorbis;
                 break;
 
 
             case AV_CODEC_ID_APE:
-                info_->codectype = "ape";
                 break;
 
             case AV_CODEC_ID_VORBIS:
-                info_->codectype = "ogg";
 
                 extra_md_map = md_map_vorbis;
                 break;
@@ -661,29 +655,24 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
             case AV_CODEC_ID_WMAV1:
             case AV_CODEC_ID_WMAV2:
             case AV_CODEC_ID_WMAVOICE:
-                info_->codectype = "wmav";
                 break;
 
             case AV_CODEC_ID_WMAPRO:
-                info_->codectype = "wma";
                 break;
 
             case AV_CODEC_ID_WMALOSSLESS:
-                info_->codectype = "wmal";
                 break;
 
             case AV_CODEC_ID_PCM_S16LE ... AV_CODEC_ID_PCM_F64LE:
                 if (strcmp(ctx->iformat->name, "aiff") == 0)
                 {
                     info_->type = "aif";
-                    info_->codectype = "aif";
                     info_->description = "AIFF audio";
                     break;
                 }
                 else if (strcmp(ctx->iformat->name, "wav") == 0)
                 {
                     info_->type = "wav";
-                    info_->codectype = "wav";
                     info_->description = "WAV audio";
                     break;
                 }
@@ -694,7 +683,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 
             default:
                 info_->type = "unkn";
-                info_->codectype = "unkn";
                 info_->description = "Unknown audio format";
                 break;
         }

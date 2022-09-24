@@ -84,7 +84,6 @@ struct gpod_ff_media_info
     int64_t  file_size;
 
     const char*  type;  // m4a, mp3...
-    const char*  codectype;  // alac...
     const char*  description;
 
     bool  has_video; // is video file
