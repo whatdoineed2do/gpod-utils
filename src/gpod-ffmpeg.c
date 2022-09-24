@@ -714,13 +714,7 @@ static char* sortname(const char* name_)
         *s && toupper(*s++) == 'E' &&
         *s && *s++ == ' ')
     {
-#if 0
-	char*  sorted_name = g_malloc(strlen(s) + 6);
-	sprintf(sorted_name, "%s, %c%c%c", s, name_[0], name_[1], name_[2]);
-	return sorted_name;
-#else
 	return g_strdup(s);
-#endif
     }
 
     return NULL;
