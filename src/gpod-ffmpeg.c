@@ -702,31 +702,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 }
 
 
-static char* sortname(const char* name_)
-{
-    const char*  s = name_;
-    if (s == NULL) {
-	return NULL;
-    }
-
-    if (*s && toupper(*s++) == 'T' &&
-        *s && toupper(*s++) == 'H' &&
-        *s && toupper(*s++) == 'E' &&
-        *s && *s++ == ' ' && *s)
-    {
-	while (isspace(*s)) {
-	    ++s;
-	}
-
-	if (*s) {
-	    return g_strdup(s);
-	}
-    }
-
-    return NULL;
-}
-
-
 Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_t time_added_, bool sanitize_)
 {
     if (!meta_->supported_ipod_fmt) {
@@ -753,11 +728,11 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->track_nr = meta_->meta.track;
     track->year = meta_->meta.year;
 
-    track->sort_artist      = sortname(track->artist);
-    track->sort_title       = sortname(track->title);
-    track->sort_album       = sortname(track->album);
-    track->sort_albumartist = sortname(track->albumartist);
-    track->sort_composer    = sortname(track->composer);
+    track->sort_artist      = gpod_sortname(track->artist);
+    track->sort_title       = gpod_sortname(track->title);
+    track->sort_album       = gpod_sortname(track->album);
+    track->sort_albumartist = gpod_sortname(track->albumartist);
+    track->sort_composer    = gpod_sortname(track->composer);
 
     return track;
 }

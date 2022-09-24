@@ -37,6 +37,8 @@ extern int __attribute__((weak)) gpod_signal;
 const char*  gpod_setlocale();
 char*  gpod_trim(const char* what_);
 
+char* gpod_sortname(const char* name_);
+
 const char* gpod_default_mountpoint(char* dest_, size_t n_);
 
 bool  gpod_write_supported(const Itdb_IpodInfo* ipi_);

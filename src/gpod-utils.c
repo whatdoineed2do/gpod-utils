@@ -80,6 +80,31 @@ char*  gpod_trim(const char* what_)
     return buf;
 }
 
+char* gpod_sortname(const char* name_)
+{
+    const char*  s = name_;
+    if (s == NULL) {
+	return NULL;
+    }
+
+    if (*s && toupper(*s++) == 'T' &&
+        *s && toupper(*s++) == 'H' &&
+        *s && toupper(*s++) == 'E' &&
+        *s && *s++ == ' ' && *s)
+    {
+	while (isspace(*s)) {
+	    ++s;
+	}
+
+	if (*s) {
+	    return g_strdup(s);
+	}
+    }
+
+    return NULL;
+}
+
+
 const char* gpod_default_mountpoint(char* dest_, size_t n_)
 {
     struct passwd   pw = { 0 };
