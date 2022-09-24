@@ -712,9 +712,15 @@ static char* sortname(const char* name_)
     if (*s && toupper(*s++) == 'T' &&
         *s && toupper(*s++) == 'H' &&
         *s && toupper(*s++) == 'E' &&
-        *s && *s++ == ' ')
+        *s && *s++ == ' ' && *s)
     {
-	return g_strdup(s);
+	while (isspace(*s)) {
+	    ++s;
+	}
+
+	if (*s) {
+	    return g_strdup(s);
+	}
     }
 
     return NULL;
