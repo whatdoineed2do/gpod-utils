@@ -124,14 +124,14 @@ void  _usage(const char* argv_)
     exit(-1);
 }
 
-#define TRACK_ASSIGN(tag_, new_) \
+#define TRACK_ASSIGN(tag_, new_, dup_) \
 {\
     if (new_) {\
 	if (tag_) { \
 	    g_free(tag_);\
 	    tag_ = NULL;\
 	}\
-	tag_ = g_strdup(new_);\
+	tag_ = dup_ ? g_strdup(new_) : new_;\
     }\
 }
 
@@ -364,12 +364,18 @@ main (int argc, char *argv[])
                track->track_nr, track->year,
                dt);
  
-        TRACK_ASSIGN(track->title, opts.title);
-        TRACK_ASSIGN(track->artist, opts.artist);
-        TRACK_ASSIGN(track->albumartist, opts.albumartist);
-        TRACK_ASSIGN(track->composer, opts.composer);
-        TRACK_ASSIGN(track->album, opts.album);
-        TRACK_ASSIGN(track->genre, opts.genre);
+        TRACK_ASSIGN(track->title,            opts.title,       1);
+        TRACK_ASSIGN(track->artist,           opts.artist,      1);
+        TRACK_ASSIGN(track->albumartist,      opts.albumartist, 1);
+        TRACK_ASSIGN(track->composer,         opts.composer,    1);
+        TRACK_ASSIGN(track->album,            opts.album,       1);
+        TRACK_ASSIGN(track->genre,            opts.genre,       1);
+
+        TRACK_ASSIGN(track->sort_title,       gpod_sortname(opts.title),       0);
+        TRACK_ASSIGN(track->sort_artist,      gpod_sortname(opts.artist),      0);
+        TRACK_ASSIGN(track->sort_albumartist, gpod_sortname(opts.albumartist), 0);
+        TRACK_ASSIGN(track->sort_composer,    gpod_sortname(opts.composer),    0);
+        TRACK_ASSIGN(track->sort_album,       gpod_sortname(opts.album),       0);
 
         if (opts.rating >= 0) track->rating = opts.rating; 
         if (opts.track >= 0) track->track_nr = opts.track; 
