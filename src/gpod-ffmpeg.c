@@ -543,13 +543,18 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         return -1;
     }
 
+    const AVCodecDescriptor*  avc_desc = NULL;
+
     /* Check codec */
     info_->supported_ipod_fmt = false;
     if (info_->has_video)
     {
         // its a real vid file (not jsut an audio file with cover art)
-        info_->codectype = "h264";
-        info_->description = "H264 video";
+	avc_desc = avcodec_descriptor_get(video_codec_id);
+
+	info_->type = avc_desc->name;
+	info_->description = avc_desc->long_name;
+
 	info_->supported_ipod_fmt = device_support_video(idevice_, info_);
         switch (info_->video.profile)
         {
@@ -601,7 +606,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
                 break;
 
             default:
-                info_->type = "h264 (unknown)";
         }
 
         if (video_stream->metadata) {
@@ -611,55 +615,45 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     }
     else
     {
+	avc_desc = avcodec_descriptor_get(audio_codec_id);
+
+	info_->type = avc_desc->name;
+	info_->description = avc_desc->long_name;
+
         switch (audio_codec_id)
         {
             case AV_CODEC_ID_MP3:
-                info_->type = "mp3";
                 info_->codectype = "mpeg";
-                info_->description = "MPEG audio";
-
                 info_->supported_ipod_fmt = true;
 
                 extra_md_map = md_map_id3;
                 break;
 
             case AV_CODEC_ID_AAC:
-                info_->type = "m4a";
                 info_->codectype = "mp4a";
-                info_->description = "AAC audio";
-
                 info_->supported_ipod_fmt = true;
                 break;
 
             case AV_CODEC_ID_ALAC:
-                info_->type = "m4a";
                 info_->codectype = "alac";
-                info_->description = "Apple Lossless audio";
-
                 info_->supported_ipod_fmt = true;
                 break;
 
     // this block of types will needs transcoding to go onto iPod
 
             case AV_CODEC_ID_FLAC:
-                info_->type = "flac";
                 info_->codectype = "flac";
-                info_->description = "FLAC audio";
 
                 extra_md_map = md_map_vorbis;
                 break;
 
 
             case AV_CODEC_ID_APE:
-                info_->type = "ape";
                 info_->codectype = "ape";
-                info_->description = "Monkey's audio";
                 break;
 
             case AV_CODEC_ID_VORBIS:
-                info_->type = "ogg";
                 info_->codectype = "ogg";
-                info_->description = "Ogg Vorbis audio";
 
                 extra_md_map = md_map_vorbis;
                 break;
@@ -667,21 +661,15 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
             case AV_CODEC_ID_WMAV1:
             case AV_CODEC_ID_WMAV2:
             case AV_CODEC_ID_WMAVOICE:
-                info_->type = "wma";
                 info_->codectype = "wmav";
-                info_->description = "WMA audio";
                 break;
 
             case AV_CODEC_ID_WMAPRO:
-                info_->type = "wmap";
                 info_->codectype = "wma";
-                info_->description = "WMA audio";
                 break;
 
             case AV_CODEC_ID_WMALOSSLESS:
-                info_->type = "wma";
                 info_->codectype = "wmal";
-                info_->description = "WMA audio";
                 break;
 
             case AV_CODEC_ID_PCM_S16LE ... AV_CODEC_ID_PCM_F64LE:
