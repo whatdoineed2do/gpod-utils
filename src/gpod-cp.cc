@@ -187,7 +187,6 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 	    }
 	    else {
 		mi.supported_ipod_fmt = true;
-		mi.description = "audio (transcoded)";
 		file = xfrm_->path;
 	    }
 	}
