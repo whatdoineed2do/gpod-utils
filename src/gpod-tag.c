@@ -41,6 +41,8 @@
 struct gpod_opts {
     char*  artist;
     char*  album;
+    char*  albumartist;
+    char*  composer;
     char*  title;
     char*  genre;
     int  year;
@@ -64,6 +66,8 @@ static void  gpod_opts_free(struct gpod_opts* opts_)
 {
     free(opts_->artist);
     free(opts_->album);
+    free(opts_->albumartist);
+    free(opts_->composer);
     free(opts_->title);
     free(opts_->genre);
     memset(opts_, 0, sizeof(struct gpod_opts));
@@ -76,7 +80,7 @@ static void  _sanitize(struct gpod_opts* opts_)
     }
 
     char*  what[] = {
-	opts_->artist, opts_->album, opts_->title, opts_->genre, NULL
+	opts_->artist, opts_->album, opts_->title, opts_->genre, opts_->albumartist, opts_->composer, NULL
     };
     char**  p = what;
     while (*p) {
@@ -101,6 +105,8 @@ void  _usage(const char* argv_)
     g_print ("usage: %s  OPTIONS  <file id/ipod path> [...]\n"
 	     "    -t  --title    <title>\n"
 	     "    -a  --artist   <artist>\n"
+	     "    -R  --albumartist   <albumartist>\n"
+	     "    -c  --composer <composer>\n"
 	     "    -A  --album    <album>\n"
 	     "    -g  --genre    <genre>\n"
 	     "    -T  --track    <track>\n"
@@ -148,6 +154,8 @@ main (int argc, char *argv[])
 
 	{ "artist", 		1, 0, 'a' },
 	{ "album",		1, 0, 'A' },
+	{ "albumartist",	1, 0, 'R' },
+	{ "composer",		1, 0, 'C' },
 	{ "title",		1, 0, 't' },
 	{ "genre", 		1, 0, 'g' },
 	{ "year", 		1, 0, 'Y' },
@@ -180,6 +188,8 @@ main (int argc, char *argv[])
 
             case 'a':  opts.artist = gpod_trim(optarg);  break;
             case 'A':  opts.album  = gpod_trim(optarg);  break;
+            case 'R':  opts.albumartist  = gpod_trim(optarg);  break;
+            case 'C':  opts.composer = gpod_trim(optarg);  break;
             case 't':  opts.title  = gpod_trim(optarg);  break;
             case 'g':  opts.genre  = gpod_trim(optarg);  break;
             case 'y':  opts.year   = atol(optarg);  break;
@@ -207,7 +217,7 @@ main (int argc, char *argv[])
     }
 
 
-    if (opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
+    if (opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.albumartist == NULL && opts.composer == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
         g_printerr("invalid/unspecified tagging options\n");
         _usage(argv[0]);
     }
@@ -262,6 +272,8 @@ main (int argc, char *argv[])
       if (opts.title)       g_print(" title='%s'",  opts.title);
       if (opts.artist)      g_print(" artist='%s'", opts.artist);
       if (opts.album)       g_print(" album='%s'",  opts.album);
+      if (opts.albumartist) g_print(" albumartist='%s'",  opts.albumartist);
+      if (opts.composer)    g_print(" composer='%s'",  opts.composer);
       if (opts.genre)       g_print(" genre='%s'",  opts.genre);
       if (opts.track  >= 0) g_print(" track=%u",    opts.track);
       if (opts.year   >= 0) g_print(" year=%u",     opts.year);
@@ -339,12 +351,14 @@ main (int argc, char *argv[])
         gmtime_r(&(track->time_modified), &tm);
         strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
-        g_print("{ id=%u ipod_path='%s' { rating=%d title='%s' artist='%s' album='%s' genre='%s' track=%u year=%u time_modified=%s } }\n",
+        g_print("{ id=%u ipod_path='%s' { rating=%d title='%s' artist='%s' album='%s' albumartist='%s' composer='%s' genre='%s' track=%u year=%u time_modified=%s } }\n",
                track->id,
                track->ipod_path,
                track->rating/ITDB_RATING_STEP,
                track->title ? track->title : "",
                track->artist ? track->artist : "",
+               track->albumartist ? track->albumartist : "",
+               track->composer ? track->composer : "",
                track->album ? track->album : "",
                track->genre ? track->genre : "",
                track->track_nr, track->year,
@@ -352,6 +366,8 @@ main (int argc, char *argv[])
  
         TRACK_ASSIGN(track->title, opts.title);
         TRACK_ASSIGN(track->artist, opts.artist);
+        TRACK_ASSIGN(track->albumartist, opts.albumartist);
+        TRACK_ASSIGN(track->composer, opts.composer);
         TRACK_ASSIGN(track->album, opts.album);
         TRACK_ASSIGN(track->genre, opts.genre);
 
