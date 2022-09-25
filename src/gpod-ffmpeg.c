@@ -389,7 +389,6 @@ static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpo
 int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_IpodGeneration idevice_, char** err_)
 {
     AVFormatContext *ctx;
-    AVDictionary *options;
     const struct metadata_map*  extra_md_map = NULL;
     enum AVCodecID codec_id;
     enum AVCodecID video_codec_id;
@@ -401,30 +400,26 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     int ret;
 
     ctx = NULL;
-    options = NULL;
 
-    strcpy(info_->path, file_);
-
-    ret = avformat_open_input(&ctx, file_, NULL, &options);
-    if (options) {
-        av_dict_free(&options);
-    }
-    if (ret != 0) {
+    if ( (ret = avformat_open_input(&ctx, file_, NULL, NULL)) < 0) {
         char  err[1024];
         snprintf(err, 1024, "%s", av_err2str(ret));
         *err_ = strdup(err);
         return -1;
     }
 
-    struct stat  st;
-    stat(file_, &st);
-    info_->file_size = st.st_size;
-
     if ( (ret = avformat_find_stream_info(ctx, NULL)) < 0) {
         *err_ = strdup("failed to find audio/data stream");
         avformat_close_input(&ctx);
         return -1;
     }
+
+    strcpy(info_->path, file_);
+
+    struct stat  st;
+    stat(file_, &st);
+    info_->file_size = st.st_size;
+
 
     /* Extract codec IDs, check for video */
     video_codec_id = AV_CODEC_ID_NONE;
