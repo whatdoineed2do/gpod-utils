@@ -395,12 +395,9 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     enum AVCodecID codec_id;
     enum AVCodecID video_codec_id;
     enum AVCodecID audio_codec_id;
-    enum AVSampleFormat sample_fmt;
     AVStream *video_stream;
     AVStream *audio_stream;
 
-    int sample_rate;
-    int channels;
     int i;
     int ret;
 
@@ -437,17 +434,37 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     audio_codec_id = AV_CODEC_ID_NONE;
     audio_stream = NULL;
 
+    i = av_find_best_stream(ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+    if (i >= 0)
+    {
+	info_->has_audio = true;
+	audio_stream = ctx->streams[i];
+
+	info_->audio.codec_id = audio_codec_id = audio_stream->codecpar->codec_id;
+	info_->audio.samplerate = audio_stream->codecpar->sample_rate;
+	info_->audio.bits_per_sample = 8 * av_get_bytes_per_sample(audio_stream->codecpar->format);
+
+	info_->audio.bits_per_sample = av_get_bits_per_sample(audio_stream->codecpar->codec_id);
+
+#ifdef HAVE_FF5_CH_LAYOUT
+	info_->audio.channels = audio_stream->codecpar->ch_layout.nb_channels;
+#else
+	info_->audio.channels = audio_stream->codecpar->channels;
+#endif
+	info_->audio.song_length = ctx->duration / (AV_TIME_BASE / 1000); /* ms */
+	if (ctx->bit_rate > 0) {
+	    info_->audio.bitrate = ctx->bit_rate / 1000;
+	}
+	else if (ctx->duration > AV_TIME_BASE) /* guesstimate */ {
+	    info_->audio.bitrate = ((info_->file_size * 8) / (ctx->duration / AV_TIME_BASE)) / 1000;
+	}
+    }
+
     for (i=0; i<ctx->nb_streams; ++i)
     {
         codec_type  = ctx->streams[i]->codecpar->codec_type;
         codec_id    = ctx->streams[i]->codecpar->codec_id;
-        sample_rate = ctx->streams[i]->codecpar->sample_rate;
-        sample_fmt  = ctx->streams[i]->codecpar->format;
-#ifdef HAVE_FF5_CH_LAYOUT
-        channels    = (ctx->streams[i]->codecpar->ch_layout.nb_channels);
-#else
-        channels    = ctx->streams[i]->codecpar->channels;
-#endif
+
         switch (codec_type)
         {
 	    case AVMEDIA_TYPE_VIDEO:
@@ -500,37 +517,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 			// embedded artwork, not video
 			break;
                 }
-            } break;
-
-            /* WARN -- only consider the file's FIRST audio stream - if normal 
-             * siutations this is fine
-             */
-            case AVMEDIA_TYPE_AUDIO:
-            {
-                info_->has_audio = true;
-                if (!audio_stream)
-                {
-                    audio_stream = ctx->streams[i];
-
-                    info_->audio.codec_id = audio_codec_id = codec_id;
-                    if (info_->audio.samplerate == 0) {
-			info_->audio.samplerate = sample_rate;
-		    }
-                    info_->audio.bits_per_sample = 8 * av_get_bytes_per_sample(sample_fmt);
-
-                    if (info_->audio.bits_per_sample == 0) {
-                        info_->audio.bits_per_sample = av_get_bits_per_sample(codec_id);
-                    }
-                    info_->audio.channels = channels;
-                    info_->audio.song_length = ctx->duration / (AV_TIME_BASE / 1000); /* ms */
-                    if (ctx->bit_rate > 0) {
-                        info_->audio.bitrate = ctx->bit_rate / 1000;
-                    }
-                    else if (ctx->duration > AV_TIME_BASE) /* guesstimate */ {
-                        info_->audio.bitrate = ((info_->file_size * 8) / (ctx->duration / AV_TIME_BASE)) / 1000;
-                    }
-
-                } 
             } break;
 
             default:
