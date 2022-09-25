@@ -391,7 +391,6 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     AVFormatContext *ctx;
     AVDictionary *options;
     const struct metadata_map*  extra_md_map = NULL;
-    enum AVMediaType codec_type;
     enum AVCodecID codec_id;
     enum AVCodecID video_codec_id;
     enum AVCodecID audio_codec_id;
@@ -462,66 +461,58 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 
     for (i=0; i<ctx->nb_streams; ++i)
     {
-        codec_type  = ctx->streams[i]->codecpar->codec_type;
-        codec_id    = ctx->streams[i]->codecpar->codec_id;
+        if (ctx->streams[i]->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+	    continue;
+	}
 
-        switch (codec_type)
-        {
-	    case AVMEDIA_TYPE_VIDEO:
-            {
-                // only care about h264
-                switch (codec_id)
+	// only care about h264
+        switch (ctx->streams[i]->codecpar->codec_id)
+	{
+	    case AV_CODEC_ID_H264:
+	    {
+		switch (ctx->streams[i]->codecpar->profile)
 		{
-		    case AV_CODEC_ID_H264:
+		    // only believe in
+		    case FF_PROFILE_H264_BASELINE:
+		    case FF_PROFILE_H264_CONSTRAINED_BASELINE:
+		    case FF_PROFILE_H264_MAIN:
+		    case FF_PROFILE_H264_EXTENDED:
+		    case FF_PROFILE_H264_HIGH:
+		    case FF_PROFILE_H264_HIGH_10:
+		    case FF_PROFILE_H264_HIGH_10_INTRA:
+		    case FF_PROFILE_H264_MULTIVIEW_HIGH:
+		    case FF_PROFILE_H264_HIGH_422:
+		    case FF_PROFILE_H264_HIGH_422_INTRA:
+		    case FF_PROFILE_H264_STEREO_HIGH:
+		    case FF_PROFILE_H264_HIGH_444:
+		    case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
+		    case FF_PROFILE_H264_HIGH_444_INTRA:
+		    case FF_PROFILE_H264_CAVLC_444:
 		    {
-			switch (ctx->streams[i]->codecpar->profile)
+			info_->has_video = true;
+			if (!video_stream)
 			{
-			    // only believe in
-			    case FF_PROFILE_H264_BASELINE:
-			    case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-			    case FF_PROFILE_H264_MAIN:
-			    case FF_PROFILE_H264_EXTENDED:
-			    case FF_PROFILE_H264_HIGH:
-			    case FF_PROFILE_H264_HIGH_10:
-			    case FF_PROFILE_H264_HIGH_10_INTRA:
-			    case FF_PROFILE_H264_MULTIVIEW_HIGH:
-			    case FF_PROFILE_H264_HIGH_422:
-			    case FF_PROFILE_H264_HIGH_422_INTRA:
-			    case FF_PROFILE_H264_STEREO_HIGH:
-			    case FF_PROFILE_H264_HIGH_444:
-			    case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
-			    case FF_PROFILE_H264_HIGH_444_INTRA:
-			    case FF_PROFILE_H264_CAVLC_444:
-			    {
-				info_->has_video = true;
-				if (!video_stream)
-				{
-				    video_stream = ctx->streams[i];
-				    info_->video.codec_id = video_codec_id = codec_id;
-				    info_->video.height = video_stream->codecpar->height;
-				    info_->video.width = video_stream->codecpar->width;
-				    info_->video.profile = video_stream->codecpar->profile;
-				    info_->video.bitrate = video_stream->codecpar->bit_rate;
-				    info_->video.length = video_stream->duration/AV_TIME_BASE;
-				    info_->video.fps = video_stream->avg_frame_rate.den ? video_stream->avg_frame_rate.num/(float)video_stream->avg_frame_rate.den : 0;
-				}
-			    } break;
-
-			    default:
-				break;
+			    video_stream = ctx->streams[i];
+			    info_->video.codec_id = video_codec_id = codec_id;
+			    info_->video.height = video_stream->codecpar->height;
+			    info_->video.width = video_stream->codecpar->width;
+			    info_->video.profile = video_stream->codecpar->profile;
+			    info_->video.bitrate = video_stream->codecpar->bit_rate;
+			    info_->video.length = video_stream->duration/AV_TIME_BASE;
+			    info_->video.fps = video_stream->avg_frame_rate.den ? video_stream->avg_frame_rate.num/(float)video_stream->avg_frame_rate.den : 0;
 			}
 		    } break;
 
-		    case AV_CODEC_ID_MJPEG:
-		    case AV_CODEC_ID_MJPEGB:
-			// embedded artwork, not video
+		    default:
 			break;
-                }
-            } break;
+		}
+	    } break;
 
-            default:
-                break;
-        }
+	    case AV_CODEC_ID_MJPEG:
+	    case AV_CODEC_ID_MJPEGB:
+		// embedded artwork, not video
+		break;
+	}
     }
 
     if (video_codec_id == AV_CODEC_ID_NONE && audio_codec_id == AV_CODEC_ID_NONE) {
