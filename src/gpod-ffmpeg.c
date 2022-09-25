@@ -456,7 +456,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 
     for (i=0; i<ctx->nb_streams; ++i)
     {
-        if (ctx->streams[i]->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+        if (ctx->streams[i]->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
 	    continue;
 	}
 
