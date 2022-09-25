@@ -133,10 +133,12 @@ int main(int argc, char* argv[])
 	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
 	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
 
+    char*  errb = NULL;
     char*  hash = NULL;
-    int  ret = gpod_ff_audio_hash(&hash, path);
+    int  ret = gpod_ff_audio_hash(&hash, path, &errb);
     printf("original %' 33s..  audio hash %s\n", path, ret < 0 ? "n/a" : hash);
     free(hash);
+    free(errb);
 
     struct gpod_ff_transcode_ctx  xcode;
     char*  err;
@@ -164,9 +166,11 @@ int main(int argc, char* argv[])
 		}
 	    }
 	    else {
-		ret = gpod_ff_audio_hash(&hash, xcode.path);
+		errb = NULL;
+		ret = gpod_ff_audio_hash(&hash, xcode.path, &errb);
 		printf(" audio hash %s", ret < 0 ? "n/a" : hash);
 		free(hash);
+		free(errb);
 	    }
 	    putchar('\n');
 	}
