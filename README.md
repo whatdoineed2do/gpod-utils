@@ -3,7 +3,7 @@ Command line tools using [`libgpod`](https://sourceforge.net/p/gtkpod/libgpod/ci
 
 Whilst `libgpod` appears to be in sunset mode (last release in 2015), recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
 
-As of 2021, the last `libgpod` release is 0.8.3 - their docs suggests the library supports all classic `iPods`, `iPod Touches` and early `iPhones`.  Whilst testing this codebase, only `iPods` were supported with `iPod Touch 1G` and onwards not compatible due to the singing requirement of the `iTunesDB` file on these devices.
+As of 2021, the last `libgpod` release is 0.8.3 - their docs suggests the library supports all classic `iPods`, `iPod Touches` and early `iPhones`.  Whilst testing this codebase, only `iPods` were supported with `iPod Touch 1G` and onwards not compatible due to the signing requirement of the `iTunesDB` file on these devices.
 
 ### Supported / Tested
 |Model|OS|Supported|Comments
@@ -226,11 +226,13 @@ The quality of automatic audio conversions can be controlled by `-q` with values
 
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
-To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile baseline -b:v 1.8M foo.mp4`.  This video will not contain the `uuid` atom.
+To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile:v baseline -b:v 1.8M foo.mp4`.  This video will not contain the `uuid` atom.
 
 To convert an existing video file for the `iPod` classics, you can use `handbrake` or `ffmpeg` directly:
 ```
-# example transcode using a cuda/nvidia enabled ffmpeg
+# example iPod supported video transcode using:
+
+# cuda/nvidia enabled ffmpeg
 ffmpeg -hwaccel cuda  -hwaccel_output_format cuda  \
   -i foo.mp4 \
     -c:a aac -b:a 128k -ar 44100  \
@@ -238,6 +240,15 @@ ffmpeg -hwaccel cuda  -hwaccel_output_format cuda  \
     -c:v h264_nvenc -rc vbr_hq -minrate 1M -maxrate 2.5M \
     -profile:v baseline  \
     -vf scale_npp=640:-1 \
+  bar.mp4
+
+# quick sync video enabled ffmpeg
+ffmpeg -hwaccel qsv \
+  -c:v h264_qsv -i foo.mp4 \
+    -c:a aac -b:a 128k -ar 44100  \
+    -f ipod \
+    -c:v h264_qsv -b:v 1.5M -minrate 500k -maxrate 2.5M \
+    -vf scale_qsv=w=720:h=-1 \
   bar.mp4
 ```
 The `-f ipod` flag will add the `uuid` attom.  If the video file will be sync'd to your `iPod 5G` using `gpod-cp` then this flag is not necessary but *is* required if you with to use iTunes to perform the copy to the device.
