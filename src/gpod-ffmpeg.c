@@ -557,57 +557,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 	info_->description = avc_desc->long_name;
 
 	info_->supported_ipod_fmt = device_support_video(idevice_, info_);
-        switch (info_->video.profile)
-        {
-            case FF_PROFILE_H264_BASELINE:
-                info_->type = "h264 (baseline)";
-                break;
-            case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-                info_->type = "h264 (constrained baseline)";
-                break;
-
-            case FF_PROFILE_H264_MAIN:
-                info_->type = "h264 (main)";
-                break;
-            case FF_PROFILE_H264_EXTENDED:
-                info_->type = "h264 (extended)";
-                break;
-            case FF_PROFILE_H264_HIGH:
-                info_->type = "h264 (high)";
-                break;
-            case FF_PROFILE_H264_HIGH_10:
-                info_->type = "h264 (high 10)";
-                break;
-            case FF_PROFILE_H264_HIGH_10_INTRA:
-                info_->type = "h264 (high 10 intra)";
-                break;
-            case FF_PROFILE_H264_MULTIVIEW_HIGH:
-                info_->type = "h264 (high multiview)";
-                break;
-            case FF_PROFILE_H264_HIGH_422:
-                info_->type = "h264 (high 422)";
-                break;
-            case FF_PROFILE_H264_HIGH_422_INTRA:
-                info_->type = "h264 (high 442 intra)";
-                break;
-            case FF_PROFILE_H264_STEREO_HIGH:
-                info_->type = "h264 (high stereo)";
-                break;
-            case FF_PROFILE_H264_HIGH_444:
-                info_->type = "h264 (high 444)";
-                break;
-            case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
-                info_->type = "h264 (high 444 predictive)";
-                break;
-            case FF_PROFILE_H264_HIGH_444_INTRA:
-                info_->type = "h264 (hgh 444 intra)";
-                break;
-            case FF_PROFILE_H264_CAVLC_444:
-                info_->type = "h264 (high cavlc 444)";
-                break;
-
-            default:
-        }
+	info_->type = avcodec_profile_name(video_codec_id, info_->video.profile);
 
         if (video_stream->metadata) {
             info_->meta.has_meta = true;
