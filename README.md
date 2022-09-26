@@ -248,7 +248,7 @@ ffmpeg -hwaccel qsv \
     -c:a aac -b:a 128k -ar 44100  \
     -f ipod \
     -c:v h264_qsv -b:v 1.5M -minrate 500k -maxrate 2.5M \
-    -vf scale_qsv=w=720:h=-1 \
+    -vf scale_qsv=w=640:h=-1 \
   bar.mp4
 ```
 The `-f ipod` flag will add the `uuid` attom.  If the video file will be sync'd to your `iPod 5G` using `gpod-cp` then this flag is not necessary but *is* required if you with to use iTunes to perform the copy to the device.
