@@ -86,6 +86,25 @@ err2str (int errnum)
 }
 
 static int
+parse_genre(struct gpod_ff_meta *mfi, char *genre_string)
+{
+    char **genre = (char**)((char *) mfi + meta_offsetof(genre));
+    char *ptr;
+
+    if (*genre) {
+	return 0;
+    }
+
+    *genre = strdup(genre_string);
+    ptr = strchr(*genre, ';');
+    if (ptr) {
+	*ptr = '\0';
+    }
+
+    return 1;
+}
+
+static int
 parse_slash_separated_ints (char *string, uint32_t * firstval, uint32_t * secondval)
 {
     int numvals = 0;
@@ -164,24 +183,24 @@ parse_date (struct gpod_ff_meta *mfi, char *date_string)
 
 /* Lookup is case-insensitive, first occurrence takes precedence */
 static const struct metadata_map   md_map_generic[] = {
-    {"title", 0, meta_offsetof (title), NULL},
-    {"artist", 0, meta_offsetof (artist), NULL},
-    {"author", 0, meta_offsetof (artist), NULL},
-    {"album_artist", 0, meta_offsetof (album_artist), NULL},
-    {"album", 0, meta_offsetof (album), NULL},
-    {"genre", 0, meta_offsetof (genre), NULL},
-    {"composer", 0, meta_offsetof (composer), NULL},
-    {"grouping", 0, meta_offsetof (grouping), NULL},
-    {"comment", 0, meta_offsetof (comment), NULL},
-    {"description", 0, meta_offsetof (comment), NULL},
-    {"track", 1, meta_offsetof (track), parse_track},
-    {"disc", 1, meta_offsetof (disc), parse_disc},
-    {"year", 1, meta_offsetof (year), NULL},
-    {"date", 1, meta_offsetof (date_released), parse_date},
-    {"title-sort", 0, meta_offsetof (title_sort), NULL},
-    {"artist-sort", 0, meta_offsetof (artist_sort), NULL},
-    {"album-sort", 0, meta_offsetof (album_sort), NULL},
-    {"compilation", 1, meta_offsetof (compilation), NULL},
+    {"title",		0, meta_offsetof (title), 		NULL },
+    {"artist",		0, meta_offsetof (artist), 		NULL },
+    {"author",		0, meta_offsetof (artist), 		NULL },
+    {"album_artist",	0, meta_offsetof (album_artist), 	NULL },
+    {"album",		0, meta_offsetof (album), 		NULL },
+    {"genre", 		0, meta_offsetof (genre), 		parse_genre },
+    {"composer", 	0, meta_offsetof (composer), 		NULL },
+    {"grouping", 	0, meta_offsetof (grouping), 		NULL },
+    {"comment", 	0, meta_offsetof (comment), 		NULL },
+    {"description", 	0, meta_offsetof (comment), 		NULL },
+    {"track", 		1, meta_offsetof (track), 		parse_track},
+    {"disc", 		1, meta_offsetof (disc), 		parse_disc},
+    {"year", 		1, meta_offsetof (year), 		NULL },
+    {"date", 		1, meta_offsetof (date_released),	parse_date},
+    {"title-sort", 	0, meta_offsetof (title_sort),		NULL },
+    {"artist-sort", 	0, meta_offsetof (artist_sort), 	NULL },
+    {"album-sort", 	0, meta_offsetof (album_sort), 		NULL },
+    {"compilation", 	1, meta_offsetof (compilation), 	NULL },
 
     {NULL, 0, 0, NULL}
 };
