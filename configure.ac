@@ -45,7 +45,7 @@ AC_SUBST(FFMPEG_CFLAGS)
 AC_SUBST(FFMPEG_LIBS)
 
 
-AC_ARG_ENABLE([debug-code],
+AC_ARG_ENABLE([debug],
 	[AS_HELP_STRING([--enable-debug],
 	[enable debug (default is no)])],
 	[no_debug=false],
