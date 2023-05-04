@@ -730,6 +730,7 @@ static int add_samples_to_fifo(AVAudioFifo *fifo,
  * @return Error code (0 if successful)
  */
 static int read_decode_convert_and_store(AVAudioFifo *fifo,
+                                         AVFrame* input_frame,
                                          AVFormatContext *input_format_context,
                                          AVCodecContext *input_codec_context,
 					 const int audio_stream_idx,
@@ -737,16 +738,13 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
                                          SwrContext *resampler_context,
                                          int *finished, char** err_)
 {
-    /* Temporary storage of the input samples of the frame read from the file. */
-    AVFrame *input_frame = NULL;
     /* Temporary storage for the converted input samples. */
     uint8_t **converted_input_samples = NULL;
     int data_present;
     int ret = AVERROR_EXIT;
 
-    /* Initialize temporary storage for one input frame. */
-    if (init_input_frame(&input_frame, err_))
-        goto cleanup;
+    av_frame_unref(input_frame);
+
     /* Decode one frame worth of audio samples. */
     if (decode_audio_frame(input_frame, input_format_context,
                            input_codec_context, audio_stream_idx, &data_present, finished, err_))
@@ -785,23 +783,21 @@ cleanup:
         av_freep(&converted_input_samples[0]);
         free(converted_input_samples);
     }
-    av_frame_free(&input_frame);
 
     return ret;
 }
 
 static int read_decode_and_store(AVAudioFifo *fifo,
+                                 AVFrame *input_frame,
 				 AVFormatContext *input_format_context,
 				 AVCodecContext *input_codec_context,
 				 const int audio_stream_idx,
 				 int *finished, char** err_)
 {
-    AVFrame *input_frame = NULL;
     int data_present;
     int ret = AVERROR_EXIT;
 
-    if (init_input_frame(&input_frame, err_))
-        goto cleanup;
+    av_frame_unref(input_frame);
 
     if (decode_audio_frame(input_frame, input_format_context,
                            input_codec_context, audio_stream_idx, &data_present, finished, err_))
@@ -820,7 +816,6 @@ static int read_decode_and_store(AVAudioFifo *fifo,
     ret = 0;
 
 cleanup:
-    av_frame_free(&input_frame);
 
     return ret;
 }
@@ -1079,6 +1074,8 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     SwrContext  *resample_context = NULL;
     AVAudioFifo  *fifo = NULL;
     AVAudioFifo  *input_samples_fifo = NULL;
+    /* Temporary storage of the input samples of the frame read from the file. */
+    AVFrame *input_frame = NULL;
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
 
@@ -1122,6 +1119,10 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     if (write_output_file_header(output_format_context, err_))
         goto cleanup;
 
+    /* Initialize temporary storage for one input frame. */
+    if (init_input_frame(&input_frame, err_))
+        goto cleanup;
+
     /* Loop as long as we have input samples to read or output samples
      * to write; abort as soon as we have neither. */
     while (1) {
@@ -1139,7 +1140,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 	    while (av_audio_fifo_size(fifo) < output_frame_size) {
 		/* Decode one frame worth of audio samples, convert it to the
 		 * output sample format and put it into the FIFO buffer. */
-		if (read_decode_convert_and_store(fifo, input_format_context,
+		if (read_decode_convert_and_store(fifo, input_frame, input_format_context,
 			    input_codec_context,
 			    audio_stream_idx,
 			    output_codec_context,
@@ -1169,6 +1170,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 	     */
 	    while (av_audio_fifo_size(input_samples_fifo) < output_frame_size) {
 		if (read_decode_and_store(input_samples_fifo,
+                            input_frame,
 			    input_format_context, input_codec_context,
 			    audio_stream_idx,
 			    &finished, err_))
@@ -1249,6 +1251,8 @@ cleanup:
         avcodec_free_context(&input_codec_context);
     if (input_format_context)
         avformat_close_input(&input_format_context);
+    if (input_frame)
+        av_frame_free(&input_frame);
 
     return ret;
 }
