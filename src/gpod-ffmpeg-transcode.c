@@ -510,18 +510,16 @@ static int write_output_file_header(AVFormatContext *output_format_context, char
  * @return Error code (0 if successful)
  */
 static int decode_audio_frame(AVFrame *frame,
+                              AVPacket *input_packet,
                               AVFormatContext *input_format_context,
                               AVCodecContext *input_codec_context,
 			      const int audio_stream_idx,
                               int *data_present, int *finished, char** err_)
 {
     /* Packet used for temporary storage. */
-    AVPacket *input_packet;
     int error;
 
-    error = init_packet(&input_packet, err_);
-    if (error < 0)
-        return error;
+    av_packet_unref(input_packet);
 
     *data_present = 0;
     *finished = 0;
@@ -576,7 +574,6 @@ static int decode_audio_frame(AVFrame *frame,
     }
 
 cleanup:
-    av_packet_free(&input_packet);
     return error;
 }
 
@@ -731,6 +728,7 @@ static int add_samples_to_fifo(AVAudioFifo *fifo,
  */
 static int read_decode_convert_and_store(AVAudioFifo *fifo,
                                          AVFrame* input_frame,
+                                         AVPacket* input_packet,
                                          AVFormatContext *input_format_context,
                                          AVCodecContext *input_codec_context,
 					 const int audio_stream_idx,
@@ -746,7 +744,7 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
     av_frame_unref(input_frame);
 
     /* Decode one frame worth of audio samples. */
-    if (decode_audio_frame(input_frame, input_format_context,
+    if (decode_audio_frame(input_frame, input_packet, input_format_context,
                            input_codec_context, audio_stream_idx, &data_present, finished, err_))
         goto cleanup;
     /* If we are at the end of the file and there are no more samples
@@ -789,6 +787,7 @@ cleanup:
 
 static int read_decode_and_store(AVAudioFifo *fifo,
                                  AVFrame *input_frame,
+                                 AVPacket *input_packet,
 				 AVFormatContext *input_format_context,
 				 AVCodecContext *input_codec_context,
 				 const int audio_stream_idx,
@@ -799,7 +798,7 @@ static int read_decode_and_store(AVAudioFifo *fifo,
 
     av_frame_unref(input_frame);
 
-    if (decode_audio_frame(input_frame, input_format_context,
+    if (decode_audio_frame(input_frame, input_packet, input_format_context,
                            input_codec_context, audio_stream_idx, &data_present, finished, err_))
         goto cleanup;
 
@@ -878,17 +877,14 @@ static int init_output_frame(AVFrame **frame,
  * @return Error code (0 if successful)
  */
 static int encode_audio_frame(AVFrame *frame,
+                              AVPacket *output_packet,
                               AVFormatContext *output_format_context,
                               AVCodecContext *output_codec_context,
                               int64_t* pts, int *data_present, char** err_)
 {
-    /* Packet used for temporary storage. */
-    AVPacket *output_packet;
     int error;
 
-    error = init_packet(&output_packet, err_);
-    if (error < 0)
-        return error;
+    av_packet_unref(output_packet);
 
     /* Set a timestamp based on the sample rate for the container. */
     if (frame) {
@@ -941,7 +937,6 @@ static int encode_audio_frame(AVFrame *frame,
     }
 
 cleanup:
-    av_packet_free(&output_packet);
     return error;
 }
 
@@ -1014,6 +1009,7 @@ cleanup:
  * @return Error code (0 if successful)
  */
 static int load_encode_and_write(AVAudioFifo *fifo,
+                                 AVPacket *output_packet,
                                  AVFormatContext *output_format_context,
                                  AVCodecContext *output_codec_context, int64_t* pts, char** err_)
 {
@@ -1039,7 +1035,7 @@ static int load_encode_and_write(AVAudioFifo *fifo,
     }
 
     /* Encode one frame worth of audio samples. */
-    if (encode_audio_frame(output_frame, output_format_context,
+    if (encode_audio_frame(output_frame, output_packet, output_format_context,
                            output_codec_context, pts, &data_written, err_)) {
         av_frame_free(&output_frame);
         return AVERROR_EXIT;
@@ -1076,6 +1072,8 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     AVAudioFifo  *input_samples_fifo = NULL;
     /* Temporary storage of the input samples of the frame read from the file. */
     AVFrame *input_frame = NULL;
+    AVPacket *input_packet = NULL;
+    AVPacket *output_packet = NULL;
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
 
@@ -1123,6 +1121,11 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     if (init_input_frame(&input_frame, err_))
         goto cleanup;
 
+    if (init_packet(&input_packet, err_) < 0)
+        goto cleanup;
+    if (init_packet(&output_packet, err_) < 0)
+        goto cleanup;
+
     /* Loop as long as we have input samples to read or output samples
      * to write; abort as soon as we have neither. */
     while (1) {
@@ -1140,7 +1143,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 	    while (av_audio_fifo_size(fifo) < output_frame_size) {
 		/* Decode one frame worth of audio samples, convert it to the
 		 * output sample format and put it into the FIFO buffer. */
-		if (read_decode_convert_and_store(fifo, input_frame, input_format_context,
+		if (read_decode_convert_and_store(fifo, input_frame, input_packet, input_format_context,
 			    input_codec_context,
 			    audio_stream_idx,
 			    output_codec_context,
@@ -1171,6 +1174,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 	    while (av_audio_fifo_size(input_samples_fifo) < output_frame_size) {
 		if (read_decode_and_store(input_samples_fifo,
                             input_frame,
+                            input_packet,
 			    input_format_context, input_codec_context,
 			    audio_stream_idx,
 			    &finished, err_))
@@ -1207,7 +1211,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
                (finished && av_audio_fifo_size(fifo) > 0))
             /* Take one frame worth of audio samples from the FIFO buffer,
              * encode it and write it to the output file. */
-            if (load_encode_and_write(fifo, output_format_context,
+            if (load_encode_and_write(fifo, output_packet, output_format_context,
                                       output_codec_context, &pts, err_))
                 goto cleanup;
 
@@ -1217,7 +1221,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
             int data_written;
             /* Flush the encoder as it may have delayed frames. */
             do {
-                if (encode_audio_frame(NULL, output_format_context,
+                if (encode_audio_frame(NULL, output_packet, output_format_context,
                                        output_codec_context, &pts, &data_written, err_))
                     goto cleanup;
             } while (data_written);
@@ -1253,6 +1257,10 @@ cleanup:
         avformat_close_input(&input_format_context);
     if (input_frame)
         av_frame_free(&input_frame);
+    if (input_packet)
+        av_packet_free(&input_packet);
+    if (output_packet)
+        av_packet_free(&output_packet);
 
     return ret;
 }
