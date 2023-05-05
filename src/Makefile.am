@@ -55,9 +55,9 @@ gpod_verify_LDFLAGS =  $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavu
 
 
 test_ff_xcode_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS) -DGPOD_FF_STANDALONE
-test_ff_xcode_LDFLAGS =  $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample -zundefs
+test_ff_xcode_LDFLAGS =  $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
 test_ff_xcode_SOURCES = test-ff-xcode.c
-test_ff_xcode_LDADD =
+test_ff_xcode_LDADD = -L. -lgpod-utils
 
 test_init_ipod_LDFLAGS = $(GPOD_LIBS) $(GLIB_LIBS)
 test_init_ipod_SOURCES = test-init-ipod.c 
