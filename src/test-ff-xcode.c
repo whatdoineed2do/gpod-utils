@@ -91,6 +91,7 @@ int main(int argc, char* argv[])
     }
 
 
+    const unsigned  sample_rates[] = { 44100, 22050, 0 };
     struct sample_hash_pair {
 	int sample;
 	char* hash;
@@ -99,7 +100,7 @@ int main(int argc, char* argv[])
         enum gpod_ff_enc  enc;
         enum gpod_ff_transcode_quality  quality;
         const char*  name;
-	struct sample_hash_pair  hashes[3];
+	struct sample_hash_pair  hashes[sizeof(sample_rates)/sizeof(unsigned)];
     } fmts[] = {
         {
 	    .enc = GPOD_FF_ENC_FDKAAC,
@@ -254,7 +255,6 @@ int main(int argc, char* argv[])
     struct gpod_ff_transcode_ctx  xcode;
     char*  err;
 
-    const unsigned  sample_rates[] = { 44100, 22050, 0 };
     const unsigned*  sample_rate = sample_rates;
     while (*sample_rate)
     {
