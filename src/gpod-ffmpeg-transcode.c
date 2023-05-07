@@ -947,28 +947,28 @@ static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, const AVFor
     uint8_t **converted_input_samples = NULL;
     int  ret = AVERROR_EXIT;
 
-    AVFrame *input_frame;
+    AVFrame *output_frame;
     const int frame_size = FFMIN(av_audio_fifo_size(input_samples_fifo),
                                  output_frame_size);
 
     // yes this is init_output_frame
-    if (init_output_frame(&input_frame, input_codec_context, frame_size, err_))
+    if (init_output_frame(&output_frame, input_codec_context, frame_size, err_))
         return AVERROR_EXIT;
 
     /* Read as many samples from the FIFO buffer as required to fill the frame.
      * The samples are stored in the frame temporarily. */
-    if (av_audio_fifo_read(input_samples_fifo, (void **)input_frame->data, frame_size) < frame_size) {
+    if (av_audio_fifo_read(input_samples_fifo, (void **)output_frame->data, frame_size) < frame_size) {
         *err_ = strdup("Could not read data from input samples FIFO");
-        av_frame_free(&input_frame);
+        av_frame_free(&output_frame);
         return AVERROR_EXIT;
     }
 
     int  nb_samples = (output_codec_context->sample_rate == input_codec_context->sample_rate) ?
-	input_frame->nb_samples :
-	av_rescale_rnd(swr_get_delay(resample_context, input_codec_context->sample_rate) + input_frame->nb_samples, output_codec_context->sample_rate, input_codec_context->sample_rate, AV_ROUND_DOWN);
+	output_frame->nb_samples :
+	av_rescale_rnd(swr_get_delay(resample_context, input_codec_context->sample_rate) + output_frame->nb_samples, output_codec_context->sample_rate, input_codec_context->sample_rate, AV_ROUND_DOWN);
 
 #ifdef GPOD_XCODE_SWR_DEBUG
-    printf("load/convert  frame size=%d  -> nb_samples=%d   out ctx frame=%d\n", frame_size, input_frame->nb_samples, output_codec_context->frame_size);
+    printf("load/convert  frame size=%d  -> nb_samples=%d   out ctx frame=%d\n", frame_size, output_frame->nb_samples, output_codec_context->frame_size);
 #endif
 
     /* Initialize the temporary storage for the converted input samples. */
@@ -978,7 +978,7 @@ static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, const AVFor
 
     /* Convert the input samples to the desired output sample format.
      * This requires a temporary storage provided by converted_input_samples. */
-    if ( (nb_samples = convert_samples((const uint8_t**)input_frame->extended_data, input_frame->nb_samples,
+    if ( (nb_samples = convert_samples((const uint8_t**)output_frame->extended_data, output_frame->nb_samples,
 		converted_input_samples, output_codec_context->frame_size,
 		resample_context, err_)) < 0)
 	goto cleanup;
@@ -995,7 +995,7 @@ cleanup:
         av_freep(&converted_input_samples[0]);
         free(converted_input_samples);
     }
-    av_frame_free(&input_frame);
+    av_frame_free(&output_frame);
 
     return ret;
 }
