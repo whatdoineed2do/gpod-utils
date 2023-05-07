@@ -834,7 +834,7 @@ static int init_output_frame(AVFrame **frame,
     int error;
 
     /* Create a new frame to store the audio samples. */
-    if (!(*frame = av_frame_alloc())) {
+    if (*frame == NULL && !(*frame = av_frame_alloc())) {
         *err_ = strdup("Could not allocate output frame");
         return AVERROR_EXIT;
     }
@@ -940,26 +940,26 @@ cleanup:
     return error;
 }
 
-static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, const AVFormatContext* output_context, AVCodecContext* output_codec_context, int output_frame_size,
+static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, AVFrame** frame, const AVFormatContext* output_context, AVCodecContext* output_codec_context, int output_frame_size,
 	                           AVAudioFifo* input_samples_fifo,  const AVFormatContext* input_context, AVCodecContext* input_codec_context,
 				   SwrContext* resample_context, char** err_)
 {
     uint8_t **converted_input_samples = NULL;
     int  ret = AVERROR_EXIT;
 
-    AVFrame *output_frame;
     const int frame_size = FFMIN(av_audio_fifo_size(input_samples_fifo),
                                  output_frame_size);
 
     // yes this is init_output_frame
-    if (init_output_frame(&output_frame, input_codec_context, frame_size, err_))
+    if (init_output_frame(frame, input_codec_context, frame_size, err_))
         return AVERROR_EXIT;
+
+    AVFrame *output_frame = *frame;
 
     /* Read as many samples from the FIFO buffer as required to fill the frame.
      * The samples are stored in the frame temporarily. */
     if (av_audio_fifo_read(input_samples_fifo, (void **)output_frame->data, frame_size) < frame_size) {
         *err_ = strdup("Could not read data from input samples FIFO");
-        av_frame_free(&output_frame);
         return AVERROR_EXIT;
     }
 
@@ -995,7 +995,7 @@ cleanup:
         av_freep(&converted_input_samples[0]);
         free(converted_input_samples);
     }
-    av_frame_free(&output_frame);
+    av_frame_unref(output_frame);
 
     return ret;
 }
@@ -1009,12 +1009,13 @@ cleanup:
  * @return Error code (0 if successful)
  */
 static int load_encode_and_write(AVAudioFifo *fifo,
+                                 AVFrame **frame,
                                  AVPacket *output_packet,
                                  AVFormatContext *output_format_context,
                                  AVCodecContext *output_codec_context, int64_t* pts, char** err_)
 {
-    /* Temporary storage of the output samples of the frame written to the file. */
-    AVFrame *output_frame;
+    /* Temporary storage of the output samples of the frame written to the file. */ 
+
     /* Use the maximum number of possible samples per frame.
      * If there is less than the maximum possible frame size in the FIFO
      * buffer use this number. Otherwise, use the maximum possible frame size. */
@@ -1023,24 +1024,24 @@ static int load_encode_and_write(AVAudioFifo *fifo,
     int data_written;
 
     /* Initialize temporary storage for one output frame. */
-    if (init_output_frame(&output_frame, output_codec_context, frame_size, err_))
+    if (init_output_frame(frame, output_codec_context, frame_size, err_))
         return AVERROR_EXIT;
+
+    AVFrame *output_frame = *frame;
 
     /* Read as many samples from the FIFO buffer as required to fill the frame.
      * The samples are stored in the frame temporarily. */
     if (av_audio_fifo_read(fifo, (void **)output_frame->data, frame_size) < frame_size) {
         *err_ = strdup("Could not read data from FIFO");
-        av_frame_free(&output_frame);
         return AVERROR_EXIT;
     }
 
     /* Encode one frame worth of audio samples. */
     if (encode_audio_frame(output_frame, output_packet, output_format_context,
                            output_codec_context, pts, &data_written, err_)) {
-        av_frame_free(&output_frame);
         return AVERROR_EXIT;
     }
-    av_frame_free(&output_frame);
+    av_frame_unref(output_frame);
     return 0;
 }
 
@@ -1072,6 +1073,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     AVAudioFifo  *input_samples_fifo = NULL;
     /* Temporary storage of the input samples of the frame read from the file. */
     AVFrame *input_frame = NULL;
+    AVFrame *output_frame = NULL;
     AVPacket *input_packet = NULL;
     AVPacket *output_packet = NULL;
     int ret = AVERROR_EXIT;
@@ -1195,7 +1197,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 		    (finished && av_audio_fifo_size(input_samples_fifo) > 0)) {
 		/* take all input samples and convert them before handing off to encoder
 		*/
-		if (load_convert_and_store(fifo,
+		if (load_convert_and_store(fifo, &output_frame,
 			    output_format_context, output_codec_context, output_frame_size,
 			    input_samples_fifo, input_format_context, input_codec_context,
 			    resample_context, err_))
@@ -1211,7 +1213,7 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
                (finished && av_audio_fifo_size(fifo) > 0))
             /* Take one frame worth of audio samples from the FIFO buffer,
              * encode it and write it to the output file. */
-            if (load_encode_and_write(fifo, output_packet, output_format_context,
+            if (load_encode_and_write(fifo, &output_frame, output_packet, output_format_context,
                                       output_codec_context, &pts, err_))
                 goto cleanup;
 
@@ -1259,6 +1261,8 @@ cleanup:
         av_frame_free(&input_frame);
     if (input_packet)
         av_packet_free(&input_packet);
+    if (output_frame)
+        av_frame_free(&output_frame);
     if (output_packet)
         av_packet_free(&output_packet);
 
