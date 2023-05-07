@@ -596,23 +596,11 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
     int error;
 
     /* Allocate as many pointers as there are audio channels.
-     * Each pointer will later point to the audio samples of the corresponding
+     * Each pointer will point to the audio samples of the corresponding
      * channels (although it may be NULL for interleaved formats).
-     */
-    if (!(*converted_input_samples = calloc(
-#ifdef HAVE_FF5_CH_LAYOUT
-					    output_codec_context->ch_layout.nb_channels,
-#else
-					    output_codec_context->channels,
-#endif
-                                            sizeof(**converted_input_samples)))) {
-        *err_ = strdup("Could not allocate converted input sample pointers");
-        return AVERROR(ENOMEM);
-    }
-
-    /* Allocate memory for the samples of all channels in one consecutive
+     * Allocate memory for the samples of all channels in one consecutive
      * block for convenience. */
-    if ((error = av_samples_alloc(*converted_input_samples, NULL,
+    if ((error = av_samples_alloc_array_and_samples(converted_input_samples, NULL,
 #ifdef HAVE_FF5_CH_LAYOUT
 				  output_codec_context->ch_layout.nb_channels,
 #else
@@ -625,8 +613,6 @@ static int init_converted_samples(uint8_t ***converted_input_samples,
                 "Could not allocate converted input samples (error '%s')",
                 av_err2str(error));
         *err_ = strdup(err);
-        av_freep(&(*converted_input_samples)[0]);
-        free(*converted_input_samples);
         return error;
     }
     return 0;
@@ -777,10 +763,9 @@ static int read_decode_convert_and_store(AVAudioFifo *fifo,
     ret = 0;
 
 cleanup:
-    if (converted_input_samples) {
+    if (converted_input_samples)
         av_freep(&converted_input_samples[0]);
-        free(converted_input_samples);
-    }
+    av_freep(&converted_input_samples);
 
     return ret;
 }
