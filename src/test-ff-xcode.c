@@ -72,6 +72,18 @@ int main(int argc, char* argv[])
 
 	    case 'h':
 	    default:
+	        printf("usage: [OPTIONS] [file to xcode]\n"
+		       "\n"
+		       "    tests the transcode functionality to various formats and sample rates for given input file\n"
+		       "    if no data file is provided, use internal dataset\n"
+		       "\n"
+		       "  logging:\n"
+		       "    -v  --verbose\n"
+		       "    -d  --debug\n"
+		       "    -i  --info\n"
+		       "    -q  --quiet\n"
+		       "\n");
+		return 1;
 		break;
 	}
     }
