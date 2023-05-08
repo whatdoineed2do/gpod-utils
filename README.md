@@ -42,7 +42,7 @@ iPhoneOS 3.x |yes|no |yes|yes|yes
 Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermoumt -u /tmp/ipod` when done.
 
 ## `gpod-ls`
-Simple utility that parses an `iPod` db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.
+Simple utility that parses an `iPod` db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.  The per track object also includes `checksum` that is the hash value of the audio-only checksum of the file (same value as `ffmpeg -hide_banner -i foo.m4a -c:a copy -bsf:a null -f hash -`).
 
 Optionally an `SQLite3` db can be generated for easier investigation.
 
@@ -91,7 +91,8 @@ $ gpod-ls -M /run/media/ray/IPOD | tee ipod.json | jq '.'
               "rating": 20,
               "playcount": 3,
               "playcount2": 0,
-              "recent_playcount": 0
+              "recent_playcount": 0,
+              "checksum": 1503221223
             },
             ...
           ]
@@ -209,7 +210,7 @@ iPod total tracks=87  removed 1/1 items (58.32K)
 The `-a` flag can be specified before any other files to force removal of duplicates files based on `iPod` filesystem checksums, leaving the earliest added instance of the track.
 
 ## `gpod-cp`
-Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversion is performed.  Using the `-c` switch will perform checksum generation/analysis of files on `iPod` to prevent duplicates being copied.
+Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversion is performed.  Using the `-c` switch controls audio checksum generation/analysis (ingnores metadata) of files on `iPod` to prevent duplicates being copied.
 ```
 $ gpod-cp -M /run/media/ray/IPOD -c \
     nothere.mp3 foo.flac foo.mp3 
@@ -220,9 +221,9 @@ copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
 sync'ing iPod ... 
 iPod total tracks=29  2/3 items (3.44M)  music=2 video=0 other=0  in 0.572 secs
 ```
-The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,192,256,320 for CBR.  The default conversion is to high quality vbr `aac` (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to `mp3` and `alac` is also available via `-e` flag.  Note that the `aac` conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to `mp3`, equivalent to `ffmpeg -c:a libmp3lame -vbr 1`, if the `fdk` support is not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.  Metadata from the originating audio file can be copied to the transcoded file - this will be aid identifying files from the internal iPod storage at a later point.
+The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,192,256,320 for CBR.  The default conversion is to high quality vbr `aac` (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to `mp3` and `alac` is also available via `-e` flag.  Note that the `aac` conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to `mp3`, equivalent to `ffmpeg -c:a libmp3lame -vbr 1`, if the `fdk` support is not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.  Metadata from the originating audio file can be copied to the transcoded file - this will be aid identifying files from the internal `iPod` storage at a later point.
 
-`iPod` audio only support up to 48000 and we perform automatic sample rate conversions:  Re-sampled audio files are not directly equivalent to `ffmpeg`, as verified by `ffmpeg -i foo.mp3 -f framehash foo.sha256` or `ffmpeg -i foo.mp3 -c:a copy -bsf:a null -f hash -`, although the non sample rate conversions are equivalent.
+`iPod` audio only support up to 48000 and we perform automatic sample rate conversions:  Re-sampled audio files are not directly equivalent to `ffmpeg`, as verified by per-frame hash `ffmpeg -i foo.mp3 -f framehash foo.sha256` or file stream hash `ffmpeg -i foo.mp3 -c:a copy -bsf:a null -f hash -`, although the non sample rate conversions are equivalent.
 
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
