@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
     }
 
 
-    const unsigned  sample_rates[] = { 44100, 22050, 0 };
+    const unsigned  sample_rates[] = { 44100, 22050, 48000, 0 };
     struct sample_hash_pair {
 	int sample;
 	char* hash;
@@ -121,6 +121,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 		{ 44100, "eeb109d3381c0625609f84965610e8f6a1b6d8c337fd3d7a934f804c8a4b8b8f" },
 		{ 22050, "941216461eecfd12eff13f5a8be83618f6b56bbbbb425a81fbf7dd02450bdec7" },
+		{ 48000, "f4779ed91b17b9f087dd420c1713f93e8db1de8c0750475f1e0d13891a43f6a8" },
 		{ 0, NULL }
 	    }
 	},
@@ -131,6 +132,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "db64d007d80f834e4f323926153ff9e02d2ecb8e863d1345a04af946b5bd67b9" },
 		{ 22050, "a748ccef0e0bbab2f056ef5b06156e603268d1bfa14ed49be4d00d9c4965c981" },
+		{ 48000, "d198bc28564ef85bec5198d6c4cff8fd0f8091b48485dac69130c910bcc44842" },
 		{ 0, NULL }
 	    },
 	},
@@ -141,6 +143,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "f8bede78673ae3b0d22ce66917204700ba015c8f703bdd562c5da26d49df290a" },
 		{ 22050, "8c2c29a2831775f5d69fde4fdccb3e500ee354217fde866146ca553863d84d0f" },
+		{ 48000, "29252064f7861864fee2ddcfaaf693046c2563bc31d3a621545f712b30a85c82" },
 		{ 0, NULL }
 	    },
 	},
@@ -151,6 +154,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "745d5e9537956f9f8bb757b677abd676f4c3d4daf20dd5381ccb2f2e668bedff" },
 		{ 22050, "9ba5c7ee60da588d55abdbc30f3da1651c04fda0c1fdc36084dbe8ea33498546" },
+		{ 48000, "4cfddcea16f73b85b5a0a1604cb297d7d28576836e1f41d8bf8c80ce5f5f1d4d" },
 		{ 0, NULL }
 	    },
 	},
@@ -161,6 +165,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "de4945dacdefe064f03630c9214f044c4f6a5d9c4f347df106ff8f8a0e92920b" },
 		{ 22050, "5291ff893c8fba4c07db71edddc21aacfbe7be4486c3e766abbd0233244454d6" },
+		{ 48000, "70587c1749945cd3f93d6910cac884da489dfacd2575a17f197a9328fc8c605c" },
 		{ 0, NULL }
 	    },
 
@@ -172,6 +177,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "157f7347e4b567a2cd45179c0bbbcbf8bf60e14e443c7b7c3e5ddf3049b8ac6f" },
 		{ 22050, "65cdb41db70e1c00d579cc15c74bc2ee459f6b80fc42033efb5b404f1d917e91" },
+		{ 48000, "d756d555f2004bf1e8c5064ef7dc1f66d4315079741ee17ecedabc5e9c0db3fc" },
 		{ 0, NULL }
 	    },
 	},
@@ -182,6 +188,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "372faf52543a676347d7c7310164be47af796b365106707911e20bb6c592d8f3" },
 		{ 22050, "43594d5a0486a22cc19dff11cc0d5c21b445d452f67f671e5bcb0b24e31527b1" },
+		{ 48000, "e25b3176c750b5d325c119ed4c22ab1df013e99fd73588143f068015c9016b70" },
 		{ 0, NULL }
 	    },
 	},
@@ -192,6 +199,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "1340fb5970dbdeae3b8ab5e1207d075327005b8d06f982b94769058f62bc8939" },
 		{ 22050, "ec5c9d2d45ec7b6aec7da52b3c03f08c8e452a104193e9eff587c1e8bc265ce5" },
+		{ 48000, "87eb234fed4b642011040e1a0e72c2803e9270dc57a7932ca3279a0a5c14ccf1" },
 		{ 0, NULL }
 	    },
 	},
@@ -202,6 +210,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "48106240707d0fb6200616277328cd03c267574fa15714b6dcd8e1f9325c25e8" },
 		{ 22050, "3e49dedb4349927af49bfc745c40bd9cba1792b50d5ec0530d15e2a143190510" },
+		{ 48000, "31c28664f2e06b1508c286de0a0e28197405e51cf47cfc71a22f0bdcb7e2c8f5" },
 		{ 0, NULL }
 	    },
 	},
@@ -212,6 +221,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "dc3036f0c207f80c90db4d3b5f26509104da46b86b47308761d5501ffbba7007" },
 		{ 22050, "9fa889bc0fa6a16140ae04d28ab2342a2875c98976165fd59740a3355c65f9b2" },
+		{ 48000, "493b2bf92e80c4ce60365e4888c90345857502407556278226d9fb1cee69e9bc" },
 		{ 0, NULL }
 	    },
 	},
@@ -222,6 +232,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "c743ed3992512c4d3a4bbaf75fb5a2b709053f22742b0a7c06e32f76dc2253af" },
 		{ 22050, "7c1fba46071b81d50c8e85ff7d868c8c8c0a523d2c5b60676e09c1418bf983ed" },
+		{ 48000, "e5135510bd5594cd57fe2c60f3ab732d08a19232889c17c3df6cd331d9834c9a" },
 		{ 0, NULL }
 	    },
 	},
@@ -232,6 +243,7 @@ int main(int argc, char* argv[])
 	    .hashes = {
 	        { 44100, "b6a34dff1a12b3dd16179d486757655a691b2488e630a33d2749e1bf1e52bdf3" },
 		{ 22050, "5ab134097408762316f9219341b59a8dc5c379d795ab94def72efcd1f557c98c" },
+		{ 48000, "5d58ed9f77e23f504e21775322fbc92987c98c92daa5e17dbd08f79d81c76fe6" },
 		{ 0, NULL }
 	    },
 	},
