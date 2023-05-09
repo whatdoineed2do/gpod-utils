@@ -304,4 +304,5 @@ ADD   [  1]  /iPod_Control/Music/F00/foo.mp3 -> { title='Sine' artist='ffmpeg' a
 sync'ing iPod ...
 iPod total tracks=4  orphaned 0 removed 1 added 1 items
 ```
-#
+## `gpod-hashsum`
+Generates the hashcode, based on the `ffmpeg` audio data stream's hash, used by `gpod-cp` for identifying duplicate files.  Simple utility to validate input files.
