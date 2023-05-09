@@ -27,7 +27,6 @@ int main(int argc, char* argv[])
 
     gpod_ff_init();
 
-    struct gpod_hash_digest  res;
     int  ret;
     char* err = NULL;
     char*  streamhash = NULL;
@@ -35,7 +34,7 @@ int main(int argc, char* argv[])
     while (arg < argc)
     {
 	const char*  path = argv[arg++];
-	memset(&res, 0, sizeof(res));
+	struct gpod_hash_digest  res = { 0 };
 
 	err = NULL;
 	streamhash = NULL;
@@ -43,9 +42,14 @@ int main(int argc, char* argv[])
 	ret = gpod_hash_digest_file(&res, path);
 	gpod_ff_audio_hash(&streamhash, path, &err);
 
-	printf("%-11" PRIu64 "  %s   %-11" PRIu32 " %s  %s\n",
-	       ret == 0 ? res.hash : 0, ret == 0 ? res.digest : "",
-	       streamhash ? gpod_djbhash(streamhash) : 0, streamhash ? streamhash : err, path);
+	if (err) {
+	    printf("%s - %s\n", err, path);
+	}
+	else {
+	    printf("%-11" PRIu64 "  %s   %-11" PRIu32 " %s  %s\n",
+		   ret == 0 ? res.hash : 0, ret == 0 ? res.digest : "",
+		   streamhash ? gpod_djbhash(streamhash) : 0, streamhash ? streamhash : err, path);
+	}
 	free(streamhash);
 	free(err);
     }
