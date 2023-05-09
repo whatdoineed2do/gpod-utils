@@ -768,7 +768,7 @@ int  gpod_ff_audio_hash(char** hash_, const char* file_, char** err_)
 
     ret = avformat_open_input(&ctx, file_, NULL, NULL);
     if (ret < 0) {
-        snprintf(err, sizeof(err), "unable to open input '%s' - %s", av_err2str(ret));
+        snprintf(err, sizeof(err), "unable to open input - %s", av_err2str(ret));
         *err_ = strdup(err);
         goto cleanup;
     }
