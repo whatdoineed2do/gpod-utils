@@ -212,15 +212,20 @@ The `-a` flag can be specified before any other files to force removal of duplic
 ## `gpod-cp`
 Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversion is performed.  Using the `-c` switch controls audio checksum generation/analysis (ingnores metadata) of files on `iPod` to prevent duplicates being copied.
 ```
-$ gpod-cp -M /run/media/ray/IPOD -c \
-    nothere.mp3 foo.flac foo.mp3 
-copying 3 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
-[  1/3]  nothere.mp3 -> { } No such file or directory
-[  2/3]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.mp3' }
-[  3/3]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' }
+$ gpod-cp -M /run/media/ray/IPOD \
+    nothere.mp3 foo.flac foo.mp3 foo.mp3
+copying 4 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
+generating internal cksums...
+processing 4 tracks over 8 threads
+[  1/4]  nothere.mp3 -> { } No such file or directory
+[  2/4]  foo.flac -> { title='Flac file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F00/libgpod325022.m4a' }
+[  3/4]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path='/iPod_Control/Music/F01/libgpod211429.mp3' }
+[  4/4]  foo.mp3 -> { title='mp3 file' artist='Foo' album='Test tracks' ipod_path= *** DUPL 1503221223 *** }
 sync'ing iPod ... 
-iPod total tracks=29  2/3 items (3.44M)  music=2 video=0 other=0  in 0.572 secs
+iPod total tracks=29  2/4 items (3.44M)  music=2 video=0 other=0  in 0.572 secs (ttl xcode 0.355 secs)
 ```
+The `DUPL` hashcode shows the audio stream of the file identified as duplicate - this integer value can be used to identify (via `gpod-ls`) on the track already on the `iPod` device; this hashcode especially useful as its generated on the audio stream which is independant of the metadata tags.
+
 The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,192,256,320 for CBR.  The default conversion is to high quality vbr `aac` (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to `mp3` and `alac` is also available via `-e` flag.  Note that the `aac` conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to `mp3`, equivalent to `ffmpeg -c:a libmp3lame -vbr 1`, if the `fdk` support is not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.  Metadata from the originating audio file can be copied to the transcoded file - this will be aid identifying files from the internal `iPod` storage at a later point.
 
 `iPod` audio only support up to 48000 and we perform automatic sample rate conversions:  Re-sampled audio files are not directly equivalent to `ffmpeg`, as verified by per-frame hash `ffmpeg -i foo.mp3 -f framehash foo.sha256` or file stream hash `ffmpeg -i foo.mp3 -c:a copy -bsf:a null -f hash -`, although the non sample rate conversions are equivalent.
