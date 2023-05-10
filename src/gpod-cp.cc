@@ -260,7 +260,7 @@ static int  gpod_write_db(Itdb_iTunesDB* itdb, const char* mountpoint, GSList** 
 }
 
 static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
-                          Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track** track_, const char* mountpoint, uint32_t* added_,
+                          Itdb_iTunesDB* itdb, Itdb_Playlist* mpl_, Itdb_Track** track_, const char* mountpoint, uint32_t* added_, uint32_t* dupl_,
                           struct gpod_ff_transcode_ctx* xfrm_, const guint xcodetime_, const char* path_,
                           GSList** pending_,
                           struct gpod_track_fs_hash*  tfsh_,
@@ -278,6 +278,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
         gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path= *** DUPL %lu *** }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", gpod_saved_cksum(track));
         itdb_track_free(*track_);
         *track_ = NULL;
+	++(*dupl_);
     }
     else
     {
@@ -400,6 +401,7 @@ struct gpod_cp_pool_args {
     time_t  time_added;
     uint32_t*  added;
     GSList**  replaced;
+    uint32_t*  dupl;
 
     GSList**  failed;
     GMutex  failed_lck;
@@ -409,7 +411,7 @@ struct gpod_cp_pool_args {
 
 struct gpod_cp_pool_args*  gpod_cp_pa_init(
         Itdb_iTunesDB* itdb_, Itdb_Playlist* mpl_, const char* mountpoint_,
-        const Itdb_IpodInfo* ipodinfo_, time_t time_added_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_,
+        const Itdb_IpodInfo* ipodinfo_, time_t time_added_, uint32_t* added_, GSList** failed_, GHashTable* tracks_, GSList** replaced_, uint32_t* dupl_,
         GSList** pending_,
         struct gpod_track_fs_hash*  tfsh_,
         Itdb_Playlist*  recentpl_)
@@ -430,6 +432,7 @@ struct gpod_cp_pool_args*  gpod_cp_pa_init(
     args->added = added_;
     args->failed = failed_;
     args->replaced = replaced_;
+    args->dupl = dupl_;
 
     g_mutex_init(&args->failed_lck);
     g_mutex_init(&args->cp_lck);
@@ -520,7 +523,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
 
         g_mutex_lock(&pargs->cp_lck);
         if (gpod_cp_track(&lctx,
-                          pargs->itdb, pargs->mpl, &track, pargs->mountpoint, pargs->added,
+                          pargs->itdb, pargs->mpl, &track, pargs->mountpoint, pargs->added, pargs->dupl,
                           &xfrm, then-now, args->path, pargs->pending, pargs->tfsh, &pargs->recentpl,
                           pargs->tracks, pargs->replaced,
                           &error) < 0) {
@@ -887,6 +890,7 @@ int main (int argc, char *argv[])
 
     uint32_t  added = 0;
     uint32_t  requested = 0;
+    uint32_t  dupl = 0;
 
     GSList*  files = NULL;
     GSList*  failed = NULL;
@@ -967,7 +971,7 @@ int main (int argc, char *argv[])
 
 	// create thread pool and throw all tasks (direct cp and xcode)
 	struct gpod_cp_pool_args*  pool_args = gpod_cp_pa_init(itdb, mpl, mountpoint,
-							       ipodinfo, opts.time_added, &added, &failed, tracks, &replaced,
+							       ipodinfo, opts.time_added, &added, &failed, tracks, &replaced, &dupl,
 							       &pending, &tfsh, recentpl);
 
 	GThreadPool*  tp = g_thread_pool_new((GFunc)gpod_cp_thread, (gpointer)pool_args,
@@ -1063,7 +1067,7 @@ int main (int argc, char *argv[])
     }
 
 
-    g_print("iPod total tracks=%u  %u/%u items %s  music=%u video=%u other=%u  in %s%s (ttl xcode %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, stats.music, stats.video, stats.other, duration, userterm, xcode_duration);
+    g_print("iPod total tracks=%u  %u/%u items %s  dupl=%u  music=%u video=%u other=%u  in %s%s (ttl xcode %s)\n", g_list_length(itdb_playlist_mpl(itdb)->members), ret < 0 ? 0 : added, N, stats_size, dupl, stats.music, stats.video, stats.other, duration, userterm, xcode_duration);
 
     itdb_device_free(itdev);
     itdb_free(itdb);
