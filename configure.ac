@@ -60,5 +60,6 @@ fi
 
 AC_OUTPUT([
 Makefile
+src/lib/Makefile
 src/Makefile
 ])
