@@ -1,9 +1,9 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-AM_CFLAGS = $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) $(FFMPEG_CFLAGS) -Wunused-function -Wunused-variable -Wshadow -fno-common -D_XOPEN_SOURCE=500
+AM_CFLAGS = $(GPOD_UTILS_CFLAGS) $(GPOD_CFLAGS) $(GLIB_CFLAGS) $(JSONC_CFLAGS) $(SQLITE3_CFLAGS) $(FFMPEG_CFLAGS) -Wunused-function -Wunused-variable -Wshadow -fno-common -D_XOPEN_SOURCE=500
 AM_CXXFLAGS = $(AM_CFLAGS)
 LDADD = libgpod-utils.a
-LDFLAGS = $(GLIB_LIBS) $(GPOD_LIBS) $(FFMPEG_LDFLAGS) -lavformat -lavutil -lavcodec
+LDFLAGS = $(GPOD_UTILS_LDFLAGS) $(GLIB_LIBS) $(GPOD_LIBS) $(FFMPEG_LDFLAGS) -lavformat -lavutil -lavcodec
 
 GPOD_OPT=
 noinst_LIBRARIES = libgpod-utils.a
