@@ -70,7 +70,10 @@ static int open_input_file(const char *filename,
                            AVCodecContext **input_codec_context, int* audio_stream_idx, char** err_)
 {
     AVCodecContext *avctx;
-    const AVCodec *input_codec;
+#if LIBAVFORMAT_VERSION_MAJOR > 58
+    const
+#endif
+    AVCodec *input_codec;
     const AVStream *stream;
     int error;
 
