@@ -33,6 +33,7 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -382,9 +383,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     return 0;
 }
 
-extern "C" {
 int gpod_signal = 0;
-}
 static bool  gpod_stop = false;
 
 struct gpod_cp_pool_args {
@@ -416,7 +415,7 @@ struct gpod_cp_pool_args*  gpod_cp_pa_init(
         struct gpod_track_fs_hash*  tfsh_,
         Itdb_Playlist*  recentpl_)
 {
-    struct gpod_cp_pool_args*  args = (gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
+    struct gpod_cp_pool_args*  args = (struct gpod_cp_pool_args*)g_malloc0(sizeof(struct gpod_cp_pool_args));
 
     args->itdb = itdb_;
     args->mpl = mpl_;

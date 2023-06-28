@@ -27,9 +27,8 @@ gpod_hashsum_SOURCES = gpod-hashsum.c
 gpod_hashsum_LDADD =  -Llib -lgpod-utils $(AM_LDFLAGS) $(GLIB_LIBS) $(GPOD_LIBS) $(FFMPEG_LDFLAGS) -lavformat -lavutil -lavcodec
 
 GPOD_OPT+=gpod-cp
-gpod_cp_CFLAGS = $(FFMPEG_CFLAGS) $(AM_CFLAGS)
-gpod_cp_CXXFLAGS = $(gpod_cp_CPPFLAGS) $(FFMPEG_CFLAGS) $(AM_CXXFLAGS)
-gpod_cp_SOURCES = gpod-cp.cc
+gpod_cp_CFLAGS = $(gpod_cp_CPPFLAGS) $(FFMPEG_CFLAGS) $(AM_CFLAGS)
+gpod_cp_SOURCES = gpod-cp.c
 gpod_cp_LDADD = -Llib -lgpod-utils $(AM_LDFLAGS) $(GPOD_LIBS) $(GLIB_LIBS) $(FFMPEG_LIBS) -lavformat -lavutil -lavcodec -lswresample
 
 
