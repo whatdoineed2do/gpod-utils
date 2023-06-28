@@ -97,12 +97,23 @@ struct gpod_ff_media_info
 
 enum gpod_ff_enc {
     GPOD_FF_ENC_MP3,
-    GPOD_FF_ENC_AAC,
     GPOD_FF_ENC_FDKAAC,
+    GPOD_FF_ENC_AAC,
+    GPOD_FF_ENC_AAC_AT,
     GPOD_FF_ENC_ALAC,
 
     GPOD_FF_ENC_MAX
 };
+
+struct gpod_ff_enc_support {
+    const enum gpod_ff_enc  enc;
+    const char* const  name;      // what we call this
+    const char* const  enc_name;  // the libavcodec encoder name
+    bool  supported;              // does the libavcodec library support this (namely, libfdk_aac)
+};
+
+extern const struct  gpod_ff_enc_support*  gpod_ff_encoders;
+
 
 enum gpod_ff_transcode_quality { 
     GPOD_FF_XCODE_VBR0 = 0,
@@ -156,7 +167,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 #endif
 
 
-bool  gpod_ff_enc_supported(enum gpod_ff_enc  enc_);
+const struct gpod_ff_enc_support*  gpod_ff_enc_supported(enum gpod_ff_enc  enc_);
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
                                  enum gpod_ff_enc enc_, enum gpod_ff_transcode_quality quality_, bool sync_meta_);

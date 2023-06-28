@@ -680,17 +680,16 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 #endif
 
 
-bool  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
+const struct gpod_ff_enc_support*  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
 {
-    const char*  codec_name = NULL;
-    switch (enc_) {
-	case GPOD_FF_ENC_MP3:     codec_name = "libmp3lame";  break;
-	case GPOD_FF_ENC_AAC:     codec_name = "aac";         break;
-	case GPOD_FF_ENC_FDKAAC:  codec_name = "libfdk_aac";  break;
-	case GPOD_FF_ENC_ALAC:    codec_name = "alac";        break;
+    const struct gpod_ff_enc_support*  p = gpod_ff_encoders;
+    while (p->name) {
+        if (p->enc == enc_) {
+	    return p;
+	}
+	++p;
     }
-
-    return codec_name ? avcodec_find_encoder_by_name(codec_name) : false;
+    return NULL;
 }
 
 void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
@@ -835,8 +834,30 @@ cleanup:
 static void  _avlog_callback_null(void *ptr, int level, const char *fmt, va_list vl)
 { }
 
+static struct  gpod_ff_enc_support  _gpod_ff_encoders[] = {
+  { .enc = GPOD_FF_ENC_MP3,    .name = "mp3",        .enc_name = "libmp3lame", .supported = false },
+  { .enc = GPOD_FF_ENC_FDKAAC, .name = "aac",        .enc_name = "libfdk_aac", .supported = false },
+  { .enc = GPOD_FF_ENC_AAC,    .name = "aac-ffmpeg", .enc_name = "aac",        .supported = false },
+  { .enc = GPOD_FF_ENC_AAC_AT, .name = "aac_at",     .enc_name = "aac_at",     .supported = false },
+  { .enc = GPOD_FF_ENC_ALAC,   .name = "alac",       .enc_name = "alac",       .supported = false },
+  { .enc = GPOD_FF_ENC_MAX,    .name = NULL,         .enc_name = NULL,         .supported = false }
+};
+const struct  gpod_ff_enc_support*  gpod_ff_encoders = NULL;
+
+
 void  gpod_ff_init()
 {
+    if (gpod_ff_encoders) {
+        return;
+    }
+    gpod_ff_encoders = _gpod_ff_encoders;
+
     av_log_set_flags(AV_LOG_SKIP_REPEATED);
     av_log_set_callback(_avlog_callback_null);
+
+    struct gpod_ff_enc_support*  p = _gpod_ff_encoders;
+    while (p->name) {
+	p->supported = avcodec_find_encoder_by_name(p->enc_name) != NULL;
+	++p;
+    }
 }
