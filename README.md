@@ -1,7 +1,7 @@
 # `gpod utils`
 Command line tools using [`libgpod`](https://sourceforge.net/p/gtkpod/libgpod/ci/master/tree/) to access `iPod` data.
 
-Whilst `libgpod` appears to be in sunset mode (last release in 2015), recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old iPods in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
+Whilst `libgpod` appears to be in sunset mode (last release in 2015), recent 2021 Fedora and Debian distros still provide `gtkpod` in their standard repos.  However there are still many old `iPods` in the wild with a mini resurrgence of popularity for the `iPod` 4/5/5.5/Classic units given the relative ease in replacing batteries and swapping out their power hungry harddisks for larger capacity SD cards.
 
 As of 2021, the last `libgpod` release is 0.8.3 - their docs suggests the library supports all classic `iPods`, `iPod Touches` and early `iPhones`.  Whilst testing this codebase, only `iPods` were supported with `iPod Touch 1G` and onwards not compatible due to the signing requirement of the `iTunesDB` file on these devices.
 
