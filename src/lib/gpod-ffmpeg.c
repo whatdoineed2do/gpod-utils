@@ -836,7 +836,7 @@ static void  _avlog_callback_null(void *ptr, int level, const char *fmt, va_list
 
 static struct  gpod_ff_enc_support  _gpod_ff_encoders[] = {
   { .enc = GPOD_FF_ENC_MP3,    .name = "mp3",        .enc_name = "libmp3lame", .supported = false },
-  { .enc = GPOD_FF_ENC_FDKAAC, .name = "aac",        .enc_name = "libfdk_aac", .supported = false },
+  { .enc = GPOD_FF_ENC_FDKAAC, .name = "fdk-aac",    .enc_name = "libfdk_aac", .supported = false },
   { .enc = GPOD_FF_ENC_AAC,    .name = "aac-ffmpeg", .enc_name = "aac",        .supported = false },
   { .enc = GPOD_FF_ENC_AAC_AT, .name = "aac_at",     .enc_name = "aac_at",     .supported = false },
   { .enc = GPOD_FF_ENC_ALAC,   .name = "alac",       .enc_name = "alac",       .supported = false },
