@@ -598,6 +598,44 @@ void  gpod_cp_destroy()
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
+    const struct gpod_ff_enc_support*  enc_sup = NULL;
+    struct gpod_ff_enc_support  enc[GPOD_FF_ENC_MAX] = { 0 };
+
+    unsigned  encbuf_sz = 0;
+    unsigned  encbuflibavc_sz = 0;
+    enc_sup = gpod_ff_encoders;
+    unsigned  i = 0;
+    while (enc_sup->name)
+    {
+	if (enc_sup->supported) {
+	    encbuf_sz += strlen(enc_sup->name)+1;
+	    encbuflibavc_sz += strlen(enc_sup->enc_name)+1;
+
+	    memcpy(&enc[i++], enc_sup, sizeof(struct gpod_ff_enc_support));
+	}
+        ++enc_sup;
+    }
+
+    char*  encoders = (char*)malloc(sizeof(char)*(encbuf_sz+1));
+    char*  encoders_libavc = (char*)malloc(sizeof(char)*(encbuflibavc_sz+1));
+    *encoders = '\0';
+    *encoders_libavc = '\0';
+
+    enc_sup = enc;
+    while (enc_sup->name)
+    {
+	if (enc_sup->supported) {
+	    strcat(encoders, enc_sup->name);
+	    strcat(encoders_libavc, enc_sup->enc_name);
+	}
+        ++enc_sup;
+	if (enc_sup->name) {
+	    strcat(encoders, "|");
+	    strcat(encoders_libavc, "|");
+	}
+    }
+
+
     g_print ("%s\n", PACKAGE_STRING);
     g_print ("  ffmpeg %s:\n"
 	     "    libavutil:     %d.%d.%d\n"
@@ -609,6 +647,7 @@ void  _usage(const char* argv0_)
 	       AV_VERSION_MAJOR(avcodec_version()), AV_VERSION_MINOR(avcodec_version()), AV_VERSION_MICRO(avcodec_version()),
 	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
 	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
+
     g_print ("usage: %s  [OPTIONS] <file|directory> [<file|directory> ...]\n"
 	     "\n"
              "    adds specified files to iPod/iTunesDB\n"
@@ -626,7 +665,7 @@ void  _usage(const char* argv0_)
 	     "    -t  --tracks-time-added        <time added>             spoof 'added' time to specified date in ISO8601\n"
 	     "\n"
 	     "  Encoding (forced xcode of iPod unsupported formats)\n"
-	     "    -e  --encoder                  <mp3|aac|alac>           transcode to mp3/fdkaac/alac - default: aac\n"
+	     "    -e  --encoder                  <%s>           transcode via ffmpeg/libavcodec <%s> - default: %s\n"
 	     "    -E  --disable-encoder-fallback                          disable encoding fallback to mp3, when no fdkaac available\n"
 	     "    -q  --encoder-quality          <0-9>                    VBR level (ffmpeg -q:a 0-9)\n"
 	     "                                   <128,160,192,256,320>    CBR 128..320k (not applicable for alac)\n"
@@ -636,8 +675,10 @@ void  _usage(const char* argv0_)
 	     "    -P  --playlist-name            <name>                   generate specific 'recently added' playlist - if not specified, default 'Recent' playlists are generated\n"
 	     "    -n  --playlist-limit           <limit>     '            recently added' pl limit - 0 to disable Recent playlists generation\n"
              "\n"
-             ,basename);
+             ,basename, encoders, encoders_libavc, gpod_ff_enc_supported(opts.enc)->name);
     g_free (basename);
+    free(encoders);
+    free(encoders_libavc);
     exit(-1);
 }
 
@@ -688,6 +729,11 @@ int main (int argc, char *argv[])
 	}
     }
 
+    gpod_ff_init();
+    if (!gpod_ff_enc_supported(opts.enc)->supported) {
+        opts.enc = GPOD_FF_ENC_MP3;
+    }
+
 
     int  c;
     while ( (c=getopt_long(argc, argv, opt_args, long_opts, NULL)) != -1)
@@ -712,22 +758,33 @@ int main (int argc, char *argv[])
 
             case 'e':
 	    {
-                if      (strcasecmp(optarg, "mp3") == 0)  opts.enc = GPOD_FF_ENC_MP3;
-                else if (strcasecmp(optarg, "aac") == 0)  opts.enc = GPOD_FF_ENC_FDKAAC;
-                else if (strcasecmp(optarg, "alac") == 0)
-		{ 
-		    opts.enc = GPOD_FF_ENC_ALAC;
-		    opts.xcode_quality = GPOD_FF_XCODE_MAX;
+		const struct gpod_ff_enc_support*  p = gpod_ff_encoders;
+		while (p->name) {
+		    if (strcasecmp(optarg, p->name) == 0) {
+			opts.enc = p->enc;
+			break;
+		    }
+		    ++p;
 		}
-                else if (strcasecmp(optarg, "aac-ffmpeg") == 0)
-		{
-		    // ffmpeg website notes aac VBR is (still??) experimental and worse than CBR
-		    // default to cb
-		    opts.enc = GPOD_FF_ENC_AAC;
-		    opts.xcode_quality = GPOD_FF_XCODE_CBR256;
-		}
-                else {
+
+		if (p->name == NULL) {
+		    // user requested some unknown encoder
 		    opts.enc = GPOD_FF_ENC_MAX;
+		}
+		else
+		{
+		    switch (opts.enc) {
+		        case GPOD_FF_ENC_ALAC:
+			    opts.xcode_quality = GPOD_FF_XCODE_MAX;
+			    break;
+
+			case GPOD_FF_ENC_AAC:
+			    opts.xcode_quality = GPOD_FF_XCODE_CBR256;
+			    break;
+
+			default:
+			    break;
+		    }
 		}
             } break;
 
@@ -847,7 +904,6 @@ int main (int argc, char *argv[])
 
 
     gpod_setlocale();
-    gpod_ff_init();
 
     if (g_file_test(opts.itdb_path, G_FILE_TEST_IS_DIR)) {
         itdb = itdb_parse (opts.itdb_path, &error);
@@ -942,7 +998,7 @@ int main (int argc, char *argv[])
     /* validate that the requested xcode encoder is supported; we expect that 
      * mp3 is supported!
      */
-    if (!gpod_ff_enc_supported(opts.enc))
+    if (!gpod_ff_enc_supported(opts.enc)->supported)
     {
 	extra = "";
 	opts.enc = GPOD_FF_ENC_MAX;
