@@ -276,8 +276,10 @@ guint  gpod_hash_file(const char* path_)
 {
     char*  err = NULL;
     char*  streamhash = NULL;
-    gpod_ff_audio_hash(&streamhash, path_, &err);
-    guint  ret = gpod_djbhash(streamhash);
+    guint  ret;
+    if ((ret = gpod_ff_audio_hash(&streamhash, path_, &err)) == 0) {
+	ret = gpod_djbhash(streamhash);
+    }
     free(streamhash);
     free(err);
 
