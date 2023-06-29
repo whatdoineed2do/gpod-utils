@@ -621,13 +621,12 @@ void  _usage(const char* argv0_)
     *encoders = '\0';
     *encoders_libavc = '\0';
 
+    // this only contains the supported/compile time available libav codecs
     enc_sup = enc;
     while (enc_sup->name)
     {
-	if (enc_sup->supported) {
-	    strcat(encoders, enc_sup->name);
-	    strcat(encoders_libavc, enc_sup->enc_name);
-	}
+	strcat(encoders, enc_sup->name);
+	strcat(encoders_libavc, enc_sup->enc_name);
         ++enc_sup;
 	if (enc_sup->name) {
 	    strcat(encoders, "|");
