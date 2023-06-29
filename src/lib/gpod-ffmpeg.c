@@ -682,8 +682,9 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 
 const struct gpod_ff_enc_support*  gpod_ff_enc_supported(enum gpod_ff_enc enc_)
 {
+    // this could be null if gpod-ff-init() not called
     const struct gpod_ff_enc_support*  p = gpod_ff_encoders;
-    while (p->name) {
+    while (p && p->name) {
         if (p->enc == enc_) {
 	    return p;
 	}
