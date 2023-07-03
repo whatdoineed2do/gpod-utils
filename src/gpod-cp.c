@@ -715,7 +715,7 @@ int main (int argc, char *argv[])
 
 	{0, 0, 0,  0 }
     };
-    char  opt_args[sizeof(long_opts)*2] = { 0 };
+    char  opt_args[1+ sizeof(long_opts)*2] = { 0 };
     {
 	char*  og = opt_args;
 	const struct option* op = long_opts;
