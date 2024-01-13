@@ -41,18 +41,11 @@ PKG_CHECK_EXISTS([libavcodec >= 59.24.100],
 AC_SUBST(FFMPEG_CFLAGS)
 AC_SUBST(FFMPEG_LIBS)
 
-
-AC_ARG_ENABLE([debug],
-	[AS_HELP_STRING([--enable-debug],
-	[enable debug (default is no)])],
-	[no_debug=false],
-	[no_debug=true])
-if test "$no_debug" = true; then
-        building_debug=no
+AC_ARG_ENABLE(debug,
+        AS_HELP_STRING([--enable-debug],[enable debug code (default is no)]),
+        [ debug="${enableval}" ], [ debug=no ] )
+if test "x$debug" = xno; then
         AC_DEFINE(NDEBUG,1,[debug code])
-else
-        building_debug=yes
-        AC_DEFINE(DEBUG,1,[debug code])
 fi
 
 AC_OUTPUT([
