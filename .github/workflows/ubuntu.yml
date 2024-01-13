@@ -22,10 +22,22 @@ jobs:
         libglib2.0-dev \
         libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
         libjson-c-dev
-    - name: configure
+
+    - name: configure prep
       run: |
         autoreconf --install
         autoconf
-        ./configure
-    - name: make
-      run: make
+
+    - name: build default
+      run: |
+        ./configure && make
+
+    - name: build with sqlite3
+      run: |
+        sudo apt-get install -yq libsqlite3-dev
+        ./configure && make clean && make
+
+    - name: build with debug
+      run: |
+        make clean
+        ./configure --enable-debug && make
