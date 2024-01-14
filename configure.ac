@@ -2,16 +2,16 @@
 # autoconf
 #
 
-AC_PREREQ(2.64)
-AC_INIT([gpod-utils], [m4_esyscmd([git describe --tags --dirty --always | tr -d '\n'])], [https://github.com/whatdoineed2do/gpod-utils/issues], [https://github.com/whatdoineed2do/gpod-utils], [whatdoineed2do@nospam-github.com])
+AC_PREREQ([2.69])
+AC_INIT([gpod-utils],[m4_esyscmd([git describe --tags --dirty --always | tr -d '\n'])],[https://github.com/whatdoineed2do/gpod-utils/issues],[https://github.com/whatdoineed2do/gpod-utils],[whatdoineed2do@nospam-github.com])
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip])
 AC_CONFIG_MACRO_DIRS([m4])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_SRCDIR([src/])
 AC_CONFIG_HEADERS([config.h])
 
+AC_PROG_CC
 AC_PROG_RANLIB
-AC_HEADER_STDC
 AC_PROG_INSTALL
 PKG_PROG_PKG_CONFIG
 
@@ -48,8 +48,9 @@ if test "x$debug" = xno; then
         AC_DEFINE(NDEBUG,1,[debug code])
 fi
 
-AC_OUTPUT([
+AC_CONFIG_FILES([
 Makefile
 src/lib/Makefile
 src/Makefile
 ])
+AC_OUTPUT
