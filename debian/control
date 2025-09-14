@@ -21,10 +21,9 @@ Standards-Version: 4.6.2
 Homepage: https://github.com/whatdoineed2do/gpod-utils/
 
 Package: gpod-utils
-Architecture: amd64
-Multi-Arch: foreign
+Architecture: any
+Multi-Arch: same
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
 Description: Command line tools using 'libgpod' to access 'iPod' data.
-
