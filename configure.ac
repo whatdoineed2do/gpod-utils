@@ -4,6 +4,7 @@
 
 AC_PREREQ([2.69])
 AC_INIT([gpod-utils],[m4_esyscmd([git describe --tags --dirty --always | tr -d '\n'])],[https://github.com/whatdoineed2do/gpod-utils/issues],[https://github.com/whatdoineed2do/gpod-utils],[whatdoineed2do@nospam-github.com])
+AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip])
 AC_CONFIG_MACRO_DIRS([m4])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -15,8 +16,77 @@ AC_PROG_RANLIB
 AC_PROG_INSTALL
 PKG_PROG_PKG_CONFIG
 
+dnl On macOS two glib stacks commonly coexist (Homebrew + MacPorts); a binary
+dnl that loads both glibs aborts at runtime with duplicate GObject classes.
+dnl Anchor all pkg-config lookups to whichever prefix provides libgpod, and
+dnl drop leaked -I/-L flags (e.g. Homebrew's CPPFLAGS/LDFLAGS in the shell
+dnl environment) that would mix in a second glib or mismatched ffmpeg headers.
+gpod_pc_prefix=
+case "$host_os" in
+darwin*)
+    gpod_pc_prefix=`$PKG_CONFIG --variable=prefix libgpod-1.0 2>/dev/null`
+    if test -n "$gpod_pc_prefix"; then
+        gpod_pc_path="$gpod_pc_prefix/lib/pkgconfig:$gpod_pc_prefix/share/pkgconfig"
+        # MacPorts keeps versioned ffmpeg under $prefix/libexec/ffmpeg<N>/
+        for d in "$gpod_pc_prefix"/libexec/ffmpeg*/lib/pkgconfig; do
+            test -d "$d" && gpod_pc_path="$gpod_pc_path:$d"
+        done
+        PKG_CONFIG_PATH="$gpod_pc_path${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+        export PKG_CONFIG_PATH
+        AC_MSG_NOTICE([darwin: anchoring pkg-config lookups to $gpod_pc_prefix])
+
+        gpod_kept_flags=
+        for f in $CPPFLAGS; do
+            gpod_drop=no
+            case "$f" in
+            -I"$gpod_pc_prefix"/*) ;;
+            -I*)
+                d=`expr "x$f" : 'x-I\(.*\)'`
+                if test -d "$d/glib-2.0" || test -f "$d/libavcodec/avcodec.h"; then
+                    gpod_drop=yes
+                fi ;;
+            esac
+            if test "$gpod_drop" = yes; then
+                AC_MSG_NOTICE([darwin: dropping conflicting $f from CPPFLAGS])
+            else
+                gpod_kept_flags="$gpod_kept_flags $f"
+            fi
+        done
+        CPPFLAGS=$gpod_kept_flags
+
+        gpod_kept_flags=
+        for f in $LDFLAGS; do
+            gpod_drop=no
+            case "$f" in
+            -L"$gpod_pc_prefix"/*) ;;
+            -L*)
+                d=`expr "x$f" : 'x-L\(.*\)'`
+                if ls "$d"/libglib-2.0.* >/dev/null 2>&1 || ls "$d"/libavcodec.* >/dev/null 2>&1; then
+                    gpod_drop=yes
+                fi ;;
+            esac
+            if test "$gpod_drop" = yes; then
+                AC_MSG_NOTICE([darwin: dropping conflicting $f from LDFLAGS])
+            else
+                gpod_kept_flags="$gpod_kept_flags $f"
+            fi
+        done
+        LDFLAGS=$gpod_kept_flags
+    fi
+    ;;
+esac
+
 PKG_CHECK_MODULES(GLIB, [glib-2.0])
 PKG_CHECK_MODULES(GPOD, [libgpod-1.0 >= 0.8.3])
+
+if test -n "$gpod_pc_prefix"; then
+    glib_pc_prefix=`$PKG_CONFIG --variable=prefix glib-2.0 2>/dev/null`
+    case "$glib_pc_prefix" in
+    "$gpod_pc_prefix"|"$gpod_pc_prefix"/*) ;;
+    *)
+        AC_MSG_ERROR([glib-2.0 resolves to '$glib_pc_prefix' but libgpod to '$gpod_pc_prefix'; linking two glib copies into one binary crashes at runtime.  Re-run configure with PKG_CONFIG_PATH pointing only at the stack that provides libgpod.]) ;;
+    esac
+fi
 PKG_CHECK_MODULES(JSONC, [json-c >= 0.13])
 
 AC_ARG_ENABLE(sqlite3,

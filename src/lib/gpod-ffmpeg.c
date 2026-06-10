@@ -494,7 +494,9 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 
 out:
     av_frame_free(&frame);
+#if LIBAVCODEC_VERSION_MAJOR < 62
     avcodec_close(codec_ctx);
+#endif
     avcodec_free_context(&codec_ctx);
 }
 

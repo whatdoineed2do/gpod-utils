@@ -36,6 +36,10 @@
 #include "sha1.h"
 #include "gpod-ffmpeg.h"
 
+/* weak default for tools that don't install a signal handler; Mach-O, unlike
+ * ELF, does not resolve undefined weak externs to 0 at link time */
+int __attribute__((weak)) gpod_signal = 0;
+
 
 const char*  gpod_setlocale()
 {
