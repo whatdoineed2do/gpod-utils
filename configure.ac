@@ -34,7 +34,7 @@ if test "x$use_sqlite3" != xno ; then
 fi
 AM_CONDITIONAL([HAVE_SQLITE3], [test "x$use_sqlite3" = xyes])
 
-PKG_CHECK_MODULES(FFMPEG, libavformat >= 58.20.100 libavcodec >= 58.35.100 libavutil >= 56.22.100 libswresample >= 3.3.100)
+PKG_CHECK_MODULES(FFMPEG, libavformat >= 58.20.100 libavcodec >= 58.35.100 libavutil >= 56.22.100 libswresample >= 3.3.100 libswscale)
 PKG_CHECK_EXISTS([libavcodec >= 59.24.100],
 		 [AC_DEFINE([HAVE_FF5_CH_LAYOUT], 1,
 			    [Defined if ffmpeg/libavcodec defines new 5.1.x ch_layout])])

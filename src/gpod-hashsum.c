@@ -1,3 +1,5 @@
+#include "version.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -14,6 +16,7 @@ int main(int argc, char* argv[])
     const char* argv0 = basename(argv[0]);
 
     if (argc == 1 || argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+        g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
 	printf("usage:  %s: <files>\n"
 	       "\n"
 	       "   reports for each input:\n"

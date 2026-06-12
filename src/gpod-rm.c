@@ -20,6 +20,8 @@
  * This product is not supported/written/published by Apple!
 */
 
+#include "version.h"
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +37,7 @@
 #include <glib/gstdio.h>
 #include <gpod/itdb.h>
 
-#include "gpod-utils.h"
+#include "lib/gpod-utils.h"
 
 int gpod_signal = 0;
 bool gpod_stop = false;
@@ -139,6 +141,7 @@ static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* tr
     if (itdb_track_has_thumbnails(track_)) {
         itdb_track_remove_thumbnails(track_);
     }
+
     // remove (and free mem)
     itdb_track_remove(track_);
     ++(*removed_);
@@ -214,7 +217,15 @@ static void  autoclean(bool interactv_, Itdb_iTunesDB* itdb_, uint64_t* removed_
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("%s\n", PACKAGE_STRING);
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
+
+    GSList*  supported = gpod_supported();
+    g_print("  supported:\n");
+    for (GSList* s=supported; s; s=s->next) {
+        g_print("    %s\n", (const char*)s->data);
+    }
+    g_slist_free(supported);
+
     g_print ("usage: %s  -M <dir ipod mount>  [ -a ] [ -i ] [-P] [ <file | ipod id> ... ]\n"
 	     "\n"
 	     "    Removes specified file(s) the iPod/iTunesDB\n"
@@ -249,7 +260,7 @@ main (int argc, char *argv[])
 
 
     int c;
-    while ( (c=getopt(argc, argv, "M:aiPh")) != EOF) {
+    while ( (c=getopt(argc, argv, "M:aiPhv")) != EOF) {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
             case 'a':  opts.autoclean = true;  break;
@@ -257,6 +268,7 @@ main (int argc, char *argv[])
 
             case 'P':  opts.playlists = true;  break;
 
+            case 'v':
             case 'h':
             default:
                 _usage(argv[0]);

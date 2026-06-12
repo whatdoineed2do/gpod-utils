@@ -47,7 +47,7 @@ Simple utility that parses an `iPod` db and generates a `json` output of the int
 Optionally an `SQLite3` db can be generated for easier investigation.
 
 This utility can work on a mounted `iPod` or directly pointing the `iTunesDB` file - the following works on an old `iPod Video 5G`.
-```
+```shell
 $ gpod-ls -M /run/media/ray/IPOD | tee ipod.json | jq '.'
 {
   "ipod_data" {
@@ -129,7 +129,7 @@ $ gpod-ls -M /run/media/ray/IPOD | tee ipod.json | jq '.'
 }
 ```
 Directly on the db file and generating a standalone db
-```
+```shell
 $ gpod-ls \
     -M /run/media/ray/IPOD/iPod_Control/iTunes/iTunesDB \
     -Q /tmp/ipod.sqlite3
@@ -137,7 +137,7 @@ $ gpod-ls \
 The `json` output is not pretty printed but rather you can use other tools, such as [`jq`](https://stedolan.github.io/jq/) to perform simple queries or to use the generated DB file.
 
 Whilst both `gtkpod` and `Rhythmbox` provide good graphical interfaces for adding/removing music, they are less useful for data mining.  Of particular use is identifying potentially duplicate tracks.  Note the `duplicates` object - this contains 3 further objects, `high`, `med`, `low` which in turn contains a list of potentially duplicate tracks.  The difference between these objects is the manner in which they determine _matches_ - using basic filesize track length and then increasing to equivalence in some metadata fields.  Note that it is highly recommended that you examine/listen to the underlying tracks detailed before purging.
-```
+```json
 {
   "ipod_data": {
     "playlists": {
@@ -189,17 +189,17 @@ Whilst both `gtkpod` and `Rhythmbox` provide good graphical interfaces for addin
 }
 ```
 To examine the main `iPod` playlist where all tracks are stored:
-```
+```shell
 $ jq '.ipod_data.playlists.items[] | select(.type == "master")' ipod.json
 ```
 Find all tracks for artist _Foo_ but only get filename, title and id
-```
+```shell
 $ jq '.ipod_data.playlists.items[] | select(.type == "master") | .tracks[] | select(.artist=="Foo") | {id, ipod_path, title, album}' ipod.json
 ```
 
 ## `gpod-rm`
 Removes track(s) from `iPod`.  Requires the filename as known in the `iTunesDB` - see the output from `gpod-ls`.
-```
+```shell
 $ gpod-rm -M /run/media/ray/IPOD \
     /iPod_Control/Music/F41/ZNUF.mp3
 removing tracks from iPod Video (1st Gen.) A002, currently 88 tracks
@@ -211,7 +211,7 @@ The `-a` flag can be specified before any other files to force removal of duplic
 
 ## `gpod-cp`
 Copies track(s) to `iPod`, accepting `mp3`, `m4a/aac` and `h264` videos..  For audio files not supported by `iPod` an automatic conversion is performed.  Using the `-c` switch controls audio checksum generation/analysis (ingnores metadata) of files on `iPod` to prevent duplicates being copied.
-```
+```shell
 $ gpod-cp -M /run/media/ray/IPOD \
     nothere.mp3 foo.flac foo.mp3 foo.mp3
 copying 4 tracks to iPod 9725 Shuffle (1st Gen.), currently 27 tracks
@@ -235,7 +235,7 @@ Note that the classic `iPods` (5th-7th generation) can only accept video files c
 To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile:v baseline -b:v 1.8M foo.mp4`.  This video will not contain the `uuid` atom.
 
 To convert an existing video file for the `iPod` classics, you can use `handbrake` or `ffmpeg` directly:
-```
+```shell
 # example iPod supported video transcode using:
 
 # cuda/nvidia enabled ffmpeg
@@ -263,9 +263,17 @@ The audio conversions are performed in their own threads and defaults to the num
 
 By default the copy will replace tracks (deleting existing version) with matchin `title`/`artist`/`album` - this assumes the user is intending to replace the tracks;  this behaviour is governed by `-r` flag.
 
+### M3u playlists
+It is possible to use `gpod-cp` to copy files to any directory / USB storage device, in particular USB sticks that may be used by a car audio systems or similar.  In this case, those audio systems perform their own scanning for audio files BUT obey `.m3u` playlists.  `gpod-cp` can generate these playlists when copying files to such devices by specifying the `-3` flag (similarly with the `gpod-recent-pl` utility).
+
+To initialise a USB device for `gpod-utils`, you must and then you can use the other `gpod-*` utilities on the device.
+```shell
+$ gpod-cp -M /mnt/USBSTICK -I
+```
+
 ## `gpod-tag`
 Simple metadata tool to modify the `iTunesDB`.  The underlying media files on the device are NOT updated.  The internal `id` or `ipod_path` of the files are required and can be determined from `gpod-ls`.  Use empty string (`""`) or `-1` to unset the string and int tags respectively
-```
+```shell
 $ gpod-tag -M /run/media/ray/IPOD -A "new album name" -y 2021  \
     9999 521 /iPod_Control/Music/F01/libgpod211429.mp3
 updating iPod track meta { title='<nul>' artist='<nul>' album='new album name' genre='<nul>' track=-1 year=2021 } ...
@@ -279,7 +287,7 @@ The metadata shown for each tracks is the *existing* data - the new metadata is 
 
 ## `gpod-extract`
 Extracts all or select files from `iPod` and optionally sync'ing metadata (with `-s` flag) on the copied files to the `iTunesDB` values.  No transcoding will be performed on the files, only generic metadata updates (as limited by `ffmpeg`).
-```
+```shell
 $ gpod-extract -M /run/media/ray/IPOD -o /export/public/music/ -s /iPod_Control/Music/F02/libgpod886634.m4a ...
 extracting 3 tracks from iPod Video (1st Gen.), currently 27 tracks
 [  1/3]  id=521 /iPod_Control/Music/F02/libgpod886634.m4a -> '/export/pubic/music/Foo&Bar - foobar sings.m4a'
@@ -287,7 +295,7 @@ iPod total tracks=27  3/3 items (990.68K) in 0.107 secs
 ```
 ### `exiftool`
 `exiftool` can be further used to automatically organise files into directory structures if required.
-```
+```shell
 # rename based on artist
 $ exiftool '-filename<$Artist - $Title.%le' -r -ext mp3 -ext m4a .
 
@@ -301,7 +309,7 @@ Verifies the `iPod` db aginst the files on the device.  Three areas:
 _clean_|x||not recoverable, delete from db
 _add_||x|(`-a`) sync with filesystem, add to db
 _remove_||x|(`-d`) sync with db, remove from filesystem
-```
+```shell
 $ gpod-verify-M /run/media/ray/IPOD -a
 validating tracks from iPod Video (2nd Gen.) A446, currently 4/4 db/filesystem tracks
 CLEAN [  1]  /iPod_Control/Music/F13/libgpod031826.mp3 -> { id=52 title='some title' artist='foo' album='' time_added=1619260556 }

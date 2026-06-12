@@ -1,7 +1,29 @@
-/* Copyright 2021 Ray whatdoineed2do @ gmail com
+/* Copyright 2021-2025 Ray whatdoineed2do @ gmail com
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
  *
  * based on forked-daapd filescanner_ffmpeg.c
  * Copyright (C) 2009-2011 Julien BLACHE <jb@jblache.org
+ *
+ * extract_ffmpeg based on unmerged PR submitted by
+ * Copyright (C) 2025 https://github.com/d3vil-st Ilya Kargapolov <d3vil.st@gmail.com> 
+ *
  */
 
 #include "gpod-ffmpeg.h"
@@ -13,6 +35,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +50,10 @@
 #include <libavutil/opt.h>
 #include <libavutil/hash.h>
 #include <libavutil/log.h>
+#include <libavutil/frame.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/pixfmt.h>
+#include <libswscale/swscale.h>
 
 #include "gpod-utils.h"
 
@@ -53,6 +80,7 @@ void gpod_ff_meta_free(struct gpod_ff_meta*  obj_)
 void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_)
 {
     gpod_ff_meta_free(&obj_->meta);
+    g_free(obj_->coverart.data);
 }
 
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_)
@@ -314,33 +342,130 @@ extract_metadata (struct gpod_ff_media_info* info_, AVFormatContext* ctx,
     return mdcount;
 }
 
-void extract_coverart (AVFormatContext* ctx, struct gpod_ff_coverart *coverart)
+static int encode_frame_to_jpeg(AVFrame *src, int out_w, int out_h,
+                                uint8_t **outbuf, int *outsize)
+{
+    struct SwsContext *sws_ctx = NULL;
+    AVFrame *dst = NULL;
+    const AVCodec *enc = NULL;
+    AVCodecContext *enc_ctx = NULL;
+    AVPacket *pkt = NULL;
+    int ret = -1;
+
+    *outbuf = NULL;
+    *outsize = 0;
+
+    dst = av_frame_alloc();
+    if (!dst) return AVERROR(ENOMEM);
+    dst->format = AV_PIX_FMT_YUVJ420P;
+    dst->width = out_w;
+    dst->height = out_h;
+
+    ret = av_image_alloc(dst->data, dst->linesize, out_w, out_h, AV_PIX_FMT_YUVJ420P, 1);
+    if (ret < 0) goto fail;
+
+    sws_ctx = sws_getContext(src->width, src->height, src->format,
+                             out_w, out_h, AV_PIX_FMT_YUVJ420P,
+                             SWS_BILINEAR, NULL, NULL, NULL);
+    if (!sws_ctx) goto fail;
+
+    sws_scale(sws_ctx, (const uint8_t * const*)src->data, src->linesize,
+              0, src->height, dst->data, dst->linesize);
+
+    enc = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+    if (!enc) goto fail;
+
+    enc_ctx = avcodec_alloc_context3(enc);
+    if (!enc_ctx) goto fail;
+    enc_ctx->pix_fmt = AV_PIX_FMT_YUVJ420P;
+    enc_ctx->width = out_w;
+    enc_ctx->height = out_h;
+    enc_ctx->time_base = (AVRational){1, 25};
+
+#define TARGET_PCT_QUALITY 65
+    // quality 0..31 (lower is better)
+    enc_ctx->global_quality = FF_QP2LAMBDA * 1+(100-TARGET_PCT_QUALITY)*30/100;
+    dst->quality = enc_ctx->global_quality;
+
+    if ((ret = avcodec_open2(enc_ctx, enc, NULL)) < 0) goto fail;
+
+    pkt = av_packet_alloc();
+    if (!pkt) {
+        ret = AVERROR(ENOMEM);
+        goto fail;
+    }
+
+    if ((ret = avcodec_send_frame(enc_ctx, dst)) < 0) goto fail;
+    ret = avcodec_receive_packet(enc_ctx, pkt);
+    if (ret < 0) goto fail;
+
+    *outbuf = malloc(pkt->size);
+    if (!*outbuf) {
+        ret = AVERROR(ENOMEM);
+        goto fail;
+    }
+    memcpy(*outbuf, pkt->data, pkt->size);
+#ifdef GPOD_FF_DEBUG_ARTWORK
+{
+    int fd;
+    char path[PATH_MAX+1] = { 0 };
+    snprintf(path, sizeof(path), "/tmp/gpod-ffmpeg-coverart-%ld.jpg", time(NULL));
+    if ( (fd = open(path, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR)) < 0-1 ) {
+      g_debug("failed to dump coverart to %s - %s\n", path, strerror(errno));
+    }
+    else {
+      write(fd, *outbuf, pkt->size);
+      close(fd);
+      g_debug("wrote coverart to %s\n", path);
+    }
+}
+#endif
+    *outsize = pkt->size;
+
+    ret = 0;
+
+fail:
+    if (pkt) av_packet_free(&pkt);
+    if (enc_ctx) { avcodec_free_context(&enc_ctx); }
+    if (sws_ctx) sws_freeContext(sws_ctx);
+    if (dst) { av_freep(&dst->data[0]); av_frame_free(&dst); }
+    return ret;
+}
+
+static
+void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 {
     bool pic_found = false;
     AVFrame *frame = av_frame_alloc();
     AVCodecContext *codec_ctx = NULL;
-    AVCodec *codec = NULL;
+    const AVCodec *codec = NULL;
     AVPacket pkt;
+    int error;
 
-    for (unsigned int i = 0; i < ctx->nb_streams; i++) {
-        AVStream *st = ctx->streams[i];
+    coverart_->size = 0;
+    g_free(coverart_->data);
+    coverart_->data = NULL;
+
+    for (unsigned i=0; i<ctx_->nb_streams; ++i)
+    {
+        AVStream* st = ctx_->streams[i];
+	// can't tell if this is front of back, take the first attached
         if (st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
             pkt = st->attached_pic;
             codec = avcodec_find_decoder(st->codecpar->codec_id);
             if (!codec) {
-                g_print("No suitable codec found for coverart\n");
+                g_debug("No suitable codec found for coverart\n");
                 break;
             }
 
             codec_ctx = avcodec_alloc_context3(codec);
             avcodec_open2(codec_ctx, codec, NULL);
 
-            int error = avcodec_send_packet(codec_ctx, &pkt);
+            error = avcodec_send_packet(codec_ctx, &pkt);
             if (error != 0) {
                 g_print("Cannot send packet to decoder: %s\n", av_err2str(error));
                 break;
             }
-
 
             error = avcodec_receive_frame(codec_ctx, frame);
             if (error != 0){
@@ -348,9 +473,7 @@ void extract_coverart (AVFormatContext* ctx, struct gpod_ff_coverart *coverart)
                 break;
             }
 
-            if (frame->width <= 600 && frame->height <= 600 &&
-                (st->codecpar->codec_id == AV_CODEC_ID_MJPEGB ||
-                    st->codecpar->codec_id == AV_CODEC_ID_MJPEG)) {
+            if (st->codecpar->codec_id == AV_CODEC_ID_MJPEGB || st->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
                 pic_found = true;
             }
             break;
@@ -358,19 +481,21 @@ void extract_coverart (AVFormatContext* ctx, struct gpod_ff_coverart *coverart)
     }
 
     if (!pic_found) {
-        g_print("No suitable pic found\n");
-        return;
+        g_debug("No suitable pic found\n");
+	goto out;
     }
 
-    coverart->size = pkt.size;
-    coverart->data = g_malloc(coverart->size);
-    memcpy(coverart->data, pkt.data, coverart->size);
+    if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &coverart_->size)) != 0) {
+	g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
+        coverart_->size = pkt.size;
+        coverart_->data = g_malloc(coverart_->size);
+        memcpy(coverart_->data, pkt.data, coverart_->size);
+      }
 
+out:
     av_frame_free(&frame);
     avcodec_close(codec_ctx);
     avcodec_free_context(&codec_ctx);
-
-    return;
 }
 
 const struct gpod_video_support {
@@ -697,7 +822,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         }
     }
 
-    extract_coverart(ctx, info_->coverart);
+    extract_coverart(ctx, &info_->coverart);
 
     avformat_close_input(&ctx);
     return 0;

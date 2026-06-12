@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 Ray <whatdoineed2do @ gmail com>
+ *  Copyright (C) 2021-2026 Ray <whatdoineed2do @ gmail com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <strings.h>
 
 #include <gpod/itdb.h>
 
@@ -132,30 +133,42 @@ const char* gpod_default_mountpoint(char* dest_, size_t n_)
     return dest_;
 }
 
+static const int  supported[] = {
+    ITDB_IPOD_GENERATION_FIRST,
+    ITDB_IPOD_GENERATION_SECOND,
+    ITDB_IPOD_GENERATION_THIRD,
+    ITDB_IPOD_GENERATION_FOURTH,
+    ITDB_IPOD_GENERATION_PHOTO,
+    ITDB_IPOD_GENERATION_MINI_1,
+    ITDB_IPOD_GENERATION_MINI_2,
+    ITDB_IPOD_GENERATION_VIDEO_1,
+    ITDB_IPOD_GENERATION_VIDEO_2,
+    ITDB_IPOD_GENERATION_NANO_1,
+    ITDB_IPOD_GENERATION_NANO_2,
+    -1,
+};
+
+GSList* gpod_supported()
+{
+    GSList*  l = NULL;
+    const int*  p = supported;
+    while (*p != -1) {
+        l = g_slist_append(l,
+                     itdb_info_get_ipod_generation_string(*p));
+        ++p;
+    }
+    return l;
+}
+
 bool  gpod_write_supported(const Itdb_IpodInfo* ipi_)
 {
     /* anything that is not on this list requires a hash/cksum'd
      * iTunesDB/iTunesCDB and sqlite3 db for the ipod which doesn't
      * work well
      */
-    static const int  supported[] = {
-	ITDB_IPOD_GENERATION_FIRST,
-	ITDB_IPOD_GENERATION_SECOND,
-	ITDB_IPOD_GENERATION_THIRD,
-	ITDB_IPOD_GENERATION_FOURTH,
-	ITDB_IPOD_GENERATION_PHOTO,
-	ITDB_IPOD_GENERATION_MINI_1,
-	ITDB_IPOD_GENERATION_MINI_2,
-	ITDB_IPOD_GENERATION_VIDEO_1,
-	ITDB_IPOD_GENERATION_VIDEO_2,
-	ITDB_IPOD_GENERATION_CLASSIC_1,
-	ITDB_IPOD_GENERATION_CLASSIC_2,
-	ITDB_IPOD_GENERATION_CLASSIC_3,
-	-1,
-    };
 
     const int*  p = supported;
-    while (*p)
+    while (*p != -1)
     {
 	if (*p == ipi_->ipod_generation) {
 	    return true;
@@ -675,7 +688,128 @@ struct recent_create_pl_args {
 	unsigned  pl;
 	unsigned  tracks;
     } stats;
+    bool with_m3u;
 };
+
+
+static const char* _fat32_forbidden = "\"*/:<>?\\|";
+
+static bool is_reserved_name(const char* name_)
+{
+    const char* reserved[] = {
+        "CON","PRN","AUX","NUL",
+        "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+        "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","L`PT9",
+        NULL
+    };
+    for (const char** p = reserved; *p; ++p) {
+        if (strcasecmp(name_, *p) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void sanitize_fat32_name(const char* src_, char* dst_, size_t dstlen_)
+{
+    if (!src_ || dstlen_ == 0) {
+        if (dstlen_) dst_[0] = '\0';
+        return;
+    }
+
+    // FAT long file name limit per component (safe bound)
+    const size_t  MAX_FILENAME = 255;
+    // keep room for extension when caller appends it
+    size_t  maxbase = dstlen_ - 1;
+    if (maxbase > MAX_FILENAME) maxbase = MAX_FILENAME;
+
+    size_t  wi = 0;
+    while (*src_ && (*src_ == ' ' || *src_ == '.')) {
+        ++src_;
+    }
+
+    for (const unsigned char* r = (const unsigned char*)src_; *r && wi < maxbase; ++r) {
+        unsigned char  c = *r;
+        // control chars 0x00-0x1F invalid
+        if (c <= 0x1F) {
+            dst_[wi++] = '-';
+            continue;
+        }
+        // path separators and forbidden set
+        if (c == '/' || c == '\\' || strchr(_fat32_forbidden, c) != NULL) {
+            dst_[wi++] = '-';
+            continue;
+        }
+        // keep printable characters, others map to '-'
+        dst_[wi++] = (isprint(c)) ? (char)c : '-';
+    }
+
+    // remove trailing spaces and dots
+    while (wi > 0 && (dst_[wi-1] == ' ' || dst_[wi-1] == '.')) {
+        --wi;
+    }
+    dst_[wi] = '\0';
+
+    // if empty, use fallback
+    if (wi == 0) {
+        strncpy(dst_, "untitled", dstlen_);
+        dst_[dstlen_-1] = '\0';
+    }
+
+    // avoid reserved names (exact match, case-insensitive)
+    if (is_reserved_name(dst_)) {
+        size_t l = strlen(dst_);
+        if (l + 1 < dstlen_) {
+            dst_[l] = '_';
+            dst_[l+1] = '\0';
+        } else {
+            // truncate one char and add underscore
+            dst_[dstlen_-2] = '_';
+            dst_[dstlen_-1] = '\0';
+        }
+    }
+}
+
+static int gpod_recent_create_m3u_playlist(const char* plname_, GSList* tracks_, const char* destdir_) {
+    char base[PATH_MAX];
+    char sanitized_base[PATH_MAX];
+    char out_path[PATH_MAX] = { 0 };
+
+    sanitize_fat32_name(plname_, base, sizeof(base));
+
+    // ensure final path fits; reserve for "/" and ".m3u"
+    size_t reserve = 1 + strlen(".m3u");
+    size_t max_base_len = sizeof(out_path) - strlen(destdir_) - reserve - 1;
+    if (max_base_len >= sizeof(sanitized_base)) max_base_len = sizeof(sanitized_base) - 1;
+
+    sanitize_fat32_name(base, sanitized_base, max_base_len + 1);
+
+    snprintf(out_path, sizeof(out_path), "%s/%s.m3u", destdir_, sanitized_base);
+
+    FILE*  fp = fopen(out_path, "w");
+    if (fp == NULL) {
+        g_print("Error creating m3u playlist `%s` - %s\n", out_path, strerror(errno));
+        return -1;
+    }
+
+    fprintf(fp, "#EXTM3U\n");
+
+    unsigned  duration_sec;
+    for (GSList* t=tracks_; t!=NULL; t=t->next) {
+        const Itdb_Track*  trk = (const Itdb_Track*)t->data;
+        const char*  trkpath = trk->ipod_path;
+        if (*trkpath == '/') {
+            ++trkpath;
+        }
+        duration_sec = trk->tracklen / 1000;
+        fprintf(fp, "#EXTINF:%u,%s - %s\n%s\n", duration_sec,
+            trk->artist ? trk->artist : "<unknown>",
+            trk->title ? trk->title : "<unknown>",
+            trkpath);
+    }
+    fclose(fp);
+    return 0;
+}
 
 static void gpod_recent_create_playlists(gpointer recent_, gpointer args_)
 {
@@ -698,6 +832,9 @@ static void gpod_recent_create_playlists(gpointer recent_, gpointer args_)
     for (GSList* p=recent->tracks; p!=NULL; p=p->next) {
 	itdb_playlist_add_track(pl, p->data, -1);
 	++(args->stats.tracks);
+    }
+    if (args->with_m3u) {
+        gpod_recent_create_m3u_playlist(recent->name, recent->tracks, itdb_get_mountpoint(args->itdb));
     }
 }
 
@@ -802,7 +939,7 @@ static void  track_mostrecent(gpointer track_, gpointer when_)
     }
 }
 
-void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_)
+void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_, const bool with_m3u_)
 {
     // get the last added track and use that for calcs
     if (when_ == 0) {
@@ -856,6 +993,7 @@ void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_, Itdb_iTunesD
 #endif
     struct recent_create_pl_args  rcp_args = { 0 };
     rcp_args.itdb = itdb_;
+    rcp_args.with_m3u = with_m3u_;
     g_slist_foreach(recents, gpod_recent_create_playlists, &rcp_args);
 
     g_slist_free_full(albums, (GDestroyNotify)gpod_album_free);

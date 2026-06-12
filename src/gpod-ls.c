@@ -24,6 +24,8 @@
  * Copyright (C) 2006 Christophe Fergeau  <teuf@gnome.org>
 */
 
+#include "version.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -317,6 +319,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_int(jobj, "time_modified", track->time_modified);
         json_object_add_int(jobj, "time_played", track->time_played);
         json_object_add_int(jobj, "rating", track->rating);
+        json_object_add_boolean(jobj, "artwork", itdb_track_has_thumbnails(track));
         json_object_add_int(jobj, "playcount", track->playcount);
         json_object_add_int(jobj, "playcount2", track->playcount2);
         json_object_add_int(jobj, "recent_playcount", track->recent_playcount);
@@ -334,7 +337,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_string(jobj, "genre", track->genre);
         json_object_add_string(jobj, "albumartist", track->albumartist);
         json_object_add_int(jobj, "rating", track->rating);
-        json_object_add_boolean(jobj, "coverart", itdb_track_has_thumbnails(track));
+        json_object_add_boolean(jobj, "artwork", itdb_track_has_thumbnails(track));
         json_object_add_uint(jobj, "checksum", gpod_saved_cksum(track));
     }
 
@@ -422,7 +425,7 @@ _playlist (Itdb_Playlist *playlist, sqlite3* hdl_, TrkHashTbl* htbl_, bool cksum
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("%s\n", PACKAGE_STRING);
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
     g_print ("usage: %s  OPTIONS\n"
              "\n"
              "    dumps the iTunesDB as a json object listing internal (iPod,\n"
@@ -479,9 +482,10 @@ main (int argc, char *argv[])
         { "enable-checksum",    0, 0, 'c' },
         { "disable-checksum",   0, 0, 'c'+255 },
         { "help",               0, 0, 'h' },
+        { "version",            0, 0, 'v' },
         { 0, 0, 0, 0 }
     };
-    char  opt_args[1+ sizeof(long_opts)*2] = { 0 };
+    char  opt_args[1+ sizeof(long_opts)*3] = { 0 };
     {
         char*  og = opt_args;
         const struct option* op = long_opts;
@@ -489,6 +493,9 @@ main (int argc, char *argv[])
             *og++ = op->val;
             if (op->has_arg != no_argument) {
                 *og++ = ':';
+                if (op->has_arg == optional_argument) {
+                    *og++ = ':';
+                }
             }
             ++op;
         }
@@ -504,6 +511,7 @@ main (int argc, char *argv[])
             case 'c':  opts.cksum = true;  break;
             case 'c'+255:  opts.cksum = false;  break;
 
+            case 'v':
             case 'h':
             default:
                 _usage(argv[0]);

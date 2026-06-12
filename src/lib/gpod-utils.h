@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 Ray <whatdoineed2do @ gmail com>
+ *  Copyright (C) 2021-2026 Ray <whatdoineed2do @ gmail com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,6 +40,11 @@ char*  gpod_trim(const char* what_);
 char* gpod_sortname(const char* name_);
 
 const char* gpod_default_mountpoint(char* dest_, size_t n_);
+
+/* list of supported generations, list ownership transfered to caller
+ * contents are static const char*, do not free
+ */
+GSList* gpod_supported();
 
 bool  gpod_write_supported(const Itdb_IpodInfo* ipi_);
 
@@ -89,7 +94,7 @@ void         gpod_track_htbl_destroy(GHashTable* htbl_);
 
 // create recent playlists from given date
 void  gpod_playlist_recent(unsigned* playlists_, unsigned* tracks_,
-	                   Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_);
+	                   Itdb_iTunesDB* itdb_, unsigned album_limit_, gint64  when_, bool with_m3u_);
 
 void  gpod_duration(char duration_[32], guint then_, guint now_);
 

@@ -27,15 +27,14 @@
 #include <stdint.h>
 #include <time.h>
 #include <limits.h>
-#include <unistd.h>
 #include <getopt.h>
 #include <ctype.h>
 
 #include <glib.h>
 #include <gpod/itdb.h>
 
-#include "gpod-utils.h"
-
+#include "lib/gpod-utils.h"
+#include "version.h"
 
 
 struct gpod_opts {
@@ -101,7 +100,15 @@ struct gpod_arg {
 void  _usage(const char* argv_)
 {
     char *basename = g_path_get_basename (argv_);
-    g_print ("%s\n", PACKAGE_STRING);
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
+
+    GSList*  supported = gpod_supported();
+    g_print("  supported:\n");
+    for (GSList* s=supported; s; s=s->next) {
+        g_print("    %s\n", (const char*)s->data);
+    }
+    g_slist_free(supported);
+
     g_print ("usage: %s  OPTIONS  <file id/ipod path> [...]\n"
 	     "    -t  --title    <title>\n"
 	     "    -a  --artist   <artist>\n"
@@ -166,14 +173,17 @@ main (int argc, char *argv[])
 	{ "help", 		0, 0, 'h' },
 	{ 0, 0, 0,  0 }
     };
-    char  opt_args[1 + sizeof(long_opts)*2] = { 0 };
+    char  opt_args[1 + sizeof(long_opts)*3] = { 0 };
     {
 	char*  og = opt_args;
 	const struct option* op = long_opts;
 	while (op->name) {
 	    *og++ = op->val;
 	    if (op->has_arg != no_argument) {
-		*og++ = ':';
+	        if (op->has_arg == optional_argument) {
+	            *og++ = ':';
+	        }
+	        *og++ = ':';
 	    }
 	    ++op;
 	}

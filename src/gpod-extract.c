@@ -6,6 +6,7 @@
  * Copyright (c) 2013 Stefano Sabatini
  */
 
+#include "version.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -277,7 +278,7 @@ enum FilenameFormat {
 
 static void  _output_name(char* dest_, unsigned avail_, enum FilenameFormat ofmt_, const Itdb_Track* track_)
 {
-    /* we must have the extension.. if the values we want pushes past the size 
+    /* we must have the extension.. if the values we want pushes past the size
      * availabe, we have to trunc
      */
     const char*  ext = strrchr(track_->ipod_path, '.');
@@ -325,7 +326,7 @@ static void  _output_name(char* dest_, unsigned avail_, enum FilenameFormat ofmt
 static void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
-    g_print ("%s\n", PACKAGE_STRING);
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
     g_print ("usage: %s -M  <ipod mount point>  -o <output dir>  [-s]  [ all | <file0> ... ]\n\n"
              "    extracts all or specified files from iPod/iTunesDB and optionally syncs metadata\n"
              "\n"
@@ -356,7 +357,7 @@ int main (int argc, char **argv)
     } opts = { NULL, NULL, NULL, false, false, FMT_ARTIST_TITLE };
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:o:sf:h")) != EOF)
+    while ( (c=getopt(argc, argv, "M:o:sf:hv")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -370,6 +371,7 @@ int main (int argc, char **argv)
 		}
 	    } break;
 
+            case 'v':
             case 'h':
             default:
                 _usage(argv[0]);

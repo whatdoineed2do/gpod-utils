@@ -547,9 +547,15 @@ static int decode_audio_frame(AVFrame *frame,
      * The input audio stream decoder is used to do this. */
     if ((error = avcodec_send_packet(input_codec_context, input_packet)) < 0) {
         char  err[1024];
-        snprintf(err, 1024, "Could not send packet for decoding (error '%s')",
-                av_err2str(error));
-        *err_ = strdup(err);
+        if (error == AVERROR_INVALIDDATA) {
+            // non fatal condition, reset for caller return
+            error = 0;
+        }
+        else {
+            snprintf(err, 1024, "Could not send packet for decoding (error '%s')",
+                    av_err2str(error));
+            *err_ = strdup(err);
+        }
         goto cleanup;
     }
 
@@ -560,21 +566,24 @@ static int decode_audio_frame(AVFrame *frame,
     if (error == AVERROR(EAGAIN)) {
         error = 0;
         goto cleanup;
+    }
+
     /* If the end of the input file is reached, stop decoding. */
-    } else if (error == AVERROR_EOF) {
+    if (error == AVERROR_EOF) {
         *finished = 1;
         error = 0;
         goto cleanup;
-    } else if (error < 0) {
+    }
+
+    if (error < 0) {
         char  err[1024];
         snprintf(err, 1024, "Could not decode frame (error '%s')", av_err2str(error));
         *err_ = strdup(err);
         goto cleanup;
-    /* Default case: Return decoded data. */
-    } else {
-        *data_present = 1;
-        goto cleanup;
     }
+
+    /* Default case: Return decoded data. */
+    *data_present = 1;
 
 cleanup:
     return error;

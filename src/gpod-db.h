@@ -94,7 +94,7 @@
   "CREATE INDEX IF NOT EXISTS idx_key_path ON tracks(ipod_path);"
 #define QUERY_IDX1 \
   "CREATE INDEX IF NOT EXISTS idx_key_flds ON tracks(title, album, artist, genre);"
- 
+
 const char*  db_init_queries[] = {
   QUERY_DROP,
   QUERY_TBL,

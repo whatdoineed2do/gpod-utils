@@ -25,19 +25,17 @@
 #include <string.h>
 #include <time.h>
 #include <limits.h>
-#include <unistd.h>
-#include <errno.h>
 #include <ctype.h>
 #include <getopt.h>
 
 #include <glib.h>
-#include <gmodule.h>
 #include <glib/gstdio.h>
 
 #include <gpod/itdb.h>
 
-#include "gpod-utils.h"
-#include "gpod-ffmpeg.h"
+#include "lib/gpod-utils.h"
+#include "lib/gpod-ffmpeg.h"
+#include "version.h"
 
 
 #define GPOD_MODE_LS  1<<0
@@ -161,7 +159,15 @@ static void  _cksum_q(Itdb_Track* track_, GThreadPool* cksum_tp_, const unsigned
 void  _usage(char* argv0_)
 {
     char *basename = g_path_get_basename (argv0_);
-    g_print ("%s\n", PACKAGE_STRING);
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
+
+    GSList*  supported = gpod_supported();
+    g_print("  supported:\n");
+    for (GSList* s=supported; s; s=s->next) {
+        g_print("    %s\n", (const char*)s->data);
+    }
+    g_slist_free(supported);
+
     g_print ("usage: %s -M <dir ipod mount> OPTIONS\n"
              "\n"
              "    validates the integrity of the iTunesDB (entries in iTunesDB compared to filessystem)\n"
@@ -214,7 +220,7 @@ int main (int argc, char *argv[])
 	{ "help", 		0, 0, 'h' },
 	{ 0, 0, 0, 0 }
     };
-    char  opt_args[1+ sizeof(long_opts)*2] = { 0 };
+    char  opt_args[1+ sizeof(long_opts)*3] = { 0 };
     {
 	char*  og = opt_args;
 	const struct option* op = long_opts;
@@ -222,6 +228,9 @@ int main (int argc, char *argv[])
 	    *og++ = op->val;
 	    if (op->has_arg != no_argument) {
 		*og++ = ':';
+	        if (op->has_arg == optional_argument) {
+	            *og++ = ':';
+	        }
 	    }
 	    ++op;
 	}
@@ -372,7 +381,8 @@ int main (int argc, char *argv[])
 	for (GList* j=itdb->playlists; j!=NULL; j=j->next) {
 	    itdb_playlist_remove_track((Itdb_Playlist*)j->data, track);
 	}
-        if (itdb_track_has_thumbnails(track)) {
+
+	if (itdb_track_has_thumbnails(track)) {
             itdb_track_remove_thumbnails(track);
         }
 
@@ -429,8 +439,7 @@ int main (int argc, char *argv[])
             {
                 // trust the db, remove from fs
                 g_print("REMVE  %s -> { title='%s' artist='%s' album='%s' }\n",
-                        resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
-                ++removed;
+                        ++removed, resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
 
                 g_unlink(resolved_path);
                 stats.rm_bytes += track->size;

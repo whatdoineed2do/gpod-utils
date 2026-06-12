@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ray whatdoineed2do @ gmail com
+ * Copyright (C) 2021-2025 Ray whatdoineed2do @ gmail com
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -26,6 +26,7 @@
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
+#include "version.h"
 
 #include <sys/file.h>
 #include <sys/types.h>
@@ -46,40 +47,46 @@
 #include <glib/gdatetime.h>
 #include <gpod/itdb.h>
 
-#include "gpod-ffmpeg.h"
-#include "gpod-utils.h"
+#include "lib/gpod-ffmpeg.h"
+#include "lib/gpod-utils.h"
 
 struct {
     const char*  itdb_path;
+    bool init;
     bool cksum;
     bool  force;
     enum gpod_ff_enc  enc;
     bool enc_fallback;
     enum gpod_ff_transcode_quality  xcode_quality;
     bool  sync_meta;
+    bool  artwork;
     time_t  time_added;
     bool  sanitize;
     bool  replace;
     struct {
       const char*  pl;
       unsigned  limit;
+      bool  with_m3u;
     } recent;
     unsigned short  max_threads;
     int  mediatype;
 } opts = {
    .itdb_path =  NULL,
+   .init = false,
    .cksum = true,
    .force = false,
    .enc = GPOD_FF_ENC_FDKAAC,
    .enc_fallback = true,
    .xcode_quality = GPOD_FF_XCODE_VBR1,
    .sync_meta = true,
+   .artwork = true,
    .time_added = 0,
    .sanitize = true,
    .replace = true,
    .recent = {
        .pl = NULL,
        .limit = 50,
+       .with_m3u = false,
    },
    .max_threads = 1,
    .mediatype = ITDB_MEDIATYPE_AUDIO,
@@ -213,6 +220,10 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
     track->mediatype |= opts.mediatype;
 
+    if (opts.artwork && mi.coverart.data) {
+	itdb_track_set_thumbnails_from_data(track, mi.coverart.data, mi.coverart.size);
+    }
+
     gpod_ff_media_info_free(&mi);
 
     // needs full path because the track has no itdb structure at this point
@@ -300,13 +311,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
             stats.xcode_time += (xfrm_->path[0]) ? xcodetime_ : 0;
             ++(*added_);
             itdb_filename_ipod2fs(track->ipod_path);
-            gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' coverart='%s' ipod_path='%s'}\n",
-                track->title ? track->title : "",
-                track->artist ? track->artist : "",
-                track->album ? track->album : "",
-                coverart->data && coverart->size ? "yes" : "no",
-                track->ipod_path
-            );
+            gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' coverart=%s ipod_path='%s' }\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", itdb_track_has_thumbnails(track) ? "yes" : "no", track->ipod_path);
 
             *pending_ = g_slist_append(*pending_, g_strdup(track->ipod_path));
 
@@ -612,6 +617,16 @@ void  gpod_cp_destroy()
     unlink(GPOD_CP_LOCKFILE);
 }
 
+
+static const char* _avversion_to_string(char* buf_, size_t bufsz_, unsigned ver_)
+{
+    snprintf(buf_, bufsz_, "%d.%d.%d",
+	     AV_VERSION_MAJOR(ver_),
+	     AV_VERSION_MINOR(ver_),
+	     AV_VERSION_MICRO(ver_));
+    return buf_;
+}
+
 void  _usage(const char* argv0_)
 {
     char *basename = g_path_get_basename(argv0_);
@@ -652,17 +667,38 @@ void  _usage(const char* argv0_)
     }
 
 
-    g_print ("%s\n", PACKAGE_STRING);
+    char buf0[12];
+    char buf1[12];
+    char buf2[12];
+    char buf3[12];
+    char buf4[12];
+    g_print ("%s: %s-%s\n", basename, GIT_TAG, GIT_COMMIT);
     g_print ("  ffmpeg %s:\n"
-	     "    libavutil:     %d.%d.%d\n"
-	     "    libavcodec:    %d.%d.%d\n"
-	     "    libavformat:   %d.%d.%d\n"
-	     "    libswresample: %d.%d.%d\n",
+	     "    libavutil:     %11s  (%s)\n"
+	     "    libavcodec:    %11s  (%s)\n"
+	     "    libavformat:   %11s  (%s)\n"
+	     "    libswresample: %11s  (%s)\n"
+	     "    libswscale:    %11s  (%s)\n",
 	       av_version_info(),
-	       AV_VERSION_MAJOR(avutil_version()), AV_VERSION_MINOR(avutil_version()), AV_VERSION_MICRO(avutil_version()),
-	       AV_VERSION_MAJOR(avcodec_version()), AV_VERSION_MINOR(avcodec_version()), AV_VERSION_MICRO(avcodec_version()),
-	       AV_VERSION_MAJOR(avformat_version()), AV_VERSION_MINOR(avformat_version()), AV_VERSION_MICRO(avformat_version()),
-	       AV_VERSION_MAJOR(swresample_version()), AV_VERSION_MINOR(swresample_version()), AV_VERSION_MICRO(swresample_version()));
+	       _avversion_to_string(buf0, sizeof(buf0)-1, avutil_version()),     AV_STRINGIFY(LIBAVUTIL_VERSION),
+	       _avversion_to_string(buf1, sizeof(buf1)-1, avcodec_version()),    AV_STRINGIFY(LIBAVCODEC_VERSION),
+	       _avversion_to_string(buf2, sizeof(buf2)-1, avformat_version()),   AV_STRINGIFY(LIBAVFORMAT_VERSION),
+	       _avversion_to_string(buf3, sizeof(buf3)-1, swresample_version()), AV_STRINGIFY(LIBSWRESAMPLE_VERSION),
+	       _avversion_to_string(buf4, sizeof(buf4)-1, swscale_version()),    AV_STRINGIFY(LIBSWSCALE_VERSION));
+
+    g_print ("  encoders:\n");
+    const struct gpod_ff_enc_support*  p = gpod_ff_encoders;
+    while (p->name) {
+        g_print("    %-11s  %s\n", p->name, p->supported ? "yes":"no");
+        ++p;
+    }
+
+    GSList*  supported = gpod_supported();
+    g_print("  devices:\n", g_slist_length(supported));
+    for (GSList* s=supported; s; s=s->next) {
+        g_print("    %s\n", (const char*)s->data);
+    }
+    g_slist_free(supported);
 
     g_print ("usage: %s  [OPTIONS] <file|directory> [<file|directory> ...]\n"
 	     "\n"
@@ -671,6 +707,7 @@ void  _usage(const char* argv0_)
              "\n"
 	     "  iPod\n"
              "    -M  --mount-point              <iPod dir>               location of iPod data, as directory mount point\n"
+             "    -I  --init                                              initialise a 'fake' iPod, useful for using gpod-utils to manage a USB device for music - requires -M\n"
 	     "    -T  --threads                  <max threads>            number of threads for xcoding/copying - default: #system vCPUs\n"
 	     "\n"
              "    -c  --disable-tracks-checksum-validate                  disable generate checksum validation of each file in iTunesDB\n"
@@ -679,6 +716,7 @@ void  _usage(const char* argv0_)
 	     "    -r  --tracks-replace           <Y|N>                    replace existing track of same title/album/artist - default: Y\n"
 	     "    -m  --tracks-media-type        <media type>             podcast|audiobook (audio/video determined automatically)\n"
 	     "    -t  --tracks-time-added        <time added>             spoof 'added' time to specified date in ISO8601\n"
+	     "    -a  --disable-artwork                                   disable sync'ing artwork from audio file to iPod\n"
 	     "\n"
 	     "  Encoding (forced xcode of iPod unsupported formats)\n"
 	     "    -e  --encoder                  <%s>           transcode via ffmpeg/libavcodec <%s> - default: %s\n"
@@ -689,7 +727,8 @@ void  _usage(const char* argv0_)
 	     "\n"
 	     "  Playlist\n"
 	     "    -P  --playlist-name            <name>                   generate specific 'recently added' playlist - if not specified, default 'Recent' playlists are generated\n"
-	     "    -n  --playlist-limit           <limit>     '            recently added' pl limit - 0 to disable Recent playlists generation\n"
+	     "    -3  --playlist-with-m3u                                 generate optional m3u equivalent playlist\n"
+	     "    -n  --playlist-limit           <limit>                  recently added' pl limit - 0 to disable Recent playlists generation\n"
              "\n"
              ,basename, encoders, encoders_libavc, gpod_ff_enc_supported(opts.enc)->name);
     g_free (basename);
@@ -713,12 +752,14 @@ int main (int argc, char *argv[])
 	{"mount-point", 		1, 0, 'M' },
 	{"force-unsupported",		0, 0, 'F' },
 	{"threads", 			1, 0, 'T' },
+        {"init",         		0, 0, 'I' },
 
 	{"disable-tracks-checksum-validate", 0, 0, 'c' },
 	{"disable-tracks-sanitize",	2, 0, 'S' },
 	{"tracks-replace",		2, 0, 'r' },
 	{"tracks-media-type", 		1, 0, 'm' },
 	{"tracks-time-added", 		1, 0, 't' },
+	{"disable-artwork", 		0, 0, 'a' },
 
 	{"encoder", 			1, 0, 'e' },
 	{"disable-encoder-fallback", 	0, 0, 'E' },
@@ -727,18 +768,24 @@ int main (int argc, char *argv[])
 
 	{"playlist-name", 		1, 0, 'P' },
 	{"playlist-limit", 		1, 0, 'n' },
+        {"playlist-with-m3u", 		2, 0, '3' },
 
+	{"supported", 			0, 0, 's' },
 	{"help", 			0, 0, 'h' },
+        {"version", 			0, 0, 'v' },
 
 	{0, 0, 0,  0 }
     };
-    char  opt_args[1+ sizeof(long_opts)*2] = { 0 };
+    char  opt_args[1+ sizeof(long_opts)*3] = { 0 };
     {
 	char*  og = opt_args;
 	const struct option* op = long_opts;
 	while (op->name) {
 	    *og++ = op->val;
 	    if (op->has_arg != no_argument) {
+                if (op->has_arg == optional_argument) {
+                    *og++ = ':';
+                }
 		*og++ = ':';
 	    }
 	    ++op;
@@ -756,6 +803,7 @@ int main (int argc, char *argv[])
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
+            case 'I':  opts.init = true;  break;
             case 'c':  opts.cksum = false;  break;
             case 'F':  opts.force = true;  break;
 
@@ -771,6 +819,10 @@ int main (int argc, char *argv[])
 		    else if (toupper(optarg[0]) == 'N')  opts.sync_meta = false;
 		}
 	    } break;
+
+	    case 'a':
+	        opts.artwork = false;
+		break;
 
             case 'e':
 	    {
@@ -898,6 +950,18 @@ int main (int argc, char *argv[])
 		}
             } break;
 
+            case '3': {
+                opts.recent.with_m3u = true;
+                if (optarg) {
+                    if      (toupper(optarg[0]) == 'Y')  opts.recent.with_m3u = true;
+                    else if (toupper(optarg[0]) == 'N')  opts.recent.with_m3u = false;
+                    else opts.recent.with_m3u = atoi(optarg) == 1;
+                }
+                break;
+            }
+
+            case 's':
+            case 'v':
             case 'h':
             default:
                 _usage(argv[0]);
@@ -907,6 +971,32 @@ int main (int argc, char *argv[])
     char  mountpoint[PATH_MAX] = { 0 };
     if (opts.itdb_path == NULL) {
 	opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
+    }
+    else
+    {
+        if (opts.init)
+        {
+            // check that its not already initialised
+            sprintf (mountpoint, "%s/%s", opts.itdb_path, "iPod_Control/iTunes/iTunesDB");
+            if (g_file_test(mountpoint, G_FILE_TEST_EXISTS)) {
+                g_printerr("gpod-utils device already initialised under '%s'\n", mountpoint);
+                return -1;
+            }
+            mountpoint[0] = '\0';
+
+            g_print("initialising gpod-utils device '%s'\n", opts.itdb_path);
+            if (!itdb_init_ipod (opts.itdb_path, "MA446", "gpod-utils device", &error)) {
+                g_printerr("failed to initialise %s - %s\n", opts.itdb_path, error->message ? error->message : "<unknown>");
+                g_error_free(error);
+                return -1;
+            }
+
+            if ( !(optind < argc) ) {
+                // no other work to do
+                return 0;
+            }
+        }
+
     }
 
     if (opts.itdb_path == NULL || opts.enc == GPOD_FF_ENC_MAX || opts.time_added == -1) {
@@ -1106,9 +1196,9 @@ int main (int argc, char *argv[])
 
     if (added) {
 	if (opts.recent.pl == NULL &&  opts.recent.limit > 0) {
-	    g_print("generating Recent playlists...\n");
+	    g_print("generating Recent playlists%s...\n", opts.recent.with_m3u ? " (including m3u)" : "");
 	    gpod_playlist_recent(&stats.recent_playlists, &stats.recent_tracks,
-		    itdb, opts.recent.limit, time(NULL));
+		    itdb, opts.recent.limit, time(NULL), opts.recent.with_m3u);
 	}
 
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...
