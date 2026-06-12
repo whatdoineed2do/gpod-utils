@@ -152,11 +152,10 @@ static bool  _track_key_valid(Itdb_Track* track_)
  * attempt transcode otherwise NULL retruned
  */
 static Itdb_Track*
-_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, time_t time_added_, bool sanitize_, struct gpod_ff_coverart *coverart, char** err_)
+_track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, Itdb_IpodGeneration idevice_, time_t time_added_, bool sanitize_, char** err_)
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
-    mi.coverart = coverart;
 
     const char*  file = file_;
     if (gpod_ff_scan(&mi, file, idevice_, err_) < 0) {
@@ -279,7 +278,6 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
                           struct gpod_track_fs_hash*  tfsh_,
                           Itdb_Playlist**  recentpl_,
                           GHashTable* tracks_, GSList** replaced_,
-                          struct gpod_ff_coverart *coverart,
                           GError** error_)
 {
     Itdb_Track*  track = *track_;
@@ -297,10 +295,6 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     else
     {
         itdb_track_add(itdb, track, -1);
-
-        if (coverart->data && coverart->size) {
-            itdb_track_set_thumbnails_from_data(track, coverart->data, coverart->size);
-        }
 
         itdb_playlist_add_track(mpl_, track, -1);
 
@@ -516,15 +510,13 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
 
     gpod_ff_transcode_ctx_init(&xfrm, opts.enc, opts.xcode_quality, opts.sync_meta);
 
-    struct gpod_ff_coverart coverart;
-
     g_mutex_lock(&pargs->cp_lck);
     gettimeofday(&tv, NULL);
     g_mutex_unlock(&pargs->cp_lck);
     uuid = tv.tv_sec * 1000000 + tv.tv_usec;
 
     then = g_get_monotonic_time();
-    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, pargs->time_added, opts.sanitize, &coverart, &err)) == NULL) {
+    if ( (track = _track(args->path, &xfrm, uuid, pargs->ipodinfo->ipod_generation, pargs->time_added, opts.sanitize, &err)) == NULL) {
         gpod_cp_log(&lctx, "{ } track err - %s\n", err ? err : "<>");
         g_free(err);
         err = NULL;
@@ -544,7 +536,7 @@ void gpod_cp_thread(gpointer args_, gpointer pool_args_)
         if (gpod_cp_track(&lctx,
                           pargs->itdb, pargs->mpl, &track, pargs->mountpoint, pargs->added, pargs->dupl,
                           &xfrm, then-now, args->path, pargs->pending, pargs->tfsh, &pargs->recentpl,
-                          pargs->tracks, pargs->replaced, &coverart,
+                          pargs->tracks, pargs->replaced,
                           &error) < 0) {
             ++(pargs->fatal);
         }
@@ -557,9 +549,6 @@ thread_cleanup:
         g_error_free(error);
         error = NULL;
     }
-    coverart.size = 0;
-    g_free(coverart.data);
-    coverart.data = NULL;
     gpod_cp_ta_free(args);
 }
 

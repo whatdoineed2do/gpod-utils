@@ -55,7 +55,7 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
     struct gpod_ff_coverart coverart;
-    mi.coverart = &coverart;
+    mi.coverart = coverart;
 
     if (gpod_ff_scan(&mi, file_, idevice_, err_) < 0) {
 	if (!mi.has_audio) {

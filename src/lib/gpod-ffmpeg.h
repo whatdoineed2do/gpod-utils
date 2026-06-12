@@ -105,11 +105,6 @@ struct gpod_ff_coverart {
     guchar *data;
 };
 
-struct gpod_ff_coverart {
-    gsize size;
-    guchar *data;
-};
-
 struct gpod_ff_media_info
 {
     char  path[PATH_MAX];

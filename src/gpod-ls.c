@@ -323,7 +323,6 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_int(jobj, "playcount", track->playcount);
         json_object_add_int(jobj, "playcount2", track->playcount2);
         json_object_add_int(jobj, "recent_playcount", track->recent_playcount);
-        json_object_add_boolean(jobj, "coverart", itdb_track_has_thumbnails(track));
         json_object_add_uint(jobj, "checksum", gpod_saved_cksum(track));
     }
     else
