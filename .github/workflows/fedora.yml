@@ -59,17 +59,3 @@ jobs:
         with:
           name: rpm-${{ matrix.os }}
           path: gpod-utils-*.rpm
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
-        with:
-          files: ./dist/**/gpod-utils-*.rpm

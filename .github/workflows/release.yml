@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Build Debian Package", "Build Fedora RPM"]
+    types: [completed]
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Check both builds succeeded
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          REPO="${{ github.repository }}"
+
+          for wf in "Build Debian Package" "Build Fedora RPM"; do
+            WF_ID=$(gh api "repos/${REPO}/actions/workflows" \
+              --jq ".workflows[] | select(.name == \"${wf}\") | .id")
+            COUNT=$(gh api "repos/${REPO}/actions/workflows/${WF_ID}/runs?head_sha=${SHA}&status=success" \
+              --jq '.total_count')
+            if [ "${COUNT}" -lt 1 ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Skipping: '${wf}' has not succeeded yet for ${SHA}"
+              exit 0
+            fi
+          done
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          REPO="${{ github.repository }}"
+
+          for wf in "Build Debian Package" "Build Fedora RPM"; do
+            WF_ID=$(gh api "repos/${REPO}/actions/workflows" \
+              --jq ".workflows[] | select(.name == \"${wf}\") | .id")
+            RUN_ID=$(gh api "repos/${REPO}/actions/workflows/${WF_ID}/runs?head_sha=${SHA}&status=success" \
+              --jq '.workflow_runs[0].id')
+            gh run download "${RUN_ID}" --repo "${REPO}" -D dist/
+          done
+
+      - name: Release
+        if: steps.check.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.workflow_run.head_branch }}
+          files: |
+            dist/**/*.deb
+            dist/**/*.rpm

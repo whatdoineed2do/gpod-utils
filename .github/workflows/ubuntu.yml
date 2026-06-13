@@ -37,17 +37,3 @@ jobs:
         with:
           name: deb-${{ matrix.os }}
           path: gpod-utils_*.deb
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
-        with:
-          files: ./dist/**/gpod-utils_*.deb
