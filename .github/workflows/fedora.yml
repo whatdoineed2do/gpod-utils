@@ -1,0 +1,75 @@
+name: Build Fedora RPM
+
+on:
+  push:
+    tags: [ "v*" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    container: fedora:39
+
+    steps:
+      - name: Install git
+        run: dnf install -y git
+
+      - uses: actions/checkout@v3
+
+      - name: Install RPM Fusion (for ffmpeg-devel)
+        run: |
+          dnf install -y \
+            https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            gcc make \
+            autoconf automake libtool \
+            pkgconfig \
+            libgpod-devel \
+            glib2-devel \
+            ffmpeg-devel \
+            json-c-devel \
+            sqlite-devel \
+            rpm-build rpmdevtools
+
+      - name: Set version
+        run: echo "VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> $GITHUB_ENV
+
+      - name: Create source tarball
+        run: |
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+          git archive --format=tar.gz --prefix=gpod-utils-${VERSION}/ \
+            -o gpod-utils-${VERSION}.tar.gz HEAD
+
+      - name: Build RPM
+        run: |
+          rpmdev-setuptree
+          cp gpod-utils-${VERSION}.tar.gz ~/rpmbuild/SOURCES/
+          rpmbuild -ba rpm/gpod-utils.spec --define "_version ${VERSION}"
+
+      - name: Collect RPMs
+        run: find ~/rpmbuild/RPMS -name "gpod-utils-*.rpm" -exec cp {} . \;
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.os }}
+          path: gpod-utils-*.rpm
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: ./dist/**/gpod-utils-*.rpm
