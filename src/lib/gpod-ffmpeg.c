@@ -22,7 +22,7 @@
  * Copyright (C) 2009-2011 Julien BLACHE <jb@jblache.org
  *
  * extract_ffmpeg based on unmerged PR submitted by
- * Copyright (C) 2025 https://github.com/d3vil-st Ilya Kargapolov <d3vil.st@gmail.com> 
+ * Copyright (C) 2025 https://github.com/d3vil-st Ilya Kargapolov <d3vil.st@gmail.com>
  *
  */
 
@@ -54,6 +54,26 @@
 #include <libavutil/imgutils.h>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
+
+/* AV_PROFILE_* was removed in libavcodec 60.x (ffmpeg 7.0), replaced by AV_PROFILE_* */
+#if LIBAVCODEC_VERSION_MAJOR < 60
+#define AV_PROFILE_UNKNOWN                    AV_PROFILE_UNKNOWN
+#define AV_PROFILE_H264_BASELINE              AV_PROFILE_H264_BASELINE
+#define AV_PROFILE_H264_CONSTRAINED_BASELINE  AV_PROFILE_H264_CONSTRAINED_BASELINE
+#define AV_PROFILE_H264_MAIN                  AV_PROFILE_H264_MAIN
+#define AV_PROFILE_H264_EXTENDED              AV_PROFILE_H264_EXTENDED
+#define AV_PROFILE_H264_HIGH                  AV_PROFILE_H264_HIGH
+#define AV_PROFILE_H264_HIGH_10               AV_PROFILE_H264_HIGH_10
+#define AV_PROFILE_H264_HIGH_10_INTRA         AV_PROFILE_H264_HIGH_10_INTRA
+#define AV_PROFILE_H264_MULTIVIEW_HIGH        AV_PROFILE_H264_MULTIVIEW_HIGH
+#define AV_PROFILE_H264_HIGH_422              AV_PROFILE_H264_HIGH_422
+#define AV_PROFILE_H264_HIGH_422_INTRA        AV_PROFILE_H264_HIGH_422_INTRA
+#define AV_PROFILE_H264_STEREO_HIGH           AV_PROFILE_H264_STEREO_HIGH
+#define AV_PROFILE_H264_HIGH_444              AV_PROFILE_H264_HIGH_444
+#define AV_PROFILE_H264_HIGH_444_PREDICTIVE   AV_PROFILE_H264_HIGH_444_PREDICTIVE
+#define AV_PROFILE_H264_HIGH_444_INTRA        AV_PROFILE_H264_HIGH_444_INTRA
+#define AV_PROFILE_H264_CAVLC_444             AV_PROFILE_H264_CAVLC_444
+#endif
 
 #include "gpod-utils.h"
 
@@ -485,16 +505,22 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 	goto out;
     }
 
-    if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &coverart_->size)) != 0) {
+    int jpeg_size = 0;
+    if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &jpeg_size)) != 0) {
 	g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
         coverart_->size = pkt.size;
         coverart_->data = g_malloc(coverart_->size);
         memcpy(coverart_->data, pkt.data, coverart_->size);
       }
+    else {
+        coverart_->size = (gsize)jpeg_size;
+      }
 
 out:
     av_frame_free(&frame);
+#if LIBAVCODEC_VERSION_MAJOR < 60
     avcodec_close(codec_ctx);
+#endif
     avcodec_free_context(&codec_ctx);
 }
 
@@ -520,9 +546,9 @@ const struct gpod_video_support {
 	.sample_rate = 48000,
 
 	.profile = (int[]){
-	    FF_PROFILE_H264_BASELINE,
-	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
-	    FF_PROFILE_UNKNOWN
+	    AV_PROFILE_H264_BASELINE,
+	    AV_PROFILE_H264_CONSTRAINED_BASELINE,
+	    AV_PROFILE_UNKNOWN
 	},
 	.device = (Itdb_IpodGeneration[]){
 	    ITDB_IPOD_GENERATION_VIDEO_1,
@@ -541,10 +567,10 @@ const struct gpod_video_support {
 	.sample_rate = 48000,
 
 	.profile = (int[]){
-	    FF_PROFILE_H264_BASELINE,
-	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
-	    FF_PROFILE_H264_MAIN,
-	    FF_PROFILE_UNKNOWN
+	    AV_PROFILE_H264_BASELINE,
+	    AV_PROFILE_H264_CONSTRAINED_BASELINE,
+	    AV_PROFILE_H264_MAIN,
+	    AV_PROFILE_UNKNOWN
 	},
 	.device = (Itdb_IpodGeneration[]){
 	    ITDB_IPOD_GENERATION_UNKNOWN
@@ -569,7 +595,7 @@ static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpo
 	    mi_->audio.channels <= p->channels)
 	{
 	    int*  q = p->profile;
-	    while (*q != FF_PROFILE_UNKNOWN)
+	    while (*q != AV_PROFILE_UNKNOWN)
 	    {
 		if (*q == mi_->video.profile) {
 		    Itdb_IpodGeneration*  r = p->device;
@@ -671,21 +697,21 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 		switch (ctx->streams[i]->codecpar->profile)
 		{
 		    // only believe in
-		    case FF_PROFILE_H264_BASELINE:
-		    case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-		    case FF_PROFILE_H264_MAIN:
-		    case FF_PROFILE_H264_EXTENDED:
-		    case FF_PROFILE_H264_HIGH:
-		    case FF_PROFILE_H264_HIGH_10:
-		    case FF_PROFILE_H264_HIGH_10_INTRA:
-		    case FF_PROFILE_H264_MULTIVIEW_HIGH:
-		    case FF_PROFILE_H264_HIGH_422:
-		    case FF_PROFILE_H264_HIGH_422_INTRA:
-		    case FF_PROFILE_H264_STEREO_HIGH:
-		    case FF_PROFILE_H264_HIGH_444:
-		    case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
-		    case FF_PROFILE_H264_HIGH_444_INTRA:
-		    case FF_PROFILE_H264_CAVLC_444:
+		    case AV_PROFILE_H264_BASELINE:
+		    case AV_PROFILE_H264_CONSTRAINED_BASELINE:
+		    case AV_PROFILE_H264_MAIN:
+		    case AV_PROFILE_H264_EXTENDED:
+		    case AV_PROFILE_H264_HIGH:
+		    case AV_PROFILE_H264_HIGH_10:
+		    case AV_PROFILE_H264_HIGH_10_INTRA:
+		    case AV_PROFILE_H264_MULTIVIEW_HIGH:
+		    case AV_PROFILE_H264_HIGH_422:
+		    case AV_PROFILE_H264_HIGH_422_INTRA:
+		    case AV_PROFILE_H264_STEREO_HIGH:
+		    case AV_PROFILE_H264_HIGH_444:
+		    case AV_PROFILE_H264_HIGH_444_PREDICTIVE:
+		    case AV_PROFILE_H264_HIGH_444_INTRA:
+		    case AV_PROFILE_H264_CAVLC_444:
 		    {
 			info_->has_video = true;
 			if (!video_stream)

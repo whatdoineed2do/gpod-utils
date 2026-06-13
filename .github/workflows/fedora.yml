@@ -8,9 +8,9 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-26.04, ubuntu-26.04-arm]
     runs-on: ${{ matrix.os }}
-    container: fedora:39
+    container: fedora:latest
 
     steps:
       - name: Install git
@@ -52,7 +52,7 @@ jobs:
           rpmbuild -ba rpm/gpod-utils.spec --define "_version ${VERSION}"
 
       - name: Collect RPMs
-        run: find ~/rpmbuild/RPMS -name "gpod-utils-*.rpm" -exec cp {} . \;
+        run: find ~/rpmbuild/RPMS -name "gpod-utils-*.rpm" ! -name "*debug*" -exec cp {} . \;
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

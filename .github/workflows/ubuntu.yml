@@ -8,7 +8,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -30,7 +34,13 @@ jobs:
 
       - name: Get debs
         run: |
-          cp ../gpod-utils_*.deb .
+          DISTRO=$(echo "${{ matrix.os }}" | sed 's/ubuntu-/ubuntu/')
+          for f in ../gpod-utils_*.deb; do
+            base=$(basename "$f" .deb)
+            arch="${base##*_}"
+            prefix="${base%_*}"
+            cp "$f" "${prefix}~${DISTRO}_${arch}.deb"
+          done
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
