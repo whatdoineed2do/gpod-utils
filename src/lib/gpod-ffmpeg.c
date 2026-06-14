@@ -878,6 +878,7 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->artist = gpod_sanitize_text(gpod_trim(meta_->meta.artist), sanitize_);
     track->genre = gpod_sanitize_text(gpod_trim(meta_->meta.genre), sanitize_);
     track->comment = gpod_sanitize_text(gpod_trim(meta_->meta.comment), sanitize_);
+    track->tracks = meta_->meta.total_tracks;
     track->track_nr = meta_->meta.track;
     track->year = meta_->meta.year;
 
@@ -886,6 +887,9 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->sort_album       = gpod_sortname(track->album);
     track->sort_albumartist = gpod_sortname(track->albumartist);
     track->sort_composer    = gpod_sortname(track->composer);
+
+    track->cds = meta_->meta.total_discs;
+    track->cd_nr = meta_->meta.disc;
 
     return track;
 }

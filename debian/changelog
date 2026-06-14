@@ -1,3 +1,9 @@
+gpod-utils (1.4.5) UNRELEASED; urgency=medium
+
+  * Preserve CD numbering and Total tracks
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 14 Jun 2026 14:24:33 +0200
+
 gpod-utils (1.4.4) UNRELEASED; urgency=medium
 
   * Add iPod Classic support
