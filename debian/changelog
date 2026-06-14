@@ -1,3 +1,9 @@
+gpod-utils (1.4.6) UNRELEASED; urgency=medium
+
+  * Fall back to 'date' metatag year when 'year' tag is absent
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 14 Jun 2026 18:50:28 +0200
+
 gpod-utils (1.4.5) UNRELEASED; urgency=medium
 
   * Preserve CD numbering and Total tracks

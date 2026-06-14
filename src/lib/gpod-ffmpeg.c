@@ -880,7 +880,15 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->comment = gpod_sanitize_text(gpod_trim(meta_->meta.comment), sanitize_);
     track->tracks = meta_->meta.total_tracks;
     track->track_nr = meta_->meta.track;
-    track->year = meta_->meta.year;
+    if (meta_->meta.year != 0) {
+        track->year = meta_->meta.year;
+    } else if (meta_->meta.date_released != 0) {
+        time_t t = (time_t)meta_->meta.date_released;
+        struct tm *tm = localtime(&t);
+        if (tm) {
+            track->year = (uint32_t)(tm->tm_year + 1900);
+        }
+    }
 
     track->sort_artist      = gpod_sortname(track->artist);
     track->sort_title       = gpod_sortname(track->title);
