@@ -194,8 +194,26 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 		*err_ = g_strdup(err);
 	    }
 	    else {
-		mi.supported_ipod_fmt = true;
 		file = xfrm_->path;
+
+		// re-scan transcoded file for accurate type/description/file_size/bitrate;
+		// restore original metadata and coverart which the temp file may not have
+		struct gpod_ff_meta     saved_meta = mi.meta;
+		struct gpod_ff_coverart saved_art  = mi.coverart;
+		memset(&mi.meta, 0, sizeof(mi.meta));
+		mi.coverart.data = NULL;
+		mi.coverart.size = 0;
+		gpod_ff_media_info_free(&mi);
+		gpod_ff_media_info_init(&mi);
+		if (gpod_ff_scan(&mi, file, idevice_, NULL) >= 0) {
+		    mi.supported_ipod_fmt = true;
+		}
+		gpod_ff_meta_free(&mi.meta);
+		mi.meta = saved_meta;
+		if (saved_art.data) {
+		    g_free(mi.coverart.data);
+		    mi.coverart = saved_art;
+		}
 	    }
 	}
 	else

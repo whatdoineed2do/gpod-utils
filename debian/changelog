@@ -1,3 +1,12 @@
+gpod-utils (1.4.7) UNRELEASED; urgency=medium
+
+  * Fix filetype stored as source format (e.g. FLAC) instead of transcoded
+    format (e.g. ALAC) after gpod-cp transcodes an unsupported audio file:
+    re-scan the transcoded temp file so type, description, file_size and
+    bitrate reflect the encoded output; restore source metadata and coverart
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Wed, 25 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.6) UNRELEASED; urgency=medium
 
   * Fall back to 'date' metatag year when 'year' tag is absent
