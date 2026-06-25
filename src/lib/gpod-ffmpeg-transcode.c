@@ -1075,6 +1075,8 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     AVPacket *output_packet = NULL;
     int ret = AVERROR_EXIT;
     int audio_stream_idx;
+    int cover_in_idx = -1;
+    AVStream *cover_out_stream = NULL;
 
     /* timestamp for the audio frames. */
     int64_t pts = 0;
@@ -1092,6 +1094,23 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
 
     if (target_->sync_meta) {
 	av_dict_copy(&output_format_context->metadata, input_format_context->metadata, 0);
+    }
+
+    /* Copy attached picture (cover art) stream to output */
+    for (unsigned i = 0; i < input_format_context->nb_streams; i++) {
+        if (input_format_context->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC) {
+            cover_in_idx = i;
+            break;
+        }
+    }
+    if (cover_in_idx >= 0) {
+        AVStream *in_st = input_format_context->streams[cover_in_idx];
+        cover_out_stream = avformat_new_stream(output_format_context, NULL);
+        if (cover_out_stream) {
+            avcodec_parameters_copy(cover_out_stream->codecpar, in_st->codecpar);
+            cover_out_stream->disposition = AV_DISPOSITION_ATTACHED_PIC;
+            cover_out_stream->time_base = in_st->time_base;
+        }
     }
 
 #ifdef GPOD_XCODE_SWR_DEBUG
@@ -1115,6 +1134,16 @@ int  gpod_ff_transcode(struct gpod_ff_media_info *info_, struct gpod_ff_transcod
     /* Write the header of the output file container. */
     if (write_output_file_header(output_format_context, err_))
         goto cleanup;
+
+    /* Write cover art packet after header */
+    if (cover_in_idx >= 0 && cover_out_stream) {
+        AVPacket *cover_pkt = av_packet_clone(&input_format_context->streams[cover_in_idx]->attached_pic);
+        if (cover_pkt) {
+            cover_pkt->stream_index = cover_out_stream->index;
+            av_write_frame(output_format_context, cover_pkt);
+            av_packet_free(&cover_pkt);
+        }
+    }
 
     /* Initialize temporary storage for one input frame. */
     if (init_input_frame(&input_frame, err_))
