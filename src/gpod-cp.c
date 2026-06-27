@@ -237,6 +237,11 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
     track->mediatype |= opts.mediatype;
 
+    if (opts.mediatype & (ITDB_MEDIATYPE_AUDIOBOOK | ITDB_MEDIATYPE_PODCAST)) {
+        track->remember_playback_position = 1;
+        track->skip_when_shuffling = 1;
+    }
+
     if (opts.artwork && mi.coverart.data) {
 	itdb_track_set_thumbnails_from_data(track, mi.coverart.data, mi.coverart.size);
     }

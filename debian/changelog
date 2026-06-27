@@ -1,3 +1,18 @@
+gpod-utils (1.4.9) UNRELEASED; urgency=medium
+
+  * Add audiobook/podcast playback flags and fix operator precedence bug
+
+    Set remember_playback_position and skip_when_shuffling on tracks when
+    -m audiobook or -m podcast is used, so the iPod Classic bookmarks
+    playback position and excludes them from shuffle.
+
+    Fix operator precedence bug in albums_index: the guard
+    `track->mediatype & ITDB_MEDIATYPE_AUDIO == 0` was always false due to
+    == binding tighter than &, causing video-only tracks to be incorrectly
+    included in Recent playlists.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 27 Jun 2026 15:30:10 +0200
+
 gpod-utils (1.4.8) UNRELEASED; urgency=medium
 
   * Embed cover art into transcoded .m4a files: copy attached picture stream
