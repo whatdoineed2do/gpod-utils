@@ -1,3 +1,16 @@
+gpod-utils (1.4.10) UNRELEASED; urgency=medium
+
+  * Fix podcast/audiobook tracks appearing under Music instead of Podcast menu
+
+    --tracks-media-type podcast/audiobook was OR-ing the specified type onto
+    the default ITDB_MEDIATYPE_AUDIO, producing AUDIO|PODCAST (0x05) instead
+    of plain PODCAST (0x04). The iPod routes by the AUDIO bit and shows such
+    tracks under Music. Fix: -m handler now assigns (=) rather than OR-assigns
+    (|=) opts.mediatype; _track() assigns track->mediatype directly from opts
+    rather than OR-ing, preserving MOVIE for video files.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.9) UNRELEASED; urgency=medium
 
   * Add audiobook/podcast playback flags and fix operator precedence bug

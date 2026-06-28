@@ -235,7 +235,9 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     }
 
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
-    track->mediatype |= opts.mediatype;
+    track->mediatype = mi.has_video
+        ? (ITDB_MEDIATYPE_MOVIE | (opts.mediatype & ~ITDB_MEDIATYPE_AUDIO))
+        : opts.mediatype;
 
     if (opts.mediatype & (ITDB_MEDIATYPE_AUDIOBOOK | ITDB_MEDIATYPE_PODCAST)) {
         track->remember_playback_position = 1;
@@ -917,7 +919,7 @@ int main (int argc, char *argv[])
 		while (p->type)
 		{
 		    if (strcmp(optarg, p->type) == 0) {
-			opts.mediatype |= p->mapping;
+			opts.mediatype = p->mapping;
 		    }
 		    ++p;
 		}
