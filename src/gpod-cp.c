@@ -243,6 +243,9 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
         track->remember_playback_position = 1;
         track->skip_when_shuffling = 1;
     }
+    if (opts.mediatype & ITDB_MEDIATYPE_PODCAST) {
+        track->mark_unplayed = 0x02;
+    }
 
     if (opts.artwork && mi.coverart.data) {
 	itdb_track_set_thumbnails_from_data(track, mi.coverart.data, mi.coverart.size);
@@ -322,6 +325,16 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
         itdb_track_add(itdb, track, -1);
 
         itdb_playlist_add_track(mpl_, track, -1);
+
+        if (track->mediatype & ITDB_MEDIATYPE_PODCAST) {
+            Itdb_Playlist*  podcasts_pl = itdb_playlist_podcasts(itdb);
+            if (podcasts_pl == NULL) {
+                podcasts_pl = itdb_playlist_new("Podcasts", false);
+                itdb_playlist_set_podcasts(podcasts_pl);
+                itdb_playlist_add(itdb, podcasts_pl, -1);
+            }
+            itdb_playlist_add_track(podcasts_pl, track, -1);
+        }
 
         bool  ok = itdb_cp_track_to_ipod (track, xfrm_->path[0] ? xfrm_->path : path_, error_);
 

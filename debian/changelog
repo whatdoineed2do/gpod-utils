@@ -1,3 +1,17 @@
+gpod-utils (1.4.11) UNRELEASED; urgency=medium
+
+  * Add podcast tracks to the Podcasts playlist so they appear under the
+    Podcast menu rather than Music on iPod Classic
+
+    The iPod routes tracks to the Podcast menu via a special playlist with
+    podcastflag=1, not solely via mediatype. Without it, even a track with
+    mediatype=PODCAST only appears under Music. Now creates the Podcasts
+    playlist (using itdb_playlist_set_podcasts) if absent and adds each
+    podcast track to it. Also sets mark_unplayed=0x02 so the unplayed bullet
+    appears on the iPod.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.10) UNRELEASED; urgency=medium
 
   * Fix podcast/audiobook tracks appearing under Music instead of Podcast menu
