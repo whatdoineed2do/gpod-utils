@@ -1,3 +1,14 @@
+gpod-utils (1.4.12) UNRELEASED; urgency=medium
+
+  * Fix gpod-verify -d segfault when removing orphaned filesystem files
+
+    The REMVE g_print had ++removed as the first variadic argument but the
+    format string starts with %s, so g_print dereferenced the integer counter
+    as a char pointer and crashed. Move ++removed to a separate statement,
+    matching the pattern used by the ORPHN and ADD branches.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.11) UNRELEASED; urgency=medium
 
   * Add podcast tracks to the Podcasts playlist so they appear under the

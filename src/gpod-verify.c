@@ -439,7 +439,8 @@ int main (int argc, char *argv[])
             {
                 // trust the db, remove from fs
                 g_print("REMVE  %s -> { title='%s' artist='%s' album='%s' }\n",
-                        ++removed, resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                        resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                ++removed;
 
                 g_unlink(resolved_path);
                 stats.rm_bytes += track->size;
