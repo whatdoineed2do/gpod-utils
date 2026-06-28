@@ -1,3 +1,18 @@
+gpod-utils (1.4.17) UNRELEASED; urgency=medium
+
+  * Fix podcast playback showing 'Unknown Artist' on iPod Classic 6th gen
+
+    For podcast tracks with no artist tag, fall back to the album name
+    (podcast show name), matching iTunes behaviour.
+
+  * Set podcast episode release date from 'date' metadata tag
+
+    gpod_ff_meta_to_track now copies date_released (already parsed from the
+    'date' tag by parse_date) to track->time_released. The fallback to
+    time_added in gpod-cp is preserved for files with no date tag.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.16) UNRELEASED; urgency=medium
 
   * Add gpod dispatcher script: 'gpod <cmd> ...' invokes 'gpod-<cmd> ...'

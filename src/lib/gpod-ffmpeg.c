@@ -893,6 +893,8 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
         }
     }
 
+    track->time_released = meta_->meta.date_released;
+
     track->sort_artist      = gpod_sortname(track->artist);
     track->sort_title       = gpod_sortname(track->title);
     track->sort_album       = gpod_sortname(track->album);

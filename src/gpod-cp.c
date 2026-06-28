@@ -248,6 +248,8 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
         track->flag4 = 0x01;
         if (track->time_released == 0)
             track->time_released = track->time_added;
+        if (track->artist == NULL && track->album != NULL)
+            track->artist = g_strdup(track->album);
     }
 
     if (opts.artwork && mi.coverart.data) {
