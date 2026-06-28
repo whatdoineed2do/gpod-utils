@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+if [ $# -eq 0 ]; then
+    echo "usage: gpod <command> [args...]"
+    echo ""
+    echo "commands: cp, extract, hashsum, ls, recent-pl, rm, tag, verify"
+    exit 1
+fi
+
+cmd="$1"; shift
+exec "gpod-$cmd" "$@"

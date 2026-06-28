@@ -13,6 +13,7 @@ AM_LDFLAGS = $(GPOD_UTILS_LDFLAGS) $(GLIB_LIBS) $(GPOD_LIBS) $(FFMPEG_LDFLAGS) -
 
 GPOD_OPT=
 bin_PROGRAMS = $(GPOD_OPT) gpod-ls gpod-rm gpod-tag gpod-recent-pl gpod-hashsum
+dist_bin_SCRIPTS = gpod
 check_PROGRAMS = test-ff-xcode test-init-ipod test-gpool
 
 # using git version instead of the am values in config.h
