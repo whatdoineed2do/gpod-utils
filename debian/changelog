@@ -1,3 +1,16 @@
+gpod-utils (1.4.15) UNRELEASED; urgency=medium
+
+  * Convert PNG embedded cover art to JPEG when syncing to iPod
+
+    extract_coverart only set pic_found for JPEG-encoded attached pictures,
+    silently skipping PNG covers (the decoded frame was discarded). Remove the
+    codec guard so any successfully decoded attached picture proceeds to
+    encode_frame_to_jpeg, which scales to 300x300 and re-encodes as JPEG.
+    The raw-packet fallback is still gated on is_jpeg since the iPod cannot
+    display PNG thumbnails directly.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.14) UNRELEASED; urgency=medium
 
   * Fix Podcasts menu not navigable on iPod Classic 6th gen

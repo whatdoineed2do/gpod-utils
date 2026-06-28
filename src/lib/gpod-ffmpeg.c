@@ -456,6 +456,7 @@ static
 void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 {
     bool pic_found = false;
+    bool is_jpeg = false;
     AVFrame *frame = av_frame_alloc();
     AVCodecContext *codec_ctx = NULL;
     const AVCodec *codec = NULL;
@@ -493,9 +494,9 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
                 break;
             }
 
-            if (st->codecpar->codec_id == AV_CODEC_ID_MJPEGB || st->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
-                pic_found = true;
-            }
+            is_jpeg = (st->codecpar->codec_id == AV_CODEC_ID_MJPEG ||
+                       st->codecpar->codec_id == AV_CODEC_ID_MJPEGB);
+            pic_found = true;
             break;
         }
     }
@@ -507,14 +508,16 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 
     int jpeg_size = 0;
     if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &jpeg_size)) != 0) {
-	g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
-        coverart_->size = pkt.size;
-        coverart_->data = g_malloc(coverart_->size);
-        memcpy(coverart_->data, pkt.data, coverart_->size);
-      }
+        g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
+        if (is_jpeg) {
+            coverart_->size = pkt.size;
+            coverart_->data = g_malloc(coverart_->size);
+            memcpy(coverart_->data, pkt.data, coverart_->size);
+        }
+    }
     else {
         coverart_->size = (gsize)jpeg_size;
-      }
+    }
 
 out:
     av_frame_free(&frame);
