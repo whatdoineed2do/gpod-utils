@@ -33,6 +33,7 @@ autoreconf --install
 %make_install
 
 %files
+%{_bindir}/gpod
 %{_bindir}/gpod-cp
 %{_bindir}/gpod-extract
 %{_bindir}/gpod-hashsum

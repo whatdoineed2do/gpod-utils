@@ -1,3 +1,9 @@
+gpod-utils (1.4.18) UNRELEASED; urgency=medium
+
+  * Add gpod dispatcher script to RPM spec %files
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.17) UNRELEASED; urgency=medium
 
   * Fix podcast playback showing 'Unknown Artist' on iPod Classic 6th gen
