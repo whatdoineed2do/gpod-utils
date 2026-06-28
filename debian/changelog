@@ -1,3 +1,21 @@
+gpod-utils (1.4.13) UNRELEASED; urgency=medium
+
+  * Fix FLAC-to-ALAC transcode failure on files with embedded cover art
+
+    decode_audio_frame was passing a blank packet (data=NULL, size=0) to
+    avcodec_send_packet when EOF was reached, instead of NULL. The FLAC
+    decoder accepted the blank packet without error but then returned
+    AVERROR_INVALIDDATA from avcodec_receive_frame, which was treated as
+    fatal, aborting the transcode. Fix: send NULL when finished to properly
+    flush the decoder, and also handle AVERROR_EOF from avcodec_send_packet
+    as non-fatal alongside the existing AVERROR_INVALIDDATA case.
+
+    Also add av_packet_unref() at the top of the stream-filtering loop so
+    non-audio packets (e.g. attached cover art) are released before reading
+    the next packet, matching the pattern used in gpod_ff_audio_hash.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.12) UNRELEASED; urgency=medium
 
   * Fix gpod-verify -d segfault when removing orphaned filesystem files

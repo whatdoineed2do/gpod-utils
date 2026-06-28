@@ -529,6 +529,7 @@ static int decode_audio_frame(AVFrame *frame,
     /* Read one audio frame from the input file into a temporary packet. */
     input_packet->stream_index = -1;
     while (!*finished && input_packet->stream_index != audio_stream_idx) {
+	av_packet_unref(input_packet);
 	if ((error = av_read_frame(input_format_context, input_packet)) < 0) {
 	    /* If we are at the end of the file, flush the decoder below. */
 	    if (error == AVERROR_EOF)
@@ -544,10 +545,12 @@ static int decode_audio_frame(AVFrame *frame,
     }
 
     /* Send the audio frame stored in the temporary packet to the decoder.
-     * The input audio stream decoder is used to do this. */
-    if ((error = avcodec_send_packet(input_codec_context, input_packet)) < 0) {
+     * The input audio stream decoder is used to do this. When at EOF, send
+     * NULL to properly flush the decoder instead of a blank packet, which
+     * some decoders (e.g. FLAC) may reject with AVERROR_INVALIDDATA. */
+    if ((error = avcodec_send_packet(input_codec_context, *finished ? NULL : input_packet)) < 0) {
         char  err[1024];
-        if (error == AVERROR_INVALIDDATA) {
+        if (error == AVERROR_INVALIDDATA || error == AVERROR_EOF) {
             // non fatal condition, reset for caller return
             error = 0;
         }
