@@ -245,6 +245,9 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     }
     if (opts.mediatype & ITDB_MEDIATYPE_PODCAST) {
         track->mark_unplayed = 0x02;
+        track->flag4 = 0x01;
+        if (track->time_released == 0)
+            track->time_released = track->time_added;
     }
 
     if (opts.artwork && mi.coverart.data) {
@@ -331,6 +334,7 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
             if (podcasts_pl == NULL) {
                 podcasts_pl = itdb_playlist_new("Podcasts", false);
                 itdb_playlist_set_podcasts(podcasts_pl);
+                podcasts_pl->sortorder = ITDB_PSO_RELEASE_DATE;
                 itdb_playlist_add(itdb, podcasts_pl, -1);
             }
             itdb_playlist_add_track(podcasts_pl, track, -1);

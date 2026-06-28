@@ -1,3 +1,15 @@
+gpod-utils (1.4.14) UNRELEASED; urgency=medium
+
+  * Fix Podcasts menu not navigable on iPod Classic 6th gen
+
+    Set flag4=0x01 on podcast tracks (required by the 6th gen firmware to
+    recognise a track as a properly configured podcast episode), populate
+    time_released from time_added when absent (episode release date used for
+    sorting), and set ITDB_PSO_RELEASE_DATE sort order on the Podcasts
+    playlist when creating it, matching iTunes behaviour.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.13) UNRELEASED; urgency=medium
 
   * Fix FLAC-to-ALAC transcode failure on files with embedded cover art
