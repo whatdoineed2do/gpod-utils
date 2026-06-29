@@ -386,7 +386,7 @@ static int encode_frame_to_jpeg(AVFrame *src, int out_w, int out_h,
 
     sws_ctx = sws_getContext(src->width, src->height, src->format,
                              out_w, out_h, AV_PIX_FMT_YUVJ420P,
-                             SWS_BILINEAR, NULL, NULL, NULL);
+                             SWS_AREA, NULL, NULL, NULL);
     if (!sws_ctx) goto fail;
 
     sws_scale(sws_ctx, (const uint8_t * const*)src->data, src->linesize,
@@ -402,9 +402,10 @@ static int encode_frame_to_jpeg(AVFrame *src, int out_w, int out_h,
     enc_ctx->height = out_h;
     enc_ctx->time_base = (AVRational){1, 25};
 
-#define TARGET_PCT_QUALITY 65
-    // quality 0..31 (lower is better)
-    enc_ctx->global_quality = FF_QP2LAMBDA * 1+(100-TARGET_PCT_QUALITY)*30/100;
+    /* near-lossless: JPEG is intermediate before libgpod converts to RGB565;
+     * q=2 avoids encoder edge cases at q=1 while preserving maximum detail */
+    enc_ctx->flags |= AV_CODEC_FLAG_QSCALE;
+    enc_ctx->global_quality = 2 * FF_QP2LAMBDA;
     dst->quality = enc_ctx->global_quality;
 
     if ((ret = avcodec_open2(enc_ctx, enc, NULL)) < 0) goto fail;
@@ -453,7 +454,7 @@ fail:
 }
 
 static
-void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
+void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_, Itdb_IpodGeneration idevice_)
 {
     bool pic_found = false;
     bool is_jpeg = false;
@@ -506,17 +507,41 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 	goto out;
     }
 
+    /* per ipod_classic_1_cover_art_info: max 320x320; per ipod_video_cover_art_info: max 200x200 */
+    unsigned  art_dim = 300;
+    if (idevice_ == ITDB_IPOD_GENERATION_CLASSIC_1 ||
+        idevice_ == ITDB_IPOD_GENERATION_CLASSIC_2 ||
+        idevice_ == ITDB_IPOD_GENERATION_CLASSIC_3)
+        art_dim = 320;
+    else if (idevice_ == ITDB_IPOD_GENERATION_VIDEO_1 ||
+             idevice_ == ITDB_IPOD_GENERATION_VIDEO_2)
+        art_dim = 200;
+
     int jpeg_size = 0;
-    if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &jpeg_size)) != 0) {
-        g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
-        if (is_jpeg) {
-            coverart_->size = pkt.size;
-            coverart_->data = g_malloc(coverart_->size);
-            memcpy(coverart_->data, pkt.data, coverart_->size);
+    const bool needs_scale = (frame->width > (int)art_dim || frame->height > (int)art_dim);
+    if (needs_scale) {
+        if ((error = encode_frame_to_jpeg(frame, art_dim, art_dim, &coverart_->data, &jpeg_size)) != 0) {
+            g_debug("failed to scale encode embedded artwork - %s\n", av_err2str(error));
+            /* original is oversized and encode failed - skip artwork */
+        }
+        else {
+            coverart_->size = (gsize)jpeg_size;
         }
     }
+    else if (is_jpeg) {
+        /* already JPEG and within target dimensions - use raw bytes as-is */
+        coverart_->size = pkt.size;
+        coverart_->data = g_malloc(coverart_->size);
+        memcpy(coverart_->data, pkt.data, coverart_->size);
+    }
     else {
-        coverart_->size = (gsize)jpeg_size;
+        /* non-JPEG but within target - convert to JPEG at original dimensions */
+        if ((error = encode_frame_to_jpeg(frame, frame->width, frame->height, &coverart_->data, &jpeg_size)) != 0) {
+            g_debug("failed to encode embedded artwork to jpeg - %s\n", av_err2str(error));
+        }
+        else {
+            coverart_->size = (gsize)jpeg_size;
+        }
     }
 
 out:
@@ -851,7 +876,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         }
     }
 
-    extract_coverart(ctx, &info_->coverart);
+    extract_coverart(ctx, &info_->coverart, idevice_);
 
     avformat_close_input(&ctx);
     return 0;

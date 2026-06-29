@@ -1,3 +1,26 @@
+gpod-utils (1.4.19) UNRELEASED; urgency=medium
+
+  * Improve cover art handling in extract_coverart
+
+    Use device-specific resolution caps derived from libgpod's artwork
+    capability tables: 320x320 for iPod Classic (6/6.5/7g, per
+    ipod_classic_1_cover_art_info), 200x200 for iPod Video 1/2 (per
+    ipod_video_cover_art_info), 300x300 for all other devices.
+
+    Only downscale when the source exceeds the target: if the source is
+    already within the cap and is JPEG, attach raw bytes directly to avoid
+    a redundant decode/re-encode cycle; if within cap but non-JPEG, convert
+    to JPEG at original dimensions without upscaling.
+
+    Switch sws scaling algorithm from SWS_BILINEAR to SWS_AREA (pixel area
+    averaging, correct for downscaling). Fix encode_frame_to_jpeg quality:
+    add AV_CODEC_FLAG_QSCALE so the MJPEG encoder honours global_quality,
+    and set q=2*FF_QP2LAMBDA (near-lossless); the previous formula was
+    broken by operator precedence and the flag was missing entirely, leaving
+    the encoder at its internal default.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.18) UNRELEASED; urgency=medium
 
   * Add gpod dispatcher script to RPM spec %files
