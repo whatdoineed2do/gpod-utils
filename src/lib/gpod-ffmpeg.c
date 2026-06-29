@@ -245,9 +245,14 @@ static const struct metadata_map   md_map_generic[] = {
     {"disc", 		1, meta_offsetof (disc), 		parse_disc},
     {"year", 		1, meta_offsetof (year), 		NULL },
     {"date", 		1, meta_offsetof (date_released),	parse_date},
-    {"title-sort", 	0, meta_offsetof (title_sort),		NULL },
-    {"artist-sort", 	0, meta_offsetof (artist_sort), 	NULL },
-    {"album-sort", 	0, meta_offsetof (album_sort), 		NULL },
+    {"title-sort", 	0, meta_offsetof (title_sort),		NULL },  /* MP3: TSOT */
+    {"sort_name",	0, meta_offsetof (title_sort),		NULL },  /* M4A: sonm */
+    {"artist-sort", 	0, meta_offsetof (artist_sort), 	NULL },  /* MP3: TSOP */
+    {"sort_artist",	0, meta_offsetof (artist_sort),		NULL },  /* M4A: soar */
+    {"album-sort", 	0, meta_offsetof (album_sort), 		NULL },  /* MP3: TSOA */
+    {"sort_album",	0, meta_offsetof (album_sort),		NULL },  /* M4A: soal */
+    {"sort_album_artist", 0, meta_offsetof (album_artist_sort),	NULL },  /* M4A: soaa */
+    {"sort_composer",	0, meta_offsetof (composer_sort),	NULL },  /* M4A: soco */
     {"compilation", 	1, meta_offsetof (compilation), 	NULL },
 
     {NULL, 0, 0, NULL}
@@ -901,11 +906,13 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->bitrate = meta_->audio.bitrate;
     track->samplerate = meta_->audio.samplerate <= 48000 ? meta_->audio.samplerate : 48000;
 
-    track->title = gpod_sanitize_text(gpod_trim(meta_->meta.title), sanitize_);
-    track->album = gpod_sanitize_text(gpod_trim(meta_->meta.album), sanitize_);
-    track->artist = gpod_sanitize_text(gpod_trim(meta_->meta.artist), sanitize_);
-    track->genre = gpod_sanitize_text(gpod_trim(meta_->meta.genre), sanitize_);
-    track->comment = gpod_sanitize_text(gpod_trim(meta_->meta.comment), sanitize_);
+    track->title       = gpod_sanitize_text(gpod_trim(meta_->meta.title),        sanitize_);
+    track->album       = gpod_sanitize_text(gpod_trim(meta_->meta.album),        sanitize_);
+    track->artist      = gpod_sanitize_text(gpod_trim(meta_->meta.artist),       sanitize_);
+    track->albumartist  = gpod_sanitize_text(gpod_trim(meta_->meta.album_artist), sanitize_);
+    track->compilation  = meta_->meta.compilation;
+    track->genre        = gpod_sanitize_text(gpod_trim(meta_->meta.genre),        sanitize_);
+    track->comment     = gpod_sanitize_text(gpod_trim(meta_->meta.comment),      sanitize_);
     track->tracks = meta_->meta.total_tracks;
     track->track_nr = meta_->meta.track;
     if (meta_->meta.year != 0) {
@@ -920,11 +927,11 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 
     track->time_released = meta_->meta.date_released;
 
-    track->sort_artist      = gpod_sortname(track->artist);
-    track->sort_title       = gpod_sortname(track->title);
-    track->sort_album       = gpod_sortname(track->album);
-    track->sort_albumartist = gpod_sortname(track->albumartist);
-    track->sort_composer    = gpod_sortname(track->composer);
+    track->sort_artist      = meta_->meta.artist_sort       ? gpod_sanitize_text(gpod_trim(meta_->meta.artist_sort),       sanitize_) : gpod_sortname(track->artist);
+    track->sort_title       = meta_->meta.title_sort        ? gpod_sanitize_text(gpod_trim(meta_->meta.title_sort),        sanitize_) : gpod_sortname(track->title);
+    track->sort_album       = meta_->meta.album_sort        ? gpod_sanitize_text(gpod_trim(meta_->meta.album_sort),        sanitize_) : gpod_sortname(track->album);
+    track->sort_albumartist = meta_->meta.album_artist_sort ? gpod_sanitize_text(gpod_trim(meta_->meta.album_artist_sort), sanitize_) : gpod_sortname(track->albumartist);
+    track->sort_composer    = meta_->meta.composer_sort     ? gpod_sanitize_text(gpod_trim(meta_->meta.composer_sort),     sanitize_) : gpod_sortname(track->composer);
 
     track->cds = meta_->meta.total_discs;
     track->cd_nr = meta_->meta.disc;

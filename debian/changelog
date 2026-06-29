@@ -1,3 +1,26 @@
+gpod-utils (1.4.20) UNRELEASED; urgency=medium
+
+  * Fix albumartist, sort tags and compilation flag not synced to iPod
+
+    gpod_ff_meta_to_track was silently dropping three fields despite correct
+    parsing: albumartist (album_artist), compilation flag, and all sort fields
+    (sort_artist, sort_title, sort_album, sort_albumartist, sort_composer).
+
+    Sort fields now prefer the file's own sort tag with gpod_sortname ("The "
+    strip) as fallback. M4A files expose sort atoms under different ffmpeg
+    dictionary keys than MP3: soar->"sort_artist", soal->"sort_album",
+    sonm->"sort_name", soaa->"sort_album_artist", soco->"sort_composer"; add
+    these to md_map_generic. MP3 was already covered via "artist-sort" and
+    "album-sort" in md_map_generic and TSO2/TSOC in md_map_id3. The compilation
+    key normalises to "compilation" for all formats (MP3 TCMP, M4A cpil, FLAC).
+
+  * Expose compilation flag in gpod-ls output
+
+    Add compilation to JSON output (brief and verbose modes) and SQLite export;
+    the schema column already existed.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.19) UNRELEASED; urgency=medium
 
   * Improve cover art handling in extract_coverart
