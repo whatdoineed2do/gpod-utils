@@ -818,7 +818,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
                 break;
 
             case AV_CODEC_ID_ALAC:
-                info_->supported_ipod_fmt = true;
+                info_->supported_ipod_fmt = (info_->audio.samplerate <= GPOD_MAX_SAMPLERATE &&
+                                             info_->audio.channels   <= 2);
                 break;
 
     // this block of types will needs transcoding to go onto iPod
@@ -995,8 +996,6 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
 	obj_->audio_opts.enc_name = "alac";
 	obj_->extn = ".m4a";
         obj_->audio_opts.quality_scale_factor = 0;
-	obj_->audio_opts.samplefmt = AV_SAMPLE_FMT_S16P;
-    obj_->audio_opts.samplerate = 48000;
         break;
 
       case GPOD_FF_ENC_MP3:

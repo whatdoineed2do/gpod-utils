@@ -1,3 +1,56 @@
+gpod-utils (1.4.21) UNRELEASED; urgency=medium
+
+  * Fix FLAC-to-ALAC transcode producing wrong sample rate, duration and pitch
+
+    gpod_ff_transcode_ctx_init hardcoded samplerate=48000 for the ALAC encoder,
+    forcing an unnecessary 44100→48000 Hz upsample on every FLAC source. Combined
+    with a second bug in load_convert_and_store — swr_convert was called with
+    output_codec_context->frame_size (4096) as the output cap instead of the
+    correctly rescaled sample count — the SWR resampler accumulated ~364 samples
+    of delay per block, never flushed, resulting in ~21 seconds of audio missing
+    from the end of a 4-minute track. Because the output contained the same
+    sample count as the 44100 Hz source but was labelled 48000 Hz, the iPod
+    played it back at 91.9% speed with raised pitch and truncated duration.
+
+    Fix 1: remove hardcoded samplerate=48000 from the ALAC encoder init; rate
+    now inherits from the input file.
+
+    Fix 2: _select_samplerate now caps at GPOD_MAX_SAMPLERATE (48000) for codecs
+    that report no supported-rates list (ALAC accepts any rate), preserving the
+    input rate for ≤48000 Hz sources and downsampling only when strictly needed.
+
+    Fix 3: load_convert_and_store passes the av_rescale_rnd-computed max_out_samples
+    to swr_convert instead of frame_size, draining the resampler delay buffer
+    correctly on every block.
+
+  * Fix out-of-spec ALAC files copied verbatim to iPod instead of transcoded
+
+    gpod_ff_scan marked all ALAC as supported_ipod_fmt=true regardless of sample
+    rate or channel count, so a 96kHz or surround ALAC was block-copied to the
+    iPod, which cannot play it. Now gated on the same limits as the transcode
+    path: rate ≤ GPOD_MAX_SAMPLERATE (48000 Hz) and channels ≤ 2. Out-of-spec
+    files fall through to gpod_ff_transcode where _select_samplerate downsamples
+    and the channel cap downmixes to stereo.
+
+    Move GPOD_MAX_SAMPLERATE define from gpod-ffmpeg-transcode.c into the shared
+    gpod-ffmpeg.h so both translation units reference the same constant.
+
+  * Make ALAC channel count and sample format conditional on input
+
+    Previously channels=2 was forced unconditionally (upmixing mono to stereo)
+    and sample_fmt=s16p was hardcoded (degrading 24-bit FLAC from s32p to s16p).
+
+    Channels are now capped at the configured maximum (2 for iPod) but not
+    upmixed: mono stays mono, stereo stays stereo, surround is downmixed.
+
+    Sample format is auto-detected in open_output_file: the planar equivalent of
+    the input format is used if the encoder supports it (s16→s16p, s32→s32p),
+    preserving bit-depth for high-resolution sources. Falls back to the encoder's
+    default when the planar variant is unsupported. Uses avcodec_get_supported_config
+    on FFmpeg ≥7.0 (libavcodec ≥61) instead of the deprecated sample_fmts field.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Mon, 30 Jun 2026 00:00:00 +0200
+
 gpod-utils (1.4.20) UNRELEASED; urgency=medium
 
   * Fix albumartist, sort tags and compilation flag not synced to iPod

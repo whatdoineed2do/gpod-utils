@@ -54,7 +54,6 @@
 
 #include <libswresample/swresample.h>
 
-#define GPOD_MAX_SAMPLERATE  48000
 #define GPOD_PREF_SAMPLERATE 44100
 
 
@@ -160,7 +159,9 @@ static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigne
 {
     const int*  output_samplerates = output_codec_->supported_samplerates;
     if (output_samplerates == NULL) {
-	return input_samplerate_;
+        /* Codec accepts any rate: preserve input rate but cap at iPod maximum.
+         * Never upsample — only downsample when source exceeds the ceiling. */
+	return input_samplerate_ <= GPOD_MAX_SAMPLERATE ? input_samplerate_ : GPOD_MAX_SAMPLERATE;
     }
 
     unsigned  sr = 0;
@@ -288,14 +289,49 @@ static int open_output_file(struct gpod_ff_transcode_ctx* target_,
     /* Set the basic encoder parameters.
      * validate the sample rate is not higher than max supported / setup for resample
      */
+
+    /* Channels: cap at configured maximum but never upmix.
+     * E.g., mono stays mono, stereo stays stereo, 5.1 downmixes to stereo. */
 #ifdef HAVE_FF5_CH_LAYOUT
-    av_channel_layout_default(&avctx->ch_layout, target_->audio_opts.channels);
+{
+    int in_ch  = input_codec_context->ch_layout.nb_channels;
+    int out_ch = (target_->audio_opts.channels > 0 && in_ch > (int)target_->audio_opts.channels)
+                 ? (int)target_->audio_opts.channels : in_ch;
+    av_channel_layout_default(&avctx->ch_layout, out_ch);
+}
 #else
-    avctx->channels       = target_->audio_opts.channels;
-    avctx->channel_layout = av_get_default_channel_layout(avctx->channels);
+{
+    int in_ch  = input_codec_context->channels;
+    int out_ch = (target_->audio_opts.channels > 0 && in_ch > (int)target_->audio_opts.channels)
+                 ? (int)target_->audio_opts.channels : in_ch;
+    avctx->channels       = out_ch;
+    avctx->channel_layout = av_get_default_channel_layout(out_ch);
+}
 #endif
-    avctx->sample_rate    = _select_samplerate(output_codec, target_->audio_opts.samplerate ? target_->audio_opts.samplerate : input_codec_context->sample_rate);
-    avctx->sample_fmt     = target_->audio_opts.samplefmt == AV_SAMPLE_FMT_NONE ? output_codec->sample_fmts[0] : target_->audio_opts.samplefmt;
+
+    avctx->sample_rate = _select_samplerate(output_codec, target_->audio_opts.samplerate ? target_->audio_opts.samplerate : input_codec_context->sample_rate);
+
+    /* Sample format: if not explicitly set, use the planar equivalent of the
+     * input format so bit-depth is preserved (e.g., s32p for 24-bit FLAC rather
+     * than degrading to s16p). Fall back to encoder default when the planar
+     * variant isn't in the encoder's supported-formats list. */
+    if (target_->audio_opts.samplefmt == AV_SAMPLE_FMT_NONE) {
+        enum AVSampleFormat planar = av_get_planar_sample_fmt(input_codec_context->sample_fmt);
+#if LIBAVCODEC_VERSION_MAJOR >= 61
+        const enum AVSampleFormat *fmts = NULL;
+        avcodec_get_supported_config(NULL, output_codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void **)&fmts, NULL);
+#else
+        const enum AVSampleFormat *fmts = output_codec->sample_fmts;
+#endif
+        avctx->sample_fmt = fmts ? fmts[0] : AV_SAMPLE_FMT_S16P;
+        if (planar != AV_SAMPLE_FMT_NONE && fmts) {
+            for (const enum AVSampleFormat *p = fmts; *p != AV_SAMPLE_FMT_NONE; p++) {
+                if (*p == planar) { avctx->sample_fmt = planar; break; }
+            }
+        }
+    } else {
+        avctx->sample_fmt = target_->audio_opts.samplefmt;
+    }
     const int  quality = (int)(target_->audio_opts.quality);
     if (quality != GPOD_FF_XCODE_MAX)
     {
@@ -977,9 +1013,13 @@ static int  load_convert_and_store(AVAudioFifo* output_samples_fifo, AVFrame** f
 	goto cleanup;
 
     /* Convert the input samples to the desired output sample format.
-     * This requires a temporary storage provided by converted_input_samples. */
+     * This requires a temporary storage provided by converted_input_samples.
+     * Use nb_samples (rescaled count) as the output cap, not frame_size —
+     * passing frame_size here leaves samples stranded in the SWR delay buffer
+     * every block, accumulating to minutes of truncated audio by end of track. */
+    const int max_out_samples = nb_samples;
     if ( (nb_samples = convert_samples((const uint8_t**)output_frame->extended_data, output_frame->nb_samples,
-		converted_input_samples, output_codec_context->frame_size,
+		converted_input_samples, max_out_samples,
 		resample_context, err_)) < 0)
 	goto cleanup;
 

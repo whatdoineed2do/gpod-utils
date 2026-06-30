@@ -25,6 +25,8 @@
  * Copyright (C) 2009-2011 Julien BLACHE <jb@jblache.org
  */
 
+#define GPOD_MAX_SAMPLERATE  48000
+
 #ifdef __cplusplus
 extern "C" {
 #endif
