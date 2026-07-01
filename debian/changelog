@@ -1,3 +1,26 @@
+gpod-utils (1.5.0) UNRELEASED; urgency=medium
+
+  * Add gpod-playlist: playlist CRUD tool for iPod/iTunesDB
+
+    New binary supporting list (-l), create (-c), delete (-d), rename (-R),
+    clear (-C) and per-track add/remove (-a/-r) operations on playlists.
+    Tracks are addressed by iTunesDB id or ipod_path as reported by gpod-ls.
+
+    Safety guards: master playlist cannot be deleted, cleared or have tracks
+    added/removed; podcasts playlist cannot be deleted, renamed or have
+    tracks added (use gpod-cp -m podcast); smart playlist contents are
+    read-only. Renaming the master playlist is allowed and renames the iPod
+    as displayed in iTunes (device name is stored as the mpl name).
+
+  * Remove gpod-recent-pl; functionality merged into gpod-playlist -u
+
+    'gpod-playlist -u [-n limit] [-3]' generates the same 'recently added'
+    playlists (0wk/1wk/1month/3months/6months/12months) via the existing
+    gpod_playlist_recent(), with -n album limit and optional m3u export.
+    The gpod dispatcher command list and docs updated accordingly.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Thu, 02 Jul 2026 00:00:00 +0200
+
 gpod-utils (1.4.21) UNRELEASED; urgency=medium
 
   * Fix FLAC-to-ALAC transcode producing wrong sample rate, duration and pitch

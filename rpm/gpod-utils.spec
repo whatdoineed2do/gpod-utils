@@ -38,7 +38,7 @@ autoreconf --install
 %{_bindir}/gpod-extract
 %{_bindir}/gpod-hashsum
 %{_bindir}/gpod-ls
-%{_bindir}/gpod-recent-pl
+%{_bindir}/gpod-playlist
 %{_bindir}/gpod-rm
 %{_bindir}/gpod-tag
 %{_bindir}/gpod-verify

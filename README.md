@@ -264,7 +264,7 @@ The audio conversions are performed in their own threads and defaults to the num
 By default the copy will replace tracks (deleting existing version) with matchin `title`/`artist`/`album` - this assumes the user is intending to replace the tracks;  this behaviour is governed by `-r` flag.
 
 ### M3u playlists
-It is possible to use `gpod-cp` to copy files to any directory / USB storage device, in particular USB sticks that may be used by a car audio systems or similar.  In this case, those audio systems perform their own scanning for audio files BUT obey `.m3u` playlists.  `gpod-cp` can generate these playlists when copying files to such devices by specifying the `-3` flag (similarly with the `gpod-recent-pl` utility).
+It is possible to use `gpod-cp` to copy files to any directory / USB storage device, in particular USB sticks that may be used by a car audio systems or similar.  In this case, those audio systems perform their own scanning for audio files BUT obey `.m3u` playlists.  `gpod-cp` can generate these playlists when copying files to such devices by specifying the `-3` flag (similarly with the `gpod-playlist -u` recent playlists).
 
 To initialise a USB device for `gpod-utils`, you must and then you can use the other `gpod-*` utilities on the device.
 ```shell
@@ -284,6 +284,36 @@ sync'ing iPod ... updated 2/3
 updated iPod, total tracks=29
 ```
 The metadata shown for each tracks is the *existing* data - the new metadata is show at the start of processing.
+
+## `gpod-playlist`
+Playlist management (CRUD) on the `iPod`.  Playlists can be listed, created, renamed, cleared and deleted; tracks can be added/removed using the internal `id` or `ipod_path` as determined from `gpod-ls`.  Renaming the master playlist renames the `iPod` as displayed in iTunes.
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -l
+'ray's iPod' { type=master count=88 smartpl=no }
+'Road Trip' { type=playlist count=0 smartpl=no }
+playlists=2
+
+$ gpod-playlist -M /run/media/ray/IPOD -c "Road Trip"
+created playlist 'Road Trip'
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -a 521 /iPod_Control/Music/F01/libgpod211429.mp3
+[  1/2]  521 -> { id=521 title='foo bar sings' artist='Foo&Bar' }
+[  2/2]  /iPod_Control/Music/F01/libgpod211429.mp3 -> { id=534 title='A Song' artist='Foo&Bar' }
+added 2/2 tracks to 'Road Trip', now count=2
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -r 521    # remove track from playlist
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -C        # clear all tracks
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -R "Summer"
+$ gpod-playlist -M /run/media/ray/IPOD -d "Summer"              # delete playlist, tracks remain on iPod
+```
+The `-u` flag creates/updates a set of `Recent ...` playlists (`0wk`/`1wk`/`1month`/`3months`/`6months`/`12months`) of recently added tracks - `-n` limits the number of albums considered (default 50) and `-3` also generates `.m3u` playlists.
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -u -n 25 -3
+iPod playlists=6 (limited to 25) with tracks=88
+sync'ing iPod ...
+```
 
 ## `gpod-extract`
 Extracts all or select files from `iPod` and optionally sync'ing metadata (with `-s` flag) on the copied files to the `iTunesDB` values.  No transcoding will be performed on the files, only generic metadata updates (as limited by `ffmpeg`).

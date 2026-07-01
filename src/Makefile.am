@@ -12,7 +12,7 @@ AM_CXXFLAGS = $(AM_CFLAGS)
 AM_LDFLAGS = $(GPOD_UTILS_LDFLAGS) $(GLIB_LIBS) $(GPOD_LIBS) $(FFMPEG_LDFLAGS) -lavformat -lavutil -lavcodec -lswscale
 
 GPOD_OPT=
-bin_PROGRAMS = $(GPOD_OPT) gpod-ls gpod-rm gpod-tag gpod-recent-pl gpod-hashsum
+bin_PROGRAMS = $(GPOD_OPT) gpod-ls gpod-rm gpod-tag gpod-playlist gpod-hashsum
 dist_bin_SCRIPTS = gpod
 check_PROGRAMS = test-ff-xcode test-init-ipod test-gpool
 
@@ -26,8 +26,8 @@ gpod_rm_LDADD = -Llib -lgpod-utils $(AM_LDFLAGS) $(GPOD_LIBS) $(GLIB_LIBS) $(JSO
 gpod_tag_SOURCES = gpod-tag.c
 gpod_tag_LDADD = -Llib -lgpod-utils $(AM_LDFLAGS) $(GPOD_LIBS) $(GLIB_LIBS)
 
-gpod_recent_pl_SOURCES = gpod-recent-pl.c
-gpod_recent_pl_LDADD = -Llib -lgpod-utils $(AM_LDFLAGS) $(GPOD_LIBS) $(GLIB_LIBS)
+gpod_playlist_SOURCES = gpod-playlist.c
+gpod_playlist_LDADD = -Llib -lgpod-utils $(AM_LDFLAGS) $(GPOD_LIBS) $(GLIB_LIBS)
 
 
 gpod_hashsum_CFLAGS = ${AM_CFLAGS}

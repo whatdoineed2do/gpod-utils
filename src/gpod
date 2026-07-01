@@ -4,7 +4,7 @@ set -e
 if [ $# -eq 0 ]; then
     echo "usage: gpod <command> [args...]"
     echo ""
-    echo "commands: cp, extract, hashsum, ls, recent-pl, rm, tag, verify"
+    echo "commands: cp, extract, hashsum, ls, playlist, rm, tag, verify"
     exit 1
 fi
 
