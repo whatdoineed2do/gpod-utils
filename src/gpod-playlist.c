@@ -51,8 +51,13 @@ void  _usage(char* argv0_)
              "\n"
              "    playlist CRUD on iPod/iTunesDB\n"
              "\n"
-             "    -l              list playlists; with -p <name>, list that playlist's tracks\n"
+             "    -l              list playlists; with -p <name>, list that playlist's tracks/rules\n"
              "    -c <name>       create new playlist\n"
+             "    -c <name> -S    create smart playlist:\n"
+             "       -e '<field> <op> <value>'  rule (repeatable); default match ALL rules\n"
+             "       -A                         match ANY rule instead of ALL\n"
+             "       -L <n>:<type>[:<sort>]     limit, eg 25:songs:recent\n"
+             "    -U              refresh smart playlists' member lists against library\n"
              "    -d <name>       delete playlist\n"
              "    -p <name> -R <newname>       rename playlist (renaming master playlist renames iPod)\n"
              "    -p <name> -C                 clear playlist (remove all tracks)\n"
@@ -61,6 +66,20 @@ void  _usage(char* argv0_)
              "    -u [-n limit] [-3]           update 'recently added' playlists\n"
              "                                 (0wk/1wk/1month/3months/6months/12months)\n"
              "                                 -n limits albums (default 50), -3 also writes m3u\n"
+             "\n"
+             "    smart playlist rules '<field> <op> <value>':\n"
+             "      string:  title album artist albumartist genre composer comment grouping\n"
+             "               ops:  = != ~ (contains) !~ ^ (starts with) $ (ends with)\n"
+             "      int:     rating (stars) playcount skipcount year track disc bitrate\n"
+             "               samplerate bpm size time (seconds)\n"
+             "               ops:  = != < <= > >=, range as '= a..b'\n"
+             "      bool:    compilation purchased; value 'set' or 'unset'\n"
+             "      date:    added modified played skipped; '< 4w' in the last 4 weeks,\n"
+             "               '> 4w' not in the last; units h/d/w/m/y\n"
+             "      limit:   types songs|minutes|hours|mb|gb  sorts random|name|album|\n"
+             "               artist|genre|recent|least-recent|most-played|least-played|\n"
+             "               recently-played|least-recently-played|highest-rated|lowest-rated\n"
+             "    eg: -c 'Top Rock' -S -e 'genre ~ Rock' -e 'rating >= 4' -L 50:songs:recent\n"
              "\n"
              "    Track ids/ipod paths can be determined using gpod-ls\n"
              "\n"
@@ -79,7 +98,8 @@ enum gpod_pl_op {
     OP_CLEAR,
     OP_ADD,
     OP_REMOVE,
-    OP_RECENT
+    OP_RECENT,
+    OP_SPL_REFRESH
 };
 
 static const char*  _pl_type(Itdb_Playlist* pl_)
@@ -87,6 +107,418 @@ static const char*  _pl_type(Itdb_Playlist* pl_)
     if (itdb_playlist_is_mpl(pl_))       return "master";
     if (itdb_playlist_is_podcasts(pl_))  return "podcasts";
     return "playlist";
+}
+
+/* smart playlist vocabulary - shared by the -e/-L parsers and the rule
+ * renderer so that listing a smart playlist echoes valid input syntax
+ */
+struct spl_name_map { const char*  name; guint32  value; };
+
+static const struct spl_name_map  _spl_fields[] = {
+    { "title",       ITDB_SPLFIELD_SONG_NAME },
+    { "album",       ITDB_SPLFIELD_ALBUM },
+    { "artist",      ITDB_SPLFIELD_ARTIST },
+    { "albumartist", ITDB_SPLFIELD_ALBUMARTIST },
+    { "genre",       ITDB_SPLFIELD_GENRE },
+    { "composer",    ITDB_SPLFIELD_COMPOSER },
+    { "comment",     ITDB_SPLFIELD_COMMENT },
+    { "grouping",    ITDB_SPLFIELD_GROUPING },
+    { "rating",      ITDB_SPLFIELD_RATING },
+    { "playcount",   ITDB_SPLFIELD_PLAYCOUNT },
+    { "skipcount",   ITDB_SPLFIELD_SKIPCOUNT },
+    { "year",        ITDB_SPLFIELD_YEAR },
+    { "track",       ITDB_SPLFIELD_TRACKNUMBER },
+    { "disc",        ITDB_SPLFIELD_DISC_NUMBER },
+    { "bitrate",     ITDB_SPLFIELD_BITRATE },
+    { "samplerate",  ITDB_SPLFIELD_SAMPLE_RATE },
+    { "bpm",         ITDB_SPLFIELD_BPM },
+    { "size",        ITDB_SPLFIELD_SIZE },
+    { "time",        ITDB_SPLFIELD_TIME },
+    { "compilation", ITDB_SPLFIELD_COMPILATION },
+    { "purchased",   ITDB_SPLFIELD_PURCHASE },
+    { "added",       ITDB_SPLFIELD_DATE_ADDED },
+    { "modified",    ITDB_SPLFIELD_DATE_MODIFIED },
+    { "played",      ITDB_SPLFIELD_LAST_PLAYED },
+    { "skipped",     ITDB_SPLFIELD_LAST_SKIPPED },
+    { NULL, 0 }
+};
+
+static const struct spl_name_map  _spl_string_ops[] = {
+    { "=",  ITDB_SPLACTION_IS_STRING },
+    { "!=", ITDB_SPLACTION_IS_NOT },
+    { "~",  ITDB_SPLACTION_CONTAINS },
+    { "!~", ITDB_SPLACTION_DOES_NOT_CONTAIN },
+    { "^",  ITDB_SPLACTION_STARTS_WITH },
+    { "$",  ITDB_SPLACTION_ENDS_WITH },
+    { NULL, 0 }
+};
+
+static const struct spl_name_map  _spl_int_ops[] = {
+    { "=",  ITDB_SPLACTION_IS_INT },
+    { "!=", ITDB_SPLACTION_IS_NOT_INT },
+    { ">",  ITDB_SPLACTION_IS_GREATER_THAN },
+    { "<",  ITDB_SPLACTION_IS_LESS_THAN },
+    { NULL, 0 }
+};
+
+/* newer libgpod headers define these alongside ItdbSPLActionLast */
+#ifndef ITDB_SPLACTION_LAST_HOURS_VALUE
+#define ITDB_SPLACTION_LAST_HOURS_VALUE  3600
+#endif
+#ifndef ITDB_SPLACTION_LAST_YEARS_VALUE
+#define ITDB_SPLACTION_LAST_YEARS_VALUE  31536000
+#endif
+
+/* value is seconds-per-unit as used in Itdb_SPLRule.fromunits */
+static const struct spl_name_map  _spl_date_units[] = {
+    { "h", ITDB_SPLACTION_LAST_HOURS_VALUE },
+    { "d", ITDB_SPLACTION_LAST_DAYS_VALUE },
+    { "w", ITDB_SPLACTION_LAST_WEEKS_VALUE },
+    { "m", ITDB_SPLACTION_LAST_MONTHS_VALUE },
+    { "y", ITDB_SPLACTION_LAST_YEARS_VALUE },
+    { NULL, 0 }
+};
+
+static const struct spl_name_map  _spl_limit_types[] = {
+    { "songs",   ITDB_LIMITTYPE_SONGS },
+    { "minutes", ITDB_LIMITTYPE_MINUTES },
+    { "hours",   ITDB_LIMITTYPE_HOURS },
+    { "mb",      ITDB_LIMITTYPE_MB },
+    { "gb",      ITDB_LIMITTYPE_GB },
+    { NULL, 0 }
+};
+
+static const struct spl_name_map  _spl_limit_sorts[] = {
+    { "random",                ITDB_LIMITSORT_RANDOM },
+    { "name",                  ITDB_LIMITSORT_SONG_NAME },
+    { "album",                 ITDB_LIMITSORT_ALBUM },
+    { "artist",                ITDB_LIMITSORT_ARTIST },
+    { "genre",                 ITDB_LIMITSORT_GENRE },
+    { "recent",                ITDB_LIMITSORT_MOST_RECENTLY_ADDED },
+    { "least-recent",          ITDB_LIMITSORT_LEAST_RECENTLY_ADDED },
+    { "most-played",           ITDB_LIMITSORT_MOST_OFTEN_PLAYED },
+    { "least-played",          ITDB_LIMITSORT_LEAST_OFTEN_PLAYED },
+    { "recently-played",       ITDB_LIMITSORT_MOST_RECENTLY_PLAYED },
+    { "least-recently-played", ITDB_LIMITSORT_LEAST_RECENTLY_PLAYED },
+    { "highest-rated",         ITDB_LIMITSORT_HIGHEST_RATING },
+    { "lowest-rated",          ITDB_LIMITSORT_LOWEST_RATING },
+    { NULL, 0 }
+};
+
+static const struct spl_name_map*  _spl_map_by_name(const struct spl_name_map* map_, const char* name_, size_t len_)
+{
+    for (const struct spl_name_map* m=map_; m->name; ++m) {
+        if (strlen(m->name) == len_ && strncmp(m->name, name_, len_) == 0) {
+            return m;
+        }
+    }
+    return NULL;
+}
+
+static const struct spl_name_map*  _spl_map_by_value(const struct spl_name_map* map_, guint32 value_)
+{
+    for (const struct spl_name_map* m=map_; m->name; ++m) {
+        if (m->value == value_) {
+            return m;
+        }
+    }
+    return NULL;
+}
+
+/* user-facing units -> stored units: rating in stars, time in seconds */
+static guint64  _spl_value_scale(guint32 field_)
+{
+    switch (field_) {
+        case ITDB_SPLFIELD_RATING:  return ITDB_RATING_STEP;
+        case ITDB_SPLFIELD_TIME:    return 1000;
+        default:                    return 1;
+    }
+}
+
+static bool  _spl_parse_uint(const char* s_, const char** end_, guint64* val_)
+{
+    char*  end;
+    *val_ = g_ascii_strtoull(s_, &end, 10);
+    if (end == s_) {
+        return false;
+    }
+    *end_ = end;
+    return true;
+}
+
+/* parse '<field> <op> <value>' into rule_; value may contain spaces */
+static bool  _spl_parse_rule(Itdb_SPLRule* rule_, const char* expr_)
+{
+    const char*  p = expr_;
+    while (*p && isspace(*p))  ++p;
+    const char*  field = p;
+    while (*p && !isspace(*p))  ++p;
+    const size_t  fieldlen = p - field;
+    while (*p && isspace(*p))  ++p;
+    const char*  op = p;
+    while (*p && !isspace(*p))  ++p;
+    const size_t  oplen = p - op;
+    while (*p && isspace(*p))  ++p;
+    const char*  value = p;
+
+    if (fieldlen == 0 || oplen == 0 || *value == '\0') {
+        g_printerr("bad rule '%s' - expect '<field> <op> <value>'\n", expr_);
+        return false;
+    }
+
+    const struct spl_name_map*  fm = _spl_map_by_name(_spl_fields, field, fieldlen);
+    if (fm == NULL) {
+        g_printerr("bad rule '%s' - unknown field '%.*s'\n", expr_, (int)fieldlen, field);
+        return false;
+    }
+    rule_->field = fm->value;
+
+    const struct spl_name_map*  om;
+    const guint64  scale = _spl_value_scale(rule_->field);
+    guint64  v;
+    const char*  end;
+
+    switch (itdb_splr_get_field_type(rule_))
+    {
+        case ITDB_SPLFT_STRING:
+            om = _spl_map_by_name(_spl_string_ops, op, oplen);
+            if (om == NULL) {
+                g_printerr("bad rule '%s' - invalid string op '%.*s'\n", expr_, (int)oplen, op);
+                return false;
+            }
+            rule_->action = om->value;
+            g_free(rule_->string);
+            rule_->string = g_strdup(value);
+            break;
+
+        case ITDB_SPLFT_INT:
+            if (!_spl_parse_uint(value, &end, &v)) {
+                g_printerr("bad rule '%s' - invalid numeric value '%s'\n", expr_, value);
+                return false;
+            }
+            v *= scale;
+
+            if (oplen == 1 && *op == '=' && strncmp(end, "..", 2) == 0)
+            {
+                guint64  to;
+                if (!_spl_parse_uint(end+2, &end, &to) || *end != '\0') {
+                    g_printerr("bad rule '%s' - invalid range value '%s'\n", expr_, value);
+                    return false;
+                }
+                rule_->action = ITDB_SPLACTION_IS_IN_THE_RANGE;
+                rule_->fromvalue = v;
+                rule_->tovalue = to * scale;
+                break;
+            }
+            if (*end != '\0') {
+                g_printerr("bad rule '%s' - invalid numeric value '%s'\n", expr_, value);
+                return false;
+            }
+
+            /* libgpod has no >=/<= actions; exact for ints as >v-1 / <v+1 */
+            if (oplen == 2 && strncmp(op, ">=", 2) == 0) {
+                if (v == 0) {
+                    g_printerr("bad rule '%s' - '>= 0' always matches\n", expr_);
+                    return false;
+                }
+                rule_->action = ITDB_SPLACTION_IS_GREATER_THAN;
+                rule_->fromvalue = v - 1;
+                break;
+            }
+            if (oplen == 2 && strncmp(op, "<=", 2) == 0) {
+                rule_->action = ITDB_SPLACTION_IS_LESS_THAN;
+                rule_->fromvalue = v + 1;
+                break;
+            }
+
+            om = _spl_map_by_name(_spl_int_ops, op, oplen);
+            if (om == NULL) {
+                g_printerr("bad rule '%s' - invalid numeric op '%.*s'\n", expr_, (int)oplen, op);
+                return false;
+            }
+            rule_->action = om->value;
+            rule_->fromvalue = v;
+            break;
+
+        case ITDB_SPLFT_BOOLEAN:
+            if (oplen != 1 || *op != '=') {
+                g_printerr("bad rule '%s' - boolean fields take '= set' or '= unset'\n", expr_);
+                return false;
+            }
+            if (g_ascii_strcasecmp(value, "set") == 0) {
+                rule_->action = ITDB_SPLACTION_IS_INT;
+            }
+            else if (g_ascii_strcasecmp(value, "unset") == 0) {
+                rule_->action = ITDB_SPLACTION_IS_NOT_INT;
+            }
+            else {
+                g_printerr("bad rule '%s' - boolean fields take '= set' or '= unset'\n", expr_);
+                return false;
+            }
+            break;
+
+        case ITDB_SPLFT_DATE:
+        {
+            if (oplen != 1 || (*op != '<' && *op != '>')) {
+                g_printerr("bad rule '%s' - date fields take '< <n><unit>' (in the last) or '> <n><unit>' (not in the last)\n", expr_);
+                return false;
+            }
+            if (!_spl_parse_uint(value, &end, &v) || v == 0) {
+                g_printerr("bad rule '%s' - invalid date value '%s'\n", expr_, value);
+                return false;
+            }
+            const struct spl_name_map*  um = _spl_map_by_name(_spl_date_units, end, strlen(end));
+            if (um == NULL) {
+                g_printerr("bad rule '%s' - invalid date unit '%s' (h/d/w/m/y)\n", expr_, end);
+                return false;
+            }
+            rule_->action = *op == '<' ? ITDB_SPLACTION_IS_IN_THE_LAST
+                                       : ITDB_SPLACTION_IS_NOT_IN_THE_LAST;
+            rule_->fromdate = -(gint64)v;
+            rule_->fromunits = um->value;
+        } break;
+
+        default:
+            g_printerr("bad rule '%s' - field '%s' not supported\n", expr_, fm->name);
+            return false;
+    }
+
+    if (itdb_splr_get_action_type(rule_) == ITDB_SPLAT_INVALID) {
+        g_printerr("bad rule '%s' - op not valid for field '%s'\n", expr_, fm->name);
+        return false;
+    }
+    itdb_splr_validate(rule_);
+    return true;
+}
+
+/* parse '<n>:<type>[:<sort>]' eg 25:songs:recent */
+static bool  _spl_parse_limit(Itdb_SPLPref* pref_, const char* spec_)
+{
+    bool  ret = false;
+    char**  tok = g_strsplit(spec_, ":", 3);
+    const unsigned  ntok = g_strv_length(tok);
+
+    const char*  end;
+    guint64  v;
+    const struct spl_name_map*  tm;
+    const struct spl_name_map*  sm = _spl_limit_sorts;  /* random */
+
+    if (ntok < 2 || !_spl_parse_uint(tok[0], &end, &v) || *end != '\0' || v == 0) {
+        g_printerr("bad limit '%s' - expect '<n>:<type>[:<sort>]'\n", spec_);
+        goto done;
+    }
+    if ( (tm = _spl_map_by_name(_spl_limit_types, tok[1], strlen(tok[1]))) == NULL) {
+        g_printerr("bad limit '%s' - unknown type '%s'\n", spec_, tok[1]);
+        goto done;
+    }
+    if (ntok == 3 && (sm = _spl_map_by_name(_spl_limit_sorts, tok[2], strlen(tok[2]))) == NULL) {
+        g_printerr("bad limit '%s' - unknown sort '%s'\n", spec_, tok[2]);
+        goto done;
+    }
+
+    pref_->checklimits = 1;
+    pref_->limitvalue = v;
+    pref_->limittype = tm->value;
+    pref_->limitsort = sm->value;
+    ret = true;
+
+done:
+    g_strfreev(tok);
+    return ret;
+}
+
+/* render a rule back in the syntax _spl_parse_rule() accepts */
+static void  _spl_render_rule(GString* out_, Itdb_SPLRule* rule_)
+{
+    const struct spl_name_map*  fm = _spl_map_by_value(_spl_fields, rule_->field);
+    if (fm == NULL) {
+        g_string_append_printf(out_, "<unsupported field=0x%x action=0x%x>", rule_->field, rule_->action);
+        return;
+    }
+
+    const struct spl_name_map*  om;
+    const guint64  scale = _spl_value_scale(rule_->field);
+
+    switch (itdb_splr_get_field_type(rule_))
+    {
+        case ITDB_SPLFT_STRING:
+            om = _spl_map_by_value(_spl_string_ops, rule_->action);
+            if (om) {
+                g_string_append_printf(out_, "%s %s %s", fm->name, om->name, rule_->string ? rule_->string : "");
+                return;
+            }
+            break;
+
+        case ITDB_SPLFT_INT:
+            if (rule_->action == ITDB_SPLACTION_IS_IN_THE_RANGE) {
+                g_string_append_printf(out_, "%s = %" G_GUINT64_FORMAT "..%" G_GUINT64_FORMAT,
+                                       fm->name, rule_->fromvalue/scale, rule_->tovalue/scale);
+                return;
+            }
+            om = _spl_map_by_value(_spl_int_ops, rule_->action);
+            if (om) {
+                g_string_append_printf(out_, "%s %s %" G_GUINT64_FORMAT,
+                                       fm->name, om->name, rule_->fromvalue/scale);
+                return;
+            }
+            break;
+
+        case ITDB_SPLFT_BOOLEAN:
+            if (rule_->action == ITDB_SPLACTION_IS_INT || rule_->action == ITDB_SPLACTION_IS_NOT_INT) {
+                g_string_append_printf(out_, "%s = %s", fm->name,
+                                       rule_->action == ITDB_SPLACTION_IS_INT ? "set" : "unset");
+                return;
+            }
+            break;
+
+        case ITDB_SPLFT_DATE:
+            if (rule_->action == ITDB_SPLACTION_IS_IN_THE_LAST || rule_->action == ITDB_SPLACTION_IS_NOT_IN_THE_LAST)
+            {
+                const struct spl_name_map*  um = _spl_map_by_value(_spl_date_units, rule_->fromunits);
+                if (um) {
+                    g_string_append_printf(out_, "%s %c %" G_GINT64_FORMAT "%s",
+                                           fm->name,
+                                           rule_->action == ITDB_SPLACTION_IS_IN_THE_LAST ? '<' : '>',
+                                           -rule_->fromdate, um->name);
+                    return;
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+    g_string_append_printf(out_, "<unsupported field=%s action=0x%x>", fm->name, rule_->action);
+}
+
+static void  _spl_dump(Itdb_Playlist* pl_)
+{
+    GString*  out = g_string_new(NULL);
+    g_string_append_printf(out, "smart { match=%s liveupdate=%s",
+                           pl_->splrules.match_operator == ITDB_SPLMATCH_OR ? "any" : "all",
+                           pl_->splpref.liveupdate ? "yes" : "no");
+    if (pl_->splpref.checklimits)
+    {
+        const struct spl_name_map*  tm = _spl_map_by_value(_spl_limit_types, pl_->splpref.limittype);
+        const struct spl_name_map*  sm = _spl_map_by_value(_spl_limit_sorts, pl_->splpref.limitsort);
+        g_string_append_printf(out, " limit=%u:%s:%s",
+                               pl_->splpref.limitvalue,
+                               tm ? tm->name : "?", sm ? sm->name : "?");
+    }
+    g_string_append(out, " }\n");
+
+    if (!pl_->splpref.checkrules || pl_->splrules.rules == NULL) {
+        g_string_append(out, "  rules: none (matches all)\n");
+    }
+    else {
+        for (GList* it=pl_->splrules.rules; it!=NULL; it=it->next) {
+            g_string_append(out, "  rule: ");
+            _spl_render_rule(out, (Itdb_SPLRule*)it->data);
+            g_string_append_c(out, '\n');
+        }
+    }
+    g_print("%s", out->str);
+    g_string_free(out, TRUE);
 }
 
 /* resolve a track selector - all digits is an iTunesDB track id, otherwise
@@ -127,11 +559,17 @@ static void  _list_playlists(Itdb_iTunesDB* itdb_)
     for (GList* it=itdb_->playlists; it!=NULL; it=it->next)
     {
         Itdb_Playlist*  pl = (Itdb_Playlist*)it->data;
-        g_print("'%s' { type=%s count=%u smartpl=%s }\n",
+        g_print("'%s' { type=%s count=%u smartpl=%s",
                 pl->name ? pl->name : "",
                 _pl_type(pl),
                 g_list_length(pl->members),
                 pl->is_spl ? "yes" : "no");
+        if (pl->is_spl) {
+            g_print(" rules=%u liveupdate=%s",
+                    g_list_length(pl->splrules.rules),
+                    pl->splpref.liveupdate ? "yes" : "no");
+        }
+        g_print(" }\n");
         ++playlists;
     }
     g_print("playlists=%u\n", playlists);
@@ -139,6 +577,10 @@ static void  _list_playlists(Itdb_iTunesDB* itdb_)
 
 static void  _list_pl_tracks(Itdb_Playlist* pl_)
 {
+    if (pl_->is_spl) {
+        _spl_dump(pl_);
+    }
+
     const unsigned  N = g_list_length(pl_->members);
     unsigned  i = 0;
     for (GList* it=pl_->members; it!=NULL; it=it->next)
@@ -169,6 +611,75 @@ static int  _pl_create(Itdb_iTunesDB* itdb_, const char* name_)
     itdb_playlist_add(itdb_, pl, -1);
     g_print("created playlist '%s'\n", name_);
     return 1;
+}
+
+static int  _pl_create_smart(Itdb_iTunesDB* itdb_, const char* name_,
+                             char** rules_, unsigned nrules_,
+                             bool match_any_, const char* limit_)
+{
+    if (itdb_playlist_by_name(itdb_, (gchar*)name_)) {
+        g_printerr("playlist '%s' already exists\n", name_);
+        return -1;
+    }
+
+    Itdb_Playlist*  pl = itdb_playlist_new(name_, true);
+
+    /* itdb_playlist_new() seeds a default artist-contains rule; build from args */
+    itdb_splr_remove(pl, (Itdb_SPLRule*)pl->splrules.rules->data);
+
+    pl->splrules.match_operator = match_any_ ? ITDB_SPLMATCH_OR : ITDB_SPLMATCH_AND;
+
+    for (unsigned i=0; i<nrules_; ++i)
+    {
+        Itdb_SPLRule*  rule = itdb_splr_add_new(pl, -1);
+        if (!_spl_parse_rule(rule, rules_[i])) {
+            itdb_playlist_free(pl);
+            return -1;
+        }
+    }
+    if (nrules_ == 0) {
+        pl->splpref.checkrules = 0;
+    }
+
+    if (limit_ && !_spl_parse_limit(&pl->splpref, limit_)) {
+        itdb_playlist_free(pl);
+        return -1;
+    }
+
+    itdb_playlist_add(itdb_, pl, -1);
+    itdb_spl_update(pl);
+
+    g_print("created smart playlist '%s' with members=%u\n", name_, g_list_length(pl->members));
+    _spl_dump(pl);
+    return 1;
+}
+
+/* iPod displays the member list stored in iTunesDB, it does not evaluate
+ * rules itself - refresh members after library changes (gpod-cp/gpod-rm)
+ */
+static int  _pl_spl_refresh(Itdb_iTunesDB* itdb_)
+{
+    unsigned  spls = 0;
+    for (GList* it=itdb_->playlists; it!=NULL; it=it->next)
+    {
+        Itdb_Playlist*  pl = (Itdb_Playlist*)it->data;
+        if (!pl->is_spl) {
+            continue;
+        }
+
+        const unsigned  before = g_list_length(pl->members);
+        itdb_spl_update(pl);
+        g_print("'%s' members %u -> %u\n",
+                pl->name ? pl->name : "", before, g_list_length(pl->members));
+        ++spls;
+    }
+
+    if (spls == 0) {
+        g_print("no smart playlists\n");
+        return 0;
+    }
+    g_print("refreshed %u smart playlists\n", spls);
+    return spls;
 }
 
 static int  _pl_delete(Itdb_Playlist* pl_)
@@ -354,12 +865,19 @@ main (int argc, char *argv[])
         unsigned  album_limit;
         bool  with_m3u;
         bool  recent_opts;
-    } opts = { NULL, NULL, NULL, NULL, NULL, false, false, false, false, false, 50, false, false };
+        bool  smart;
+        bool  match_any;
+        const char*  limit;
+        bool  spl_refresh;
+    } opts = { NULL, NULL, NULL, NULL, NULL, false, false, false, false, false, 50, false, false,
+               false, false, NULL, false };
+
+    GPtrArray*  rule_exprs = g_ptr_array_new();
 
     int  ret = 0;
 
     int  c;
-    while ( (c=getopt(argc, argv, "M:c:d:p:R:n:larCu3vh")) != EOF)
+    while ( (c=getopt(argc, argv, "M:c:d:p:R:n:e:L:larCSAUu3vh")) != EOF)
     {
         switch (c) {
             case 'M':  opts.itdb_path = optarg;  break;
@@ -374,6 +892,11 @@ main (int argc, char *argv[])
             case 'u':  opts.recent = true;  break;
             case 'n':  opts.album_limit = atol(optarg);  opts.recent_opts = true;  break;
             case '3':  opts.with_m3u = true;  opts.recent_opts = true;  break;
+            case 'S':  opts.smart = true;  break;
+            case 'A':  opts.match_any = true;  break;
+            case 'e':  g_ptr_array_add(rule_exprs, optarg);  break;
+            case 'L':  opts.limit = optarg;  break;
+            case 'U':  opts.spl_refresh = true;  break;
 
             case 'v':
             case 'h':
@@ -392,6 +915,7 @@ main (int argc, char *argv[])
     if (opts.add)          { op = OP_ADD;     ++nops; }
     if (opts.remove)       { op = OP_REMOVE;  ++nops; }
     if (opts.recent)       { op = OP_RECENT;  ++nops; }
+    if (opts.spl_refresh)  { op = OP_SPL_REFRESH;  ++nops; }
 
     if (nops == 0) {
         g_printerr("no operation specified\n");
@@ -433,6 +957,15 @@ main (int argc, char *argv[])
 
     if (opts.recent_opts && op != OP_RECENT) {
         g_printerr("-n/-3 only valid with -u\n");
+        _usage(argv[0]);
+    }
+
+    if ((opts.smart || opts.match_any || opts.limit || rule_exprs->len > 0) && op != OP_CREATE) {
+        g_printerr("-S/-e/-A/-L only valid with -c\n");
+        _usage(argv[0]);
+    }
+    if ((opts.match_any || opts.limit || rule_exprs->len > 0) && !opts.smart) {
+        g_printerr("-e/-A/-L require -c <name> -S\n");
         _usage(argv[0]);
     }
 
@@ -518,7 +1051,15 @@ main (int argc, char *argv[])
             else     _list_playlists(itdb);
             break;
 
-        case OP_CREATE:  changes = _pl_create(itdb, opts.create_name);  break;
+        case OP_CREATE:
+            changes = opts.smart ?
+                _pl_create_smart(itdb, opts.create_name,
+                                 (char**)rule_exprs->pdata, rule_exprs->len,
+                                 opts.match_any, opts.limit) :
+                _pl_create(itdb, opts.create_name);
+            break;
+
+        case OP_SPL_REFRESH:  changes = _pl_spl_refresh(itdb);  break;
         case OP_DELETE:  changes = _pl_delete(pl);  break;
         case OP_RENAME:  changes = _pl_rename(itdb, pl, opts.rename_to);  break;
         case OP_CLEAR:   changes = _pl_clear(pl);  break;
@@ -556,6 +1097,7 @@ main (int argc, char *argv[])
 
 
 cleanup:
+    g_ptr_array_free(rule_exprs, TRUE);
     itdb_device_free(itdev);
     itdb_free (itdb);
 

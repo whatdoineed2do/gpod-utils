@@ -315,6 +315,33 @@ iPod playlists=6 (limited to 25) with tracks=88
 sync'ing iPod ...
 ```
 
+Smart playlists can be created with `-c <name> -S`, giving rules as repeatable `-e '<field> <op> <value>'` args (matching ALL rules unless `-A` for ANY) and an optional limit `-L <n>:<type>[:<sort>]`:
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -c "4star recent" -S -e 'rating >= 4' -e 'added < 6m' -A -L 50:songs:recent
+created smart playlist '4star recent' with members=50
+smart { match=any liveupdate=yes limit=50:songs:recent }
+  rule: rating > 3
+  rule: added < 6m
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -l -p "4star recent"    # shows rules then tracks
+```
+Rule fields:
+- string, ops `=` `!=` `~` (contains) `!~` `^` (starts with) `$` (ends with) - `title` `album` `artist` `albumartist` `genre` `composer` `comment` `grouping`
+- int, ops `=` `!=` `<` `<=` `>` `>=` and range `= a..b` - `rating` (stars) `playcount` `skipcount` `year` `track` `disc` `bitrate` `samplerate` `bpm` `size` `time` (seconds)
+- bool, `= set` / `= unset` - `compilation` `purchased`
+- date, `< 4w` (in the last) / `> 4w` (not in the last), units `h`/`d`/`w`/`m`/`y` - `added` `modified` `played` `skipped`
+
+Limit types are `songs`/`minutes`/`hours`/`mb`/`gb`; sorts are `random` (default), `name`, `album`, `artist`, `genre`, `recent`, `least-recent`, `most-played`, `least-played`, `recently-played`, `least-recently-played`, `highest-rated`, `lowest-rated`.
+
+The `iPod` does not evaluate smart playlist rules itself - it displays the member list stored in the `iTunesDB` (normally iTunes re-evaluates rules on sync).  The member list is populated at creation and `-U` re-evaluates all smart playlists after library changes (`gpod-cp`/`gpod-rm`):
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -U
+'4star recent' members 50 -> 52
+refreshed 1 smart playlists
+sync'ing iPod ...
+```
+
 ## `gpod-extract`
 Extracts all or select files from `iPod` and optionally sync'ing metadata (with `-s` flag) on the copied files to the `iTunesDB` values.  No transcoding will be performed on the files, only generic metadata updates (as limited by `ffmpeg`).
 ```shell

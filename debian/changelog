@@ -1,3 +1,27 @@
+gpod-utils (1.5.1) UNRELEASED; urgency=medium
+
+  * Add smart playlist support to gpod-playlist
+
+    Create smart playlists with '-c <name> -S', giving rules as repeatable
+    -e '<field> <op> <value>' args (matching ALL rules by default, -A for
+    ANY) and an optional limit -L <n>:<type>[:<sort>], eg 50:songs:recent.
+
+    Rules cover string fields (= != ~ !~ ^ $), int fields including ranges
+    (= a..b) in user-facing units (rating in stars, time in seconds; >=/<=
+    translated exactly to libgpod's >/<), booleans (= set/unset) and dates
+    as 'in the last' (added < 6m; units h/d/w/m/y).
+
+    Listing a smart playlist (-l -p <name>) prints match mode, liveupdate,
+    limit and rules in the same syntax the parser accepts; -l shows rule
+    count and liveupdate per smart playlist.
+
+    New -U operation re-evaluates all smart playlists against the library.
+    The iPod does not evaluate rules itself - it displays the member list
+    stored in iTunesDB - so members are populated at creation
+    (itdb_spl_update) and -U refreshes them after gpod-cp/gpod-rm changes.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Thu, 02 Jul 2026 00:00:00 +0200
+
 gpod-utils (1.5.0) UNRELEASED; urgency=medium
 
   * Add gpod-playlist: playlist CRUD tool for iPod/iTunesDB
