@@ -1050,6 +1050,37 @@ gchar* g_date_time_format_iso8601(GDateTime *datetime)
 #endif
 
 
+/* iPod displays the member list stored in iTunesDB rather than evaluating
+ * smart playlist rules; re-evaluate after library changes so limits refill
+ * and new/removed tracks are reflected
+ */
+unsigned  gpod_spl_refresh(Itdb_iTunesDB* itdb_)
+{
+    unsigned  updated = 0;
+    for (GList* it=itdb_->playlists; it!=NULL; it=it->next)
+    {
+        Itdb_Playlist*  pl = (Itdb_Playlist*)it->data;
+        if (!pl->is_spl) {
+            continue;
+        }
+
+        GList*  before = g_list_copy(pl->members);
+        itdb_spl_update(pl);
+
+        GList*  a = before;
+        GList*  b = pl->members;
+        while (a && b && a->data == b->data) {
+            a = a->next;
+            b = b->next;
+        }
+        if (a || b) {
+            ++updated;
+        }
+        g_list_free(before);
+    }
+    return updated;
+}
+
 
 void  gpod_duration(char duration_[32], guint then_, guint now_)
 {

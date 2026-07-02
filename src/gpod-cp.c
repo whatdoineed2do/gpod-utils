@@ -428,7 +428,11 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
         }
         else {
             gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path=N/A } %s\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", (*error_)->message ? (*error_)->message : "<unknown err>");
-            itdb_playlist_remove_track(mpl_, track);
+            // track may also be on the Podcasts playlist; itdb_track_remove()
+            // frees the track without cleaning playlist refs
+            for (GList* i = itdb->playlists; i!=NULL; i=i->next) {
+                itdb_playlist_remove_track((Itdb_Playlist*)i->data, track);
+            }
             itdb_track_remove(track);
         }
     }
@@ -1232,6 +1236,11 @@ int main (int argc, char *argv[])
 	    g_print("generating Recent playlists%s...\n", opts.recent.with_m3u ? " (including m3u)" : "");
 	    gpod_playlist_recent(&stats.recent_playlists, &stats.recent_tracks,
 		    itdb, opts.recent.limit, time(NULL), opts.recent.with_m3u);
+	}
+
+	const unsigned  spl_updated = gpod_spl_refresh(itdb);
+	if (spl_updated) {
+	    g_print("re-evaluated smart playlists, %u updated\n", spl_updated);
 	}
 
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...

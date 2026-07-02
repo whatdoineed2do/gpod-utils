@@ -353,7 +353,7 @@ Rule fields:
 
 Limit types are `songs`/`minutes`/`hours`/`mb`/`gb`; sorts are `random` (default), `name`, `album`, `artist`, `genre`, `recent`, `least-recent`, `most-played`, `least-played`, `recently-played`, `least-recently-played`, `highest-rated`, `lowest-rated`.
 
-The `iPod` does not evaluate smart playlist rules itself - it displays the member list stored in the `iTunesDB` (normally iTunes re-evaluates rules on sync).  The member list is populated at creation and `-U` re-evaluates all smart playlists after library changes (`gpod-cp`/`gpod-rm`):
+The `iPod` does not evaluate smart playlist rules itself - it displays the member list stored in the `iTunesDB` (normally iTunes re-evaluates rules on sync).  The member list is populated at creation, `gpod-cp` and `gpod-rm` re-evaluate all smart playlists automatically after library changes, and `-U` performs the same re-evaluation manually (eg after `gpod-tag` metadata edits):
 ```shell
 $ gpod-playlist -M /run/media/ray/IPOD -U
 '4star recent' members 50 -> 52

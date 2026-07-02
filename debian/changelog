@@ -1,3 +1,25 @@
+gpod-utils (1.5.2) UNRELEASED; urgency=medium
+
+  * Re-evaluate smart playlists on gpod-cp/gpod-rm library changes
+
+    New gpod_spl_refresh() in the shared lib re-runs itdb_spl_update() on
+    every smart playlist and reports how many changed membership. Called
+    before the final DB write when tracks were added (gpod-cp) or removed
+    (gpod-rm), so limited playlists refill and rule matches (eg 'added <
+    1d') pick up new tracks without a manual 'gpod-playlist -U'.
+
+  * Fix use-after-free in gpod-cp when a podcast copy fails
+
+    Tracks are added to the master playlist - and, for -m podcast, the
+    Podcasts playlist - before the file copy is attempted. On copy failure
+    only the master playlist reference was removed; itdb_track_remove()
+    frees the track without cleaning playlist refs, leaving the Podcasts
+    playlist holding a dangling pointer that the subsequent forced
+    itdb_write() traverses. Failed tracks are now removed from all
+    playlists before the free.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 03 Jul 2026 00:00:00 +0200
+
 gpod-utils (1.5.1) UNRELEASED; urgency=medium
 
   * Add smart playlist support to gpod-playlist

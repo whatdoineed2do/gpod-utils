@@ -452,6 +452,11 @@ main (int argc, char *argv[])
 
     if (removed)
     {
+        const unsigned  spl_updated = gpod_spl_refresh(itdb);
+        if (spl_updated) {
+            g_print("re-evaluated smart playlists, %u updated\n", spl_updated);
+        }
+
         g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 
