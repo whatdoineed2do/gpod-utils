@@ -304,6 +304,11 @@ updated iPod, total tracks=29
 ```
 The metadata shown for each tracks is the *existing* data - the new metadata is show at the start of processing.
 
+The play count can be set with `-p <n>`.  For podcasts this also drives the *unplayed* bullet shown on the `iPod`: `-p 0` marks the episode unplayed (bullet shown) and any count above zero marks it played.
+```shell
+$ gpod-tag -M /run/media/ray/IPOD -p 0 521
+```
+
 ## `gpod-playlist`
 Playlist management (CRUD) on the `iPod`.  Playlists can be listed, created, renamed, cleared and deleted; tracks can be added/removed using the internal `id` or `ipod_path` as determined from `gpod-ls`.  Renaming the master playlist renames the `iPod` as displayed in iTunes.
 ```shell

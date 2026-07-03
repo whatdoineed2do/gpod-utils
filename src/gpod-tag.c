@@ -47,6 +47,7 @@ struct gpod_opts {
     int  year;
     int  track;
     short  rating;
+    int  playcount;
 
     bool  sanitize;
 };
@@ -57,6 +58,7 @@ static void  gpod_opts_init(struct gpod_opts* opts_)
     opts_->year = -1;
     opts_->track = -1;
     opts_->rating = -1;
+    opts_->playcount = -1;
 
     opts_->sanitize = false;
 }
@@ -119,6 +121,8 @@ void  _usage(const char* argv_)
 	     "    -T  --track    <track>\n"
 	     "    -y  --year     <year>\n"
 	     "    -r  --rating   <rating 0-5>\n"
+	     "    -p  --playcount <n>     set play count; also marks podcasts as\n"
+	     "                            played (n>0) or unplayed (n=0, bullet shown)\n"
 	     "\n"
              "  update meta tags for files as known in iPod/iTunesDB\n"
 	     "  empty string (\"\") or -1 to unset string and numeric flds repsectively\n"
@@ -168,6 +172,7 @@ main (int argc, char *argv[])
 	{ "year", 		1, 0, 'Y' },
 	{ "track-number", 	1, 0, 'T' },
 	{ "rating", 		1, 0, 'r' },
+	{ "playcount", 		1, 0, 'p' },
 
 	{ "santize", 		2, 0, 'S' },
 	{ "help", 		0, 0, 'h' },
@@ -211,6 +216,8 @@ main (int argc, char *argv[])
 		}
 	        break;
 
+            case 'p':  opts.playcount = atol(optarg);  break;
+
             case 'S':
             {
                 opts.sanitize = false;
@@ -227,7 +234,7 @@ main (int argc, char *argv[])
     }
 
 
-    if (opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.albumartist == NULL && opts.composer == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0) {
+    if (opts.title == NULL && opts.artist == NULL && opts.album == NULL && opts.albumartist == NULL && opts.composer == NULL && opts.genre == NULL && opts.year < 0 && opts.track < 0 && opts.rating < 0 && opts.playcount < 0) {
         g_printerr("invalid/unspecified tagging options\n");
         _usage(argv[0]);
     }
@@ -288,6 +295,7 @@ main (int argc, char *argv[])
       if (opts.track  >= 0) g_print(" track=%u",    opts.track);
       if (opts.year   >= 0) g_print(" year=%u",     opts.year);
       if (opts.rating >= 0) g_print(" rating=%u",   opts.rating);
+      if (opts.playcount >= 0) g_print(" playcount=%u", opts.playcount);
     g_print(" }\n");
 
     opts.rating *= ITDB_RATING_STEP;
@@ -390,6 +398,13 @@ main (int argc, char *argv[])
         if (opts.rating >= 0) track->rating = opts.rating;
         if (opts.track >= 0) track->track_nr = opts.track;
         if (opts.year >= 0) track->year = opts.year;
+        if (opts.playcount >= 0) {
+            track->playcount = opts.playcount;
+            /* the iPod shows podcasts with an 'unplayed' bullet driven by this
+             * flag - 0x01 played, 0x02 unplayed; non-podcasts always 0x01 */
+            track->mark_unplayed = (opts.playcount == 0 && (track->mediatype & ITDB_MEDIATYPE_PODCAST))
+                                 ? 0x02 : 0x01;
+        }
 
         ++updated;
     }

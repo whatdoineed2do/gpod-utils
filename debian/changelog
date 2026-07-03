@@ -1,3 +1,13 @@
+gpod-utils (1.5.3) UNRELEASED; urgency=medium
+
+  * Add -p/--playcount to gpod-tag
+
+    Sets the track play count. For podcasts also maintains the iPod's
+    'unplayed' bullet: -p 0 marks the episode unplayed (bullet shown),
+    any count above zero marks it played.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 03 Jul 2026 00:00:00 +0200
+
 gpod-utils (1.5.2) UNRELEASED; urgency=medium
 
   * Re-evaluate smart playlists on gpod-cp/gpod-rm library changes
