@@ -107,6 +107,11 @@ struct gpod_ff_coverart {
     guchar *data;
 };
 
+struct gpod_ff_chapter {
+    uint32_t  startpos;  // ms
+    char*     title;
+};
+
 struct gpod_ff_media_info
 {
     char  path[PATH_MAX];
@@ -123,6 +128,9 @@ struct gpod_ff_media_info
     struct gpod_ff_video  video;
     struct gpod_ff_meta  meta;
     struct gpod_ff_coverart coverart;
+
+    struct gpod_ff_chapter*  chapters;
+    unsigned  num_chapters;
 };
 
 enum gpod_ff_enc {

@@ -249,6 +249,8 @@ Embedded cover art (including `png`, converted to `jpeg`) is carried across: att
 $ gpod-cp -M /run/media/ray/IPOD -m podcast episode01.mp3
 ```
 
+`m4b` audiobooks are supported like any other `aac`/`alac` source (recognised by codec, not extension, and copied without transcoding) and any embedded chapter markers are carried across to the `iTunesDB` for chapter navigation on the `iPod`.
+
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
 To test this, you can generate your own `h264` files using `ffmpeg -f rawvideo -video_size 640x320 -pixel_format yuv420p -framerate 23.976 -i /dev/random -f lavfi -i 'anoisesrc=color=brown' -c:a aac -b:a 96k -ar 44100 -t 10  -c:v libx264 -profile:v baseline -b:v 1.8M foo.mp4`.  This video will not contain the `uuid` atom.

@@ -101,6 +101,13 @@ void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_)
 {
     gpod_ff_meta_free(&obj_->meta);
     g_free(obj_->coverart.data);
+
+    for (unsigned i=0; i<obj_->num_chapters; ++i) {
+        g_free(obj_->chapters[i].title);
+    }
+    g_free(obj_->chapters);
+    obj_->chapters = NULL;
+    obj_->num_chapters = 0;
 }
 
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_)
@@ -456,6 +463,27 @@ fail:
     if (sws_ctx) sws_freeContext(sws_ctx);
     if (dst) { av_freep(&dst->data[0]); av_frame_free(&dst); }
     return ret;
+}
+
+static
+void extract_chapters(AVFormatContext* ctx_, struct gpod_ff_media_info* info_)
+{
+    if (ctx_->nb_chapters == 0) {
+        return;
+    }
+
+    info_->chapters = g_new0(struct gpod_ff_chapter, ctx_->nb_chapters);
+    info_->num_chapters = ctx_->nb_chapters;
+
+    for (unsigned i=0; i<ctx_->nb_chapters; ++i) {
+        const AVChapter*  chapter = ctx_->chapters[i];
+        const AVDictionaryEntry*  title = av_dict_get(chapter->metadata, "title", NULL, 0);
+
+        info_->chapters[i].startpos = (uint32_t)av_rescale_q(chapter->start, chapter->time_base, (AVRational){1, 1000});
+        info_->chapters[i].title = title && title->value && *title->value
+            ? g_strdup(title->value)
+            : g_strdup_printf("Chapter %u", i+1);
+    }
 }
 
 static
@@ -883,6 +911,7 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
     }
 
     extract_coverart(ctx, &info_->coverart, idevice_);
+    extract_chapters(ctx, info_);
 
     avformat_close_input(&ctx);
     return 0;
@@ -936,6 +965,10 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
 
     track->cds = meta_->meta.total_discs;
     track->cd_nr = meta_->meta.disc;
+
+    for (unsigned i=0; i<meta_->num_chapters; ++i) {
+        itdb_chapterdata_add_chapter(track->chapterdata, meta_->chapters[i].startpos, meta_->chapters[i].title);
+    }
 
     return track;
 }

@@ -197,12 +197,16 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 		file = xfrm_->path;
 
 		// re-scan transcoded file for accurate type/description/file_size/bitrate;
-		// restore original metadata and coverart which the temp file may not have
+		// restore original metadata, coverart and chapters which the temp file may not have
 		struct gpod_ff_meta     saved_meta = mi.meta;
 		struct gpod_ff_coverart saved_art  = mi.coverart;
+		struct gpod_ff_chapter* saved_chapters = mi.chapters;
+		unsigned  saved_num_chapters = mi.num_chapters;
 		memset(&mi.meta, 0, sizeof(mi.meta));
 		mi.coverart.data = NULL;
 		mi.coverart.size = 0;
+		mi.chapters = NULL;
+		mi.num_chapters = 0;
 		gpod_ff_media_info_free(&mi);
 		gpod_ff_media_info_init(&mi);
 		if (gpod_ff_scan(&mi, file, idevice_, NULL) >= 0) {
@@ -214,6 +218,12 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 		    g_free(mi.coverart.data);
 		    mi.coverart = saved_art;
 		}
+		for (unsigned i=0; i<mi.num_chapters; ++i) {
+		    g_free(mi.chapters[i].title);
+		}
+		g_free(mi.chapters);
+		mi.chapters = saved_chapters;
+		mi.num_chapters = saved_num_chapters;
 	    }
 	}
 	else

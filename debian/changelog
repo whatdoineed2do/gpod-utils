@@ -1,3 +1,19 @@
+gpod-utils (1.5.4) UNRELEASED; urgency=medium
+
+  * Preserve chapter markers when copying m4b audiobooks
+
+    gpod-cp now reads embedded chapter markers (title + start time) from
+    the source file via ffmpeg and writes them into the iTunesDB's
+    Itdb_Chapterdata for the track, so m4b audiobooks keep chapter
+    navigation on the iPod. m4b was already accepted as an input (format
+    support is codec-based, not extension-based, and libgpod preserves
+    the source extension when copying to the iPod) but chapters were
+    previously dropped entirely. Chapters are also restored after the
+    transcode-rescan step for sources that need conversion (eg flac
+    audiobooks), since the temp transcoded file won't carry them.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 04 Jul 2026 00:00:00 +0200
+
 gpod-utils (1.5.3) UNRELEASED; urgency=medium
 
   * Add -p/--playcount to gpod-tag
