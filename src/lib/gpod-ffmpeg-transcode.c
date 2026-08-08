@@ -157,7 +157,12 @@ static int open_input_file(const char *filename,
 
 static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigned input_samplerate_)
 {
-    const int*  output_samplerates = output_codec_->supported_samplerates;
+#if LIBAVCODEC_VERSION_MAJOR >= 61
+        const int*  output_samplerates = NULL;
+        avcodec_get_supported_config(NULL, output_codec_, AV_CODEC_CONFIG_SAMPLE_RATE, 0, (const void **)&output_samplerates, NULL);
+#else
+        const int*  output_samplerates = output_codec_.supported_samplerates;
+#endif    
     if (output_samplerates == NULL) {
         /* Codec accepts any rate: preserve input rate but cap at iPod maximum.
          * Never upsample — only downsample when source exceeds the ceiling. */
@@ -183,7 +188,12 @@ static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigne
     }
 
     // validate that this sample rate is supported, or find the nearest one down
-    output_samplerates = output_codec_->supported_samplerates;
+#if LIBAVCODEC_VERSION_MAJOR >= 61
+        output_samplerates = NULL;
+        avcodec_get_supported_config(NULL, output_codec_, AV_CODEC_CONFIG_SAMPLE_RATE, 0, (const void **)&output_samplerates, NULL);
+#else
+        output_samplerates = output_codec_.supported_samplerates;
+#endif   
     sr = min_sr;
 
     while (*output_samplerates) {
