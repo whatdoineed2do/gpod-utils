@@ -161,7 +161,7 @@ static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigne
         const int*  output_samplerates = NULL;
         avcodec_get_supported_config(NULL, output_codec_, AV_CODEC_CONFIG_SAMPLE_RATE, 0, (const void **)&output_samplerates, NULL);
 #else
-        const int*  output_samplerates = output_codec_.supported_samplerates;
+        const int*  output_samplerates = output_codec_->supported_samplerates;
 #endif    
     if (output_samplerates == NULL) {
         /* Codec accepts any rate: preserve input rate but cap at iPod maximum.
@@ -192,7 +192,7 @@ static unsigned  _select_samplerate(const struct AVCodec* output_codec_, unsigne
         output_samplerates = NULL;
         avcodec_get_supported_config(NULL, output_codec_, AV_CODEC_CONFIG_SAMPLE_RATE, 0, (const void **)&output_samplerates, NULL);
 #else
-        output_samplerates = output_codec_.supported_samplerates;
+        output_samplerates = output_codec_->supported_samplerates;
 #endif   
     sr = min_sr;
 
