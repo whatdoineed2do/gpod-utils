@@ -41,6 +41,16 @@ iPhoneOS 3.x |yes|no |yes|yes|yes
 ### mount points
 Most modern Linux distros and window managers will try to automount old `iPod`'s filesystem to a location such as `/run/media/${USER}/<name of iPod>/`.  However this is not a given and I've seen this fail for `iPhones` and `iPod touch` even though the distros mount items through `gvfs`.  If your `iPod` is not automounted, try the following to mount `mkdir -p /tmp/ipod && ifuse /tmp/ipod` and this to unmount `fusermoumt -u /tmp/ipod` when done.
 
+## `gpod` dispatcher
+All tools can be invoked through the `gpod` dispatcher - `gpod <command> [args...]` executes the corresponding `gpod-<command>`:
+```shell
+$ gpod ls -M /run/media/ray/IPOD        # same as gpod-ls -M ...
+$ gpod
+usage: gpod <command> [args...]
+
+commands: cp, extract, hashsum, ls, playlist, rm, tag, verify
+```
+
 ## `gpod-ls`
 Simple utility that parses an `iPod` db and generates a `json` output of the internal playlists (main playlist `iPod`) as well as the user generated playlists - the main playlist will list most of the available track information and the other playlists will contain less verbose data.  The per track object also includes `checksum` that is the hash value of the audio-only checksum of the file (same value as `ffmpeg -hide_banner -i foo.m4a -c:a copy -bsf:a null -f hash -`).
 
@@ -76,6 +86,7 @@ $ gpod-ls -M /run/media/ray/IPOD | tee ipod.json | jq '.'
               "sort_album": null,
               "sort_albumartist": null,
               "sort_composer": null,
+              "compilation": false,
               "size": 3246551,
               "tracklen": 202840,
               "cd_nr": 0,
@@ -228,7 +239,17 @@ The `DUPL` hashcode shows the audio stream of the file identified as duplicate -
 
 The quality of automatic audio conversions can be controlled by `-q` with values 0 (best) ..9 for VBR and 96,128,192,256,320 for CBR.  The default conversion is to high quality vbr `aac` (equivalent to `ffmpeg -c:a libfdk_aac -vbr 5`) but conversions to `mp3` and `alac` is also available via `-e` flag.  Note that the `aac` conversion is dependant on `ffmpeg` supporting `libfdk_aac` (auto fallback conversion to `mp3`, equivalent to `ffmpeg -c:a libmp3lame -vbr 1`, if the `fdk` support is not available) - we avoid conversion using `ffmpeg`'s internal `aac` encoder as it appears older `iPod`'s can't play the files without glitches/artifacts.  Metadata from the originating audio file can be copied to the transcoded file - this will be aid identifying files from the internal `iPod` storage at a later point.
 
-`iPod` audio only support up to 48000 and we perform automatic sample rate conversions:  Re-sampled audio files are not directly equivalent to `ffmpeg`, as verified by per-frame hash `ffmpeg -i foo.mp3 -f framehash foo.sha256` or file stream hash `ffmpeg -i foo.mp3 -c:a copy -bsf:a null -f hash -`, although the non sample rate conversions are equivalent.
+Transcodes preserve the source characteristics where the `iPod` allows: the input sample rate is kept for sources ≤48000 Hz (no forced resample), bit-depth is preserved for high resolution sources when the encoder supports it (eg 24-bit `flac` to `alac` stays 24-bit/s32p rather than degrading to 16-bit), and mono stays mono (no stereo upmix) with surround downmixed to stereo.  `iPod` audio only support up to 48000 and we perform automatic sample rate conversions when the source exceeds it; out-of-spec `alac` sources (eg 96kHz or surround) are transcoded to a supported rate/layout rather than copied verbatim.  Re-sampled audio files are not directly equivalent to `ffmpeg`, as verified by per-frame hash `ffmpeg -i foo.mp3 -f framehash foo.sha256` or file stream hash `ffmpeg -i foo.mp3 -c:a copy -bsf:a null -f hash -`, although the non sample rate conversions are equivalent.
+
+Embedded cover art (including `png`, converted to `jpeg`) is carried across: attached to the `iTunesDB` as thumbnails using device-specific resolution caps (320x320 for `iPod Classic`, 200x200 for `iPod Video`, 300x300 otherwise, only downscaling when the source exceeds the cap) and, for transcoded files, embedded into the output `.m4a` itself.
+
+### Podcasts and audiobooks
+`-m podcast|audiobook` (`--tracks-media-type`) marks copied tracks accordingly: podcasts are added to the `iPod`'s Podcasts playlist so they appear under the Podcast menu (with episode release date from the file's `date` tag and the unplayed bullet); both types get playback position bookmarking and are excluded from shuffle.
+```shell
+$ gpod-cp -M /run/media/ray/IPOD -m podcast episode01.mp3
+```
+
+`m4b` audiobooks are supported like any other `aac`/`alac` source (recognised by codec, not extension, and copied without transcoding) and any embedded chapter markers are carried across to the `iTunesDB` for chapter navigation on the `iPod`.
 
 Note that the classic `iPods` (5th-7th generation) can only accept video files conforming to a `h264 baseline` in a `m4v` or `mp4` container, up to 30fps, bitrate up to 2.5Mbbps and `aac` stereo audio up to 160kbps.  Furthermore, iTunes will not copy video files to the `iPod 5/5.5G` that do not contain a special `uuid` atom encoded into the video file - however this does NOT prevent such files from being copied using `gpod-cp` and played on the `iPod`.
 
@@ -264,7 +285,7 @@ The audio conversions are performed in their own threads and defaults to the num
 By default the copy will replace tracks (deleting existing version) with matchin `title`/`artist`/`album` - this assumes the user is intending to replace the tracks;  this behaviour is governed by `-r` flag.
 
 ### M3u playlists
-It is possible to use `gpod-cp` to copy files to any directory / USB storage device, in particular USB sticks that may be used by a car audio systems or similar.  In this case, those audio systems perform their own scanning for audio files BUT obey `.m3u` playlists.  `gpod-cp` can generate these playlists when copying files to such devices by specifying the `-3` flag (similarly with the `gpod-recent-pl` utility).
+It is possible to use `gpod-cp` to copy files to any directory / USB storage device, in particular USB sticks that may be used by a car audio systems or similar.  In this case, those audio systems perform their own scanning for audio files BUT obey `.m3u` playlists.  `gpod-cp` can generate these playlists when copying files to such devices by specifying the `-3` flag (similarly with the `gpod-playlist -u` recent playlists).
 
 To initialise a USB device for `gpod-utils`, you must and then you can use the other `gpod-*` utilities on the device.
 ```shell
@@ -284,6 +305,68 @@ sync'ing iPod ... updated 2/3
 updated iPod, total tracks=29
 ```
 The metadata shown for each tracks is the *existing* data - the new metadata is show at the start of processing.
+
+The play count can be set with `-p <n>`.  For podcasts this also drives the *unplayed* bullet shown on the `iPod`: `-p 0` marks the episode unplayed (bullet shown) and any count above zero marks it played.
+```shell
+$ gpod-tag -M /run/media/ray/IPOD -p 0 521
+```
+
+## `gpod-playlist`
+Playlist management (CRUD) on the `iPod`.  Playlists can be listed, created, renamed, cleared and deleted; tracks can be added/removed using the internal `id` or `ipod_path` as determined from `gpod-ls`.  Renaming the master playlist renames the `iPod` as displayed in iTunes.
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -l
+'ray's iPod' { type=master count=88 smartpl=no }
+'Road Trip' { type=playlist count=0 smartpl=no }
+playlists=2
+
+$ gpod-playlist -M /run/media/ray/IPOD -c "Road Trip"
+created playlist 'Road Trip'
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -a 521 /iPod_Control/Music/F01/libgpod211429.mp3
+[  1/2]  521 -> { id=521 title='foo bar sings' artist='Foo&Bar' }
+[  2/2]  /iPod_Control/Music/F01/libgpod211429.mp3 -> { id=534 title='A Song' artist='Foo&Bar' }
+added 2/2 tracks to 'Road Trip', now count=2
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -r 521    # remove track from playlist
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -C        # clear all tracks
+$ gpod-playlist -M /run/media/ray/IPOD -p "Road Trip" -R "Summer"
+$ gpod-playlist -M /run/media/ray/IPOD -d "Summer"              # delete playlist, tracks remain on iPod
+```
+The `-u` flag creates/updates a set of `Recent ...` playlists (`0wk`/`1wk`/`1month`/`3months`/`6months`/`12months`) of recently added tracks - `-n` limits the number of albums considered (default 50) and `-3` also generates `.m3u` playlists.
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -u -n 25 -3
+iPod playlists=6 (limited to 25) with tracks=88
+sync'ing iPod ...
+```
+
+Smart playlists can be created with `-c <name> -S`, giving rules as repeatable `-e '<field> <op> <value>'` args (matching ALL rules unless `-A` for ANY) and an optional limit `-L <n>:<type>[:<sort>]`:
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -c "4star recent" -S -e 'rating >= 4' -e 'added < 6m' -A -L 50:songs:recent
+created smart playlist '4star recent' with members=50
+smart { match=any liveupdate=yes limit=50:songs:recent }
+  rule: rating > 3
+  rule: added < 6m
+sync'ing iPod ...
+
+$ gpod-playlist -M /run/media/ray/IPOD -l -p "4star recent"    # shows rules then tracks
+```
+Rule fields:
+- string, ops `=` `!=` `~` (contains) `!~` `^` (starts with) `$` (ends with) - `title` `album` `artist` `albumartist` `genre` `composer` `comment` `grouping`
+- int, ops `=` `!=` `<` `<=` `>` `>=` and range `= a..b` - `rating` (stars) `playcount` `skipcount` `year` `track` `disc` `bitrate` `samplerate` `bpm` `size` `time` (seconds)
+- bool, `= set` / `= unset` - `compilation` `purchased`
+- date, `< 4w` (in the last) / `> 4w` (not in the last), units `h`/`d`/`w`/`m`/`y` - `added` `modified` `played` `skipped`
+
+Limit types are `songs`/`minutes`/`hours`/`mb`/`gb`; sorts are `random` (default), `name`, `album`, `artist`, `genre`, `recent`, `least-recent`, `most-played`, `least-played`, `recently-played`, `least-recently-played`, `highest-rated`, `lowest-rated`.
+
+The `iPod` does not evaluate smart playlist rules itself - it displays the member list stored in the `iTunesDB` (normally iTunes re-evaluates rules on sync).  The member list is populated at creation, `gpod-cp` and `gpod-rm` re-evaluate all smart playlists automatically after library changes, and `-U` performs the same re-evaluation manually (eg after `gpod-tag` metadata edits):
+```shell
+$ gpod-playlist -M /run/media/ray/IPOD -U
+'4star recent' members 50 -> 52
+refreshed 1 smart playlists
+sync'ing iPod ...
+```
 
 ## `gpod-extract`
 Extracts all or select files from `iPod` and optionally sync'ing metadata (with `-s` flag) on the copied files to the `iTunesDB` values.  No transcoding will be performed on the files, only generic metadata updates (as limited by `ffmpeg`).

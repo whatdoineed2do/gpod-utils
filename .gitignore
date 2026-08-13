@@ -5,7 +5,7 @@ gpod-tag
 gpod-verify
 gpod-extract
 gpod-hashsum
-gpod-recent-pl
+gpod-playlist
 libgpod-utils.a
 test-*
 *.swp

@@ -194,8 +194,36 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
 		*err_ = g_strdup(err);
 	    }
 	    else {
-		mi.supported_ipod_fmt = true;
 		file = xfrm_->path;
+
+		// re-scan transcoded file for accurate type/description/file_size/bitrate;
+		// restore original metadata, coverart and chapters which the temp file may not have
+		struct gpod_ff_meta     saved_meta = mi.meta;
+		struct gpod_ff_coverart saved_art  = mi.coverart;
+		struct gpod_ff_chapter* saved_chapters = mi.chapters;
+		unsigned  saved_num_chapters = mi.num_chapters;
+		memset(&mi.meta, 0, sizeof(mi.meta));
+		mi.coverart.data = NULL;
+		mi.coverart.size = 0;
+		mi.chapters = NULL;
+		mi.num_chapters = 0;
+		gpod_ff_media_info_free(&mi);
+		gpod_ff_media_info_init(&mi);
+		if (gpod_ff_scan(&mi, file, idevice_, NULL) >= 0) {
+		    mi.supported_ipod_fmt = true;
+		}
+		gpod_ff_meta_free(&mi.meta);
+		mi.meta = saved_meta;
+		if (saved_art.data) {
+		    g_free(mi.coverart.data);
+		    mi.coverart = saved_art;
+		}
+		for (unsigned i=0; i<mi.num_chapters; ++i) {
+		    g_free(mi.chapters[i].title);
+		}
+		g_free(mi.chapters);
+		mi.chapters = saved_chapters;
+		mi.num_chapters = saved_num_chapters;
 	    }
 	}
 	else
@@ -217,7 +245,22 @@ _track(const char* file_, struct gpod_ff_transcode_ctx* xfrm_, uint64_t uuid_, I
     }
 
     track = gpod_ff_meta_to_track(&mi, time_added_, sanitize_);
-    track->mediatype |= opts.mediatype;
+    track->mediatype = mi.has_video
+        ? (ITDB_MEDIATYPE_MOVIE | (opts.mediatype & ~ITDB_MEDIATYPE_AUDIO))
+        : opts.mediatype;
+
+    if (opts.mediatype & (ITDB_MEDIATYPE_AUDIOBOOK | ITDB_MEDIATYPE_PODCAST)) {
+        track->remember_playback_position = 1;
+        track->skip_when_shuffling = 1;
+    }
+    if (opts.mediatype & ITDB_MEDIATYPE_PODCAST) {
+        track->mark_unplayed = 0x02;
+        track->flag4 = 0x01;
+        if (track->time_released == 0)
+            track->time_released = track->time_added;
+        if (track->artist == NULL && track->album != NULL)
+            track->artist = g_strdup(track->album);
+    }
 
     if (opts.artwork && mi.coverart.data) {
 	itdb_track_set_thumbnails_from_data(track, mi.coverart.data, mi.coverart.size);
@@ -295,7 +338,19 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
     else
     {
         itdb_track_add(itdb, track, -1);
+
         itdb_playlist_add_track(mpl_, track, -1);
+
+        if (track->mediatype & ITDB_MEDIATYPE_PODCAST) {
+            Itdb_Playlist*  podcasts_pl = itdb_playlist_podcasts(itdb);
+            if (podcasts_pl == NULL) {
+                podcasts_pl = itdb_playlist_new("Podcasts", false);
+                itdb_playlist_set_podcasts(podcasts_pl);
+                podcasts_pl->sortorder = ITDB_PSO_RELEASE_DATE;
+                itdb_playlist_add(itdb, podcasts_pl, -1);
+            }
+            itdb_playlist_add_track(podcasts_pl, track, -1);
+        }
 
         bool  ok = itdb_cp_track_to_ipod (track, xfrm_->path[0] ? xfrm_->path : path_, error_);
 
@@ -383,7 +438,11 @@ static int  gpod_cp_track(const struct gpod_cp_log_ctx* lctx_,
         }
         else {
             gpod_cp_log(lctx_, "{ title='%s' artist='%s' album='%s' ipod_path=N/A } %s\n", track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "", (*error_)->message ? (*error_)->message : "<unknown err>");
-            itdb_playlist_remove_track(mpl_, track);
+            // track may also be on the Podcasts playlist; itdb_track_remove()
+            // frees the track without cleaning playlist refs
+            for (GList* i = itdb->playlists; i!=NULL; i=i->next) {
+                itdb_playlist_remove_track((Itdb_Playlist*)i->data, track);
+            }
             itdb_track_remove(track);
         }
     }
@@ -548,7 +607,6 @@ thread_cleanup:
         g_error_free(error);
         error = NULL;
     }
-
     gpod_cp_ta_free(args);
 }
 
@@ -894,7 +952,7 @@ int main (int argc, char *argv[])
 		while (p->type)
 		{
 		    if (strcmp(optarg, p->type) == 0) {
-			opts.mediatype |= p->mapping;
+			opts.mediatype = p->mapping;
 		    }
 		    ++p;
 		}
@@ -1188,6 +1246,11 @@ int main (int argc, char *argv[])
 	    g_print("generating Recent playlists%s...\n", opts.recent.with_m3u ? " (including m3u)" : "");
 	    gpod_playlist_recent(&stats.recent_playlists, &stats.recent_tracks,
 		    itdb, opts.recent.limit, time(NULL), opts.recent.with_m3u);
+	}
+
+	const unsigned  spl_updated = gpod_spl_refresh(itdb);
+	if (spl_updated) {
+	    g_print("re-evaluated smart playlists, %u updated\n", spl_updated);
 	}
 
         g_print("sync'ing iPod ...\n");  // even though we may have nothing left...

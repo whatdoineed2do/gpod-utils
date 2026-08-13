@@ -25,6 +25,8 @@
  * Copyright (C) 2009-2011 Julien BLACHE <jb@jblache.org
  */
 
+#define GPOD_MAX_SAMPLERATE  48000
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,6 +39,7 @@ extern "C" {
 #include <limits.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <glib.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -104,6 +107,11 @@ struct gpod_ff_coverart {
     guchar *data;
 };
 
+struct gpod_ff_chapter {
+    uint32_t  startpos;  // ms
+    char*     title;
+};
+
 struct gpod_ff_media_info
 {
     char  path[PATH_MAX];
@@ -120,6 +128,9 @@ struct gpod_ff_media_info
     struct gpod_ff_video  video;
     struct gpod_ff_meta  meta;
     struct gpod_ff_coverart coverart;
+
+    struct gpod_ff_chapter*  chapters;
+    unsigned  num_chapters;
 };
 
 enum gpod_ff_enc {

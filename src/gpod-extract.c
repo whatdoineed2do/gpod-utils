@@ -316,7 +316,7 @@ static void  _output_name(char* dest_, unsigned avail_, enum FilenameFormat ofmt
 	default:
 	{
 	    const char*  src_basename = strrchr(track_->ipod_path, '/');
-	    snprintf(buf, avail, src_basename+1);
+	    snprintf(buf, avail, "%s", src_basename+1);
 	} break;
     }
     snprintf(dest_, avail_, "%s%s", buf, extbuf);

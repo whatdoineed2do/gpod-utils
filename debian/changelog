@@ -1,0 +1,381 @@
+gpod-utils (1.5.5) UNRELEASED; urgency=medium
+
+  * Fix compatibility with ffmpeg 9 due to deprecation of supported_samplerates
+
+ -- Stark2x <tomparr@protonmail.com>  Sat, 08 Aug 2026 18:31:35 +0200
+
+gpod-utils (1.5.4) UNRELEASED; urgency=medium
+
+  * Preserve chapter markers when copying m4b audiobooks
+
+    gpod-cp now reads embedded chapter markers (title + start time) from
+    the source file via ffmpeg and writes them into the iTunesDB's
+    Itdb_Chapterdata for the track, so m4b audiobooks keep chapter
+    navigation on the iPod. m4b was already accepted as an input (format
+    support is codec-based, not extension-based, and libgpod preserves
+    the source extension when copying to the iPod) but chapters were
+    previously dropped entirely. Chapters are also restored after the
+    transcode-rescan step for sources that need conversion (eg flac
+    audiobooks), since the temp transcoded file won't carry them.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 04 Jul 2026 00:00:00 +0200
+
+gpod-utils (1.5.3) UNRELEASED; urgency=medium
+
+  * Add -p/--playcount to gpod-tag
+
+    Sets the track play count. For podcasts also maintains the iPod's
+    'unplayed' bullet: -p 0 marks the episode unplayed (bullet shown),
+    any count above zero marks it played.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 03 Jul 2026 00:00:00 +0200
+
+gpod-utils (1.5.2) UNRELEASED; urgency=medium
+
+  * Re-evaluate smart playlists on gpod-cp/gpod-rm library changes
+
+    New gpod_spl_refresh() in the shared lib re-runs itdb_spl_update() on
+    every smart playlist and reports how many changed membership. Called
+    before the final DB write when tracks were added (gpod-cp) or removed
+    (gpod-rm), so limited playlists refill and rule matches (eg 'added <
+    1d') pick up new tracks without a manual 'gpod-playlist -U'.
+
+  * Fix use-after-free in gpod-cp when a podcast copy fails
+
+    Tracks are added to the master playlist - and, for -m podcast, the
+    Podcasts playlist - before the file copy is attempted. On copy failure
+    only the master playlist reference was removed; itdb_track_remove()
+    frees the track without cleaning playlist refs, leaving the Podcasts
+    playlist holding a dangling pointer that the subsequent forced
+    itdb_write() traverses. Failed tracks are now removed from all
+    playlists before the free.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 03 Jul 2026 00:00:00 +0200
+
+gpod-utils (1.5.1) UNRELEASED; urgency=medium
+
+  * Add smart playlist support to gpod-playlist
+
+    Create smart playlists with '-c <name> -S', giving rules as repeatable
+    -e '<field> <op> <value>' args (matching ALL rules by default, -A for
+    ANY) and an optional limit -L <n>:<type>[:<sort>], eg 50:songs:recent.
+
+    Rules cover string fields (= != ~ !~ ^ $), int fields including ranges
+    (= a..b) in user-facing units (rating in stars, time in seconds; >=/<=
+    translated exactly to libgpod's >/<), booleans (= set/unset) and dates
+    as 'in the last' (added < 6m; units h/d/w/m/y).
+
+    Listing a smart playlist (-l -p <name>) prints match mode, liveupdate,
+    limit and rules in the same syntax the parser accepts; -l shows rule
+    count and liveupdate per smart playlist.
+
+    New -U operation re-evaluates all smart playlists against the library.
+    The iPod does not evaluate rules itself - it displays the member list
+    stored in iTunesDB - so members are populated at creation
+    (itdb_spl_update) and -U refreshes them after gpod-cp/gpod-rm changes.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Thu, 02 Jul 2026 00:00:00 +0200
+
+gpod-utils (1.5.0) UNRELEASED; urgency=medium
+
+  * Add gpod-playlist: playlist CRUD tool for iPod/iTunesDB
+
+    New binary supporting list (-l), create (-c), delete (-d), rename (-R),
+    clear (-C) and per-track add/remove (-a/-r) operations on playlists.
+    Tracks are addressed by iTunesDB id or ipod_path as reported by gpod-ls.
+
+    Safety guards: master playlist cannot be deleted, cleared or have tracks
+    added/removed; podcasts playlist cannot be deleted, renamed or have
+    tracks added (use gpod-cp -m podcast); smart playlist contents are
+    read-only. Renaming the master playlist is allowed and renames the iPod
+    as displayed in iTunes (device name is stored as the mpl name).
+
+  * Remove gpod-recent-pl; functionality merged into gpod-playlist -u
+
+    'gpod-playlist -u [-n limit] [-3]' generates the same 'recently added'
+    playlists (0wk/1wk/1month/3months/6months/12months) via the existing
+    gpod_playlist_recent(), with -n album limit and optional m3u export.
+    The gpod dispatcher command list and docs updated accordingly.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Thu, 02 Jul 2026 00:00:00 +0200
+
+gpod-utils (1.4.21) UNRELEASED; urgency=medium
+
+  * Fix FLAC-to-ALAC transcode producing wrong sample rate, duration and pitch
+
+    gpod_ff_transcode_ctx_init hardcoded samplerate=48000 for the ALAC encoder,
+    forcing an unnecessary 44100→48000 Hz upsample on every FLAC source. Combined
+    with a second bug in load_convert_and_store — swr_convert was called with
+    output_codec_context->frame_size (4096) as the output cap instead of the
+    correctly rescaled sample count — the SWR resampler accumulated ~364 samples
+    of delay per block, never flushed, resulting in ~21 seconds of audio missing
+    from the end of a 4-minute track. Because the output contained the same
+    sample count as the 44100 Hz source but was labelled 48000 Hz, the iPod
+    played it back at 91.9% speed with raised pitch and truncated duration.
+
+    Fix 1: remove hardcoded samplerate=48000 from the ALAC encoder init; rate
+    now inherits from the input file.
+
+    Fix 2: _select_samplerate now caps at GPOD_MAX_SAMPLERATE (48000) for codecs
+    that report no supported-rates list (ALAC accepts any rate), preserving the
+    input rate for ≤48000 Hz sources and downsampling only when strictly needed.
+
+    Fix 3: load_convert_and_store passes the av_rescale_rnd-computed max_out_samples
+    to swr_convert instead of frame_size, draining the resampler delay buffer
+    correctly on every block.
+
+  * Fix out-of-spec ALAC files copied verbatim to iPod instead of transcoded
+
+    gpod_ff_scan marked all ALAC as supported_ipod_fmt=true regardless of sample
+    rate or channel count, so a 96kHz or surround ALAC was block-copied to the
+    iPod, which cannot play it. Now gated on the same limits as the transcode
+    path: rate ≤ GPOD_MAX_SAMPLERATE (48000 Hz) and channels ≤ 2. Out-of-spec
+    files fall through to gpod_ff_transcode where _select_samplerate downsamples
+    and the channel cap downmixes to stereo.
+
+    Move GPOD_MAX_SAMPLERATE define from gpod-ffmpeg-transcode.c into the shared
+    gpod-ffmpeg.h so both translation units reference the same constant.
+
+  * Make ALAC channel count and sample format conditional on input
+
+    Previously channels=2 was forced unconditionally (upmixing mono to stereo)
+    and sample_fmt=s16p was hardcoded (degrading 24-bit FLAC from s32p to s16p).
+
+    Channels are now capped at the configured maximum (2 for iPod) but not
+    upmixed: mono stays mono, stereo stays stereo, surround is downmixed.
+
+    Sample format is auto-detected in open_output_file: the planar equivalent of
+    the input format is used if the encoder supports it (s16→s16p, s32→s32p),
+    preserving bit-depth for high-resolution sources. Falls back to the encoder's
+    default when the planar variant is unsupported. Uses avcodec_get_supported_config
+    on FFmpeg ≥7.0 (libavcodec ≥61) instead of the deprecated sample_fmts field.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Mon, 30 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.20) UNRELEASED; urgency=medium
+
+  * Fix albumartist, sort tags and compilation flag not synced to iPod
+
+    gpod_ff_meta_to_track was silently dropping three fields despite correct
+    parsing: albumartist (album_artist), compilation flag, and all sort fields
+    (sort_artist, sort_title, sort_album, sort_albumartist, sort_composer).
+
+    Sort fields now prefer the file's own sort tag with gpod_sortname ("The "
+    strip) as fallback. M4A files expose sort atoms under different ffmpeg
+    dictionary keys than MP3: soar->"sort_artist", soal->"sort_album",
+    sonm->"sort_name", soaa->"sort_album_artist", soco->"sort_composer"; add
+    these to md_map_generic. MP3 was already covered via "artist-sort" and
+    "album-sort" in md_map_generic and TSO2/TSOC in md_map_id3. The compilation
+    key normalises to "compilation" for all formats (MP3 TCMP, M4A cpil, FLAC).
+
+  * Expose compilation flag in gpod-ls output
+
+    Add compilation to JSON output (brief and verbose modes) and SQLite export;
+    the schema column already existed.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.19) UNRELEASED; urgency=medium
+
+  * Improve cover art handling in extract_coverart
+
+    Use device-specific resolution caps derived from libgpod's artwork
+    capability tables: 320x320 for iPod Classic (6/6.5/7g, per
+    ipod_classic_1_cover_art_info), 200x200 for iPod Video 1/2 (per
+    ipod_video_cover_art_info), 300x300 for all other devices.
+
+    Only downscale when the source exceeds the target: if the source is
+    already within the cap and is JPEG, attach raw bytes directly to avoid
+    a redundant decode/re-encode cycle; if within cap but non-JPEG, convert
+    to JPEG at original dimensions without upscaling.
+
+    Switch sws scaling algorithm from SWS_BILINEAR to SWS_AREA (pixel area
+    averaging, correct for downscaling). Fix encode_frame_to_jpeg quality:
+    add AV_CODEC_FLAG_QSCALE so the MJPEG encoder honours global_quality,
+    and set q=2*FF_QP2LAMBDA (near-lossless); the previous formula was
+    broken by operator precedence and the flag was missing entirely, leaving
+    the encoder at its internal default.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.18) UNRELEASED; urgency=medium
+
+  * Add gpod dispatcher script to RPM spec %files
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 29 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.17) UNRELEASED; urgency=medium
+
+  * Fix podcast playback showing 'Unknown Artist' on iPod Classic 6th gen
+
+    For podcast tracks with no artist tag, fall back to the album name
+    (podcast show name), matching iTunes behaviour.
+
+  * Set podcast episode release date from 'date' metadata tag
+
+    gpod_ff_meta_to_track now copies date_released (already parsed from the
+    'date' tag by parse_date) to track->time_released. The fallback to
+    time_added in gpod-cp is preserved for files with no date tag.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.16) UNRELEASED; urgency=medium
+
+  * Add gpod dispatcher script: 'gpod <cmd> ...' invokes 'gpod-<cmd> ...'
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.15) UNRELEASED; urgency=medium
+
+  * Convert PNG embedded cover art to JPEG when syncing to iPod
+
+    extract_coverart only set pic_found for JPEG-encoded attached pictures,
+    silently skipping PNG covers (the decoded frame was discarded). Remove the
+    codec guard so any successfully decoded attached picture proceeds to
+    encode_frame_to_jpeg, which scales to 300x300 and re-encodes as JPEG.
+    The raw-packet fallback is still gated on is_jpeg since the iPod cannot
+    display PNG thumbnails directly.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.14) UNRELEASED; urgency=medium
+
+  * Fix Podcasts menu not navigable on iPod Classic 6th gen
+
+    Set flag4=0x01 on podcast tracks (required by the 6th gen firmware to
+    recognise a track as a properly configured podcast episode), populate
+    time_released from time_added when absent (episode release date used for
+    sorting), and set ITDB_PSO_RELEASE_DATE sort order on the Podcasts
+    playlist when creating it, matching iTunes behaviour.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.13) UNRELEASED; urgency=medium
+
+  * Fix FLAC-to-ALAC transcode failure on files with embedded cover art
+
+    decode_audio_frame was passing a blank packet (data=NULL, size=0) to
+    avcodec_send_packet when EOF was reached, instead of NULL. The FLAC
+    decoder accepted the blank packet without error but then returned
+    AVERROR_INVALIDDATA from avcodec_receive_frame, which was treated as
+    fatal, aborting the transcode. Fix: send NULL when finished to properly
+    flush the decoder, and also handle AVERROR_EOF from avcodec_send_packet
+    as non-fatal alongside the existing AVERROR_INVALIDDATA case.
+
+    Also add av_packet_unref() at the top of the stream-filtering loop so
+    non-audio packets (e.g. attached cover art) are released before reading
+    the next packet, matching the pattern used in gpod_ff_audio_hash.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.12) UNRELEASED; urgency=medium
+
+  * Fix gpod-verify -d segfault when removing orphaned filesystem files
+
+    The REMVE g_print had ++removed as the first variadic argument but the
+    format string starts with %s, so g_print dereferenced the integer counter
+    as a char pointer and crashed. Move ++removed to a separate statement,
+    matching the pattern used by the ORPHN and ADD branches.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.11) UNRELEASED; urgency=medium
+
+  * Add podcast tracks to the Podcasts playlist so they appear under the
+    Podcast menu rather than Music on iPod Classic
+
+    The iPod routes tracks to the Podcast menu via a special playlist with
+    podcastflag=1, not solely via mediatype. Without it, even a track with
+    mediatype=PODCAST only appears under Music. Now creates the Podcasts
+    playlist (using itdb_playlist_set_podcasts) if absent and adds each
+    podcast track to it. Also sets mark_unplayed=0x02 so the unplayed bullet
+    appears on the iPod.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.10) UNRELEASED; urgency=medium
+
+  * Fix podcast/audiobook tracks appearing under Music instead of Podcast menu
+
+    --tracks-media-type podcast/audiobook was OR-ing the specified type onto
+    the default ITDB_MEDIATYPE_AUDIO, producing AUDIO|PODCAST (0x05) instead
+    of plain PODCAST (0x04). The iPod routes by the AUDIO bit and shows such
+    tracks under Music. Fix: -m handler now assigns (=) rather than OR-assigns
+    (|=) opts.mediatype; _track() assigns track->mediatype directly from opts
+    rather than OR-ing, preserving MOVIE for video files.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 28 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.9) UNRELEASED; urgency=medium
+
+  * Add audiobook/podcast playback flags and fix operator precedence bug
+
+    Set remember_playback_position and skip_when_shuffling on tracks when
+    -m audiobook or -m podcast is used, so the iPod Classic bookmarks
+    playback position and excludes them from shuffle.
+
+    Fix operator precedence bug in albums_index: the guard
+    `track->mediatype & ITDB_MEDIATYPE_AUDIO == 0` was always false due to
+    == binding tighter than &, causing video-only tracks to be incorrectly
+    included in Recent playlists.
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sat, 27 Jun 2026 15:30:10 +0200
+
+gpod-utils (1.4.8) UNRELEASED; urgency=medium
+
+  * Embed cover art into transcoded .m4a files: copy attached picture stream
+    from source to output during transcode so cover art is preserved in the
+    output file itself, not only in the iTunes DB thumbnail
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Wed, 25 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.7) UNRELEASED; urgency=medium
+
+  * Fix filetype stored as source format (e.g. FLAC) instead of transcoded
+    format (e.g. ALAC) after gpod-cp transcodes an unsupported audio file:
+    re-scan the transcoded temp file so type, description, file_size and
+    bitrate reflect the encoded output; restore source metadata and coverart
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Wed, 25 Jun 2026 00:00:00 +0200
+
+gpod-utils (1.4.6) UNRELEASED; urgency=medium
+
+  * Fall back to 'date' metatag year when 'year' tag is absent
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 14 Jun 2026 18:50:28 +0200
+
+gpod-utils (1.4.5) UNRELEASED; urgency=medium
+
+  * Preserve CD numbering and Total tracks
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 14 Jun 2026 14:24:33 +0200
+
+gpod-utils (1.4.4) UNRELEASED; urgency=medium
+
+  * Add iPod Classic support
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 12 Jun 2026 23:30:23 +0200
+
+gpod-utils (1.4.3) UNRELEASED; urgency=medium
+
+  * Merge with origin repo
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Fri, 12 Jun 2026 23:12:16 +0200
+
+gpod-utils (1.4.2-1) UNRELEASED; urgency=medium
+
+  * rm and verify fixes
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 24 Aug 2025 14:25:47 +0200
+
+gpod-utils (1.4.1-1) UNRELEASED; urgency=medium
+
+  * Mem fixes
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 24 Aug 2025 14:25:47 +0200
+
+gpod-utils (1.4.0-1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Ilya Kargapolov <d3vil.st@gmail.com>  Sun, 24 Aug 2025 14:25:47 +0200

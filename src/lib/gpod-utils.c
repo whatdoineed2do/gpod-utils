@@ -108,6 +108,13 @@ char* gpod_sortname(const char* name_)
 
 const char* gpod_default_mountpoint(char* dest_, size_t n_)
 {
+    if (getenv("IPOD_MOUNT_POINT")) {
+        strcpy(dest_, getenv("IPOD_MOUNT_POINT"));
+        n_ = strlen(getenv("IPOD_MOUNT_POINT"));
+        g_printerr("Using mounpoint from ENV: '%s'\n", dest_);
+        return dest_;
+    }
+
     struct passwd   pw = { 0 };
     struct passwd*  res = &pw;
     struct passwd*  ptr;
@@ -136,6 +143,9 @@ static const int  supported[] = {
     ITDB_IPOD_GENERATION_MINI_2,
     ITDB_IPOD_GENERATION_VIDEO_1,
     ITDB_IPOD_GENERATION_VIDEO_2,
+    ITDB_IPOD_GENERATION_CLASSIC_1,
+    ITDB_IPOD_GENERATION_CLASSIC_2,
+    ITDB_IPOD_GENERATION_CLASSIC_3,
     ITDB_IPOD_GENERATION_NANO_1,
     ITDB_IPOD_GENERATION_NANO_2,
     -1,
@@ -573,7 +583,7 @@ static void  albums_index(gpointer track_, gpointer albums_)
     Itdb_Track*  track = (Itdb_Track*)track_;
     GSList**  albums = (GSList**)albums_;  // gpod_album
 
-    if (track->mediatype & ITDB_MEDIATYPE_AUDIO == 0) {
+    if ((track->mediatype & ITDB_MEDIATYPE_AUDIO) == 0) {
 	return;
     }
 
@@ -1039,6 +1049,37 @@ gchar* g_date_time_format_iso8601(GDateTime *datetime)
 }
 #endif
 
+
+/* iPod displays the member list stored in iTunesDB rather than evaluating
+ * smart playlist rules; re-evaluate after library changes so limits refill
+ * and new/removed tracks are reflected
+ */
+unsigned  gpod_spl_refresh(Itdb_iTunesDB* itdb_)
+{
+    unsigned  updated = 0;
+    for (GList* it=itdb_->playlists; it!=NULL; it=it->next)
+    {
+        Itdb_Playlist*  pl = (Itdb_Playlist*)it->data;
+        if (!pl->is_spl) {
+            continue;
+        }
+
+        GList*  before = g_list_copy(pl->members);
+        itdb_spl_update(pl);
+
+        GList*  a = before;
+        GList*  b = pl->members;
+        while (a && b && a->data == b->data) {
+            a = a->next;
+            b = b->next;
+        }
+        if (a || b) {
+            ++updated;
+        }
+        g_list_free(before);
+    }
+    return updated;
+}
 
 
 void  gpod_duration(char duration_[32], guint then_, guint now_)

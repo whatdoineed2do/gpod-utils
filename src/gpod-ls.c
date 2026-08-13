@@ -72,13 +72,13 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
 #define QADD_TMPL \
   "INSERT INTO tracks (" \
     "id, ipod_path, mediatype," \
-    "title, artist, album, genre, filetype, composer, grouping, albumartist, sort_artist, sort_title, sort_album, sort_albumartist, sort_composer," \
+    "title, artist, album, genre, filetype, composer, grouping, albumartist, sort_artist, sort_title, sort_album, sort_albumartist, sort_composer, compilation," \
     "size, tracklen, cd_nr, cds, track_nr, tracks, bitrate, samplerate, year, time_added, time_modified, time_played, rating, playcount, playcount2, recent_playcount," \
     "checksum, " \
     "unk126, unk132, unk144, unk148, unk152, unk179, unk180, unk196, unk204, unk220, unk224, unk228, unk232, unk236, unk240, unk244, unk252" \
     "    )" \
     "  VALUES (%d, '%q', %d," \
-    "          %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q," \
+    "          %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %Q, %d," \
     "          %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d," \
     "          %u," \
     "          %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u" \
@@ -87,7 +87,7 @@ bool  db_add_track(sqlite3 *hdl_, const Itdb_Track* track_)
   char*  err = NULL;
   char*  query = sqlite3_mprintf(QADD_TMPL,
                                 track_->id, track_->ipod_path, track_->mediatype,
-                                track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer,
+                                track_->title, track_->artist, track_->album, track_->genre, track_->filetype, track_->composer, track_->grouping, track_->albumartist, track_->sort_artist, track_->sort_title, track_->sort_album, track_->sort_albumartist, track_->sort_composer, track_->compilation,
                                 track_->size, track_->tracklen, track_->cd_nr, track_->cds, track_->track_nr, track_->tracks, track_->bitrate, track_->samplerate, track_->year, track_->time_added, track_->time_modified, track_->time_played, track_->rating, track_->playcount, track_->playcount2, track_->recent_playcount,
 				gpod_saved_cksum(track_),
 				track_->unk126, track_->unk132, track_->unk144, track_->unk148, track_->unk152, track_->unk179, track_->unk180, track_->unk196, track_->unk204, track_->unk220, track_->unk224, track_->unk228, track_->unk232, track_->unk236, track_->unk240, track_->unk244, track_->unk252
@@ -306,6 +306,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_string(jobj, "sort_album", track->sort_album);
         json_object_add_string(jobj, "sort_albumartist", track->sort_albumartist);
         json_object_add_string(jobj, "sort_composer", track->sort_composer);
+        json_object_add_boolean(jobj, "compilation", track->compilation);
         json_object_add_int(jobj, "size", track->size);
         json_object_add_int(jobj, "tracklen", track->tracklen);
         json_object_add_int(jobj, "cd_nr", track->cd_nr);
@@ -335,6 +336,7 @@ _track (Itdb_Track *track, bool verbose_, sqlite3* hdl_, TrkHashTbl* htbl_, bool
         json_object_add_string(jobj, "album", track->album);
         json_object_add_string(jobj, "genre", track->genre);
         json_object_add_string(jobj, "albumartist", track->albumartist);
+        json_object_add_boolean(jobj, "compilation", track->compilation);
         json_object_add_int(jobj, "rating", track->rating);
         json_object_add_boolean(jobj, "artwork", itdb_track_has_thumbnails(track));
         json_object_add_uint(jobj, "checksum", gpod_saved_cksum(track));

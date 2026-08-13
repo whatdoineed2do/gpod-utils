@@ -119,9 +119,9 @@ static void  _remove_track(bool interactv_, Itdb_iTunesDB* itdb_, Itdb_Track* tr
     strftime(dt, 20, "%Y-%m-%dT%H:%M:%S", &tm);
 
     if (!_remove_confirm(interactv_,
-            "[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)  cksum=%ld",
+            "[%3u/%u]  %s -> { id=%d title='%s' artist='%s' album='%s' time_added=%d (%s)  cksum=%ld has_coverart=%s",
 	    current_, N_,
-	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt, gpod_saved_cksum(track_)) ) {
+	    track_->ipod_path, track_->id, track_->title ? track_->title : "", track_->artist ? track_->artist : "", track_->album ? track_->album : "", track_->time_added, dt, gpod_saved_cksum(track_), itdb_track_has_thumbnails(track_) ? "yes" : "no") ) {
 	return;
     }
 
@@ -280,7 +280,11 @@ main (int argc, char *argv[])
         opts.itdb_path = gpod_default_mountpoint(mountpoint, sizeof(mountpoint));
     }
     else {
-	strcpy(mountpoint, opts.itdb_path);
+	    strcpy(mountpoint, opts.itdb_path);
+    }
+
+    if (mountpoint[strlen(mountpoint)-1] != '/') {
+        strcat(mountpoint, "/");
     }
 
 
@@ -307,6 +311,12 @@ main (int argc, char *argv[])
         }
         g_error_free (error);
         error = NULL;
+        return -1;
+    }
+
+
+    if (itdb == NULL) {
+        g_print("failed to open iTunesDB via %s\n", opts.itdb_path);
         return -1;
     }
 
@@ -442,6 +452,11 @@ main (int argc, char *argv[])
 
     if (removed)
     {
+        const unsigned  spl_updated = gpod_spl_refresh(itdb);
+        if (spl_updated) {
+            g_print("re-evaluated smart playlists, %u updated\n", spl_updated);
+        }
+
         g_print("sync'ing iPod ...\n");
         itdb_write(itdb, &error);
 

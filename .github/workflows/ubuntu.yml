@@ -1,43 +1,49 @@
-name: C/C++ CI
+name: Build Debian Package
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags: [ "v*" ]
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+    runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
-    - name: install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -yq \
-        build-essential clang clang-tools autotools-dev autoconf libtool \
-        libgpod-dev \
-        libglib2.0-dev \
-        libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
-        libjson-c-dev
+      - uses: actions/checkout@v3
 
-    - name: configure prep
-      run: |
-        autoreconf --install
-        autoconf
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -yq \
+            build-essential clang clang-tools autotools-dev autoconf libtool \
+            libgpod-dev \
+            libglib2.0-dev \
+            libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev \
+            libjson-c-dev dh-make
 
-    - name: build default
-      run: |
-        ./configure && make
+      - name: Build deb
+        run: |
+          fakeroot debian/rules binary
 
-    - name: build with sqlite3
-      run: |
-        sudo apt-get install -yq libsqlite3-dev
-        ./configure && make clean && make
+      - name: Get debs
+        run: |
+          DISTRO=$(echo "${{ matrix.os }}" | sed 's/ubuntu-/ubuntu/')
+          for f in ../gpod-utils_*.deb; do
+            base=$(basename "$f" .deb)
+            arch="${base##*_}"
+            prefix="${base%_*}"
+            cp "$f" "${prefix}~${DISTRO}_${arch}.deb"
+          done
 
-    - name: build with debug
-      run: |
-        make clean
-        ./configure --enable-debug && make
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.os }}
+          path: gpod-utils_*.deb

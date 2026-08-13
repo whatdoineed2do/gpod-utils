@@ -54,6 +54,8 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
 {
     struct gpod_ff_media_info  mi;
     gpod_ff_media_info_init(&mi);
+    struct gpod_ff_coverart coverart;
+    mi.coverart = coverart;
 
     if (gpod_ff_scan(&mi, file_, idevice_, err_) < 0) {
 	if (!mi.has_audio) {
@@ -75,6 +77,8 @@ static Itdb_Track*  _track(const char* file_, char** err_, Itdb_IpodGeneration i
     Itdb_Track*  track = gpod_ff_meta_to_track(&mi, 0, sanitize_);
 
     gpod_ff_media_info_free(&mi);
+    g_free(coverart.data);
+    coverart.data = NULL;
 
     gpod_store_cksum(track, file_);
     return track;
@@ -435,7 +439,8 @@ int main (int argc, char *argv[])
             {
                 // trust the db, remove from fs
                 g_print("REMVE  %s -> { title='%s' artist='%s' album='%s' }\n",
-                        ++removed, resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                        resolved_path, track->title ? track->title : "", track->artist ? track->artist : "", track->album ? track->album : "");
+                ++removed;
 
                 g_unlink(resolved_path);
                 stats.rm_bytes += track->size;
@@ -452,7 +457,6 @@ int main (int argc, char *argv[])
             track = NULL;
         }
     }
-
     g_slist_free_full(files, g_free);
     files = NULL;
     g_hash_table_destroy(hash);

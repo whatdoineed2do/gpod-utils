@@ -22,7 +22,7 @@
  * Copyright (C) 2009-2011 Julien BLACHE <jb@jblache.org
  *
  * extract_ffmpeg based on unmerged PR submitted by
- * Copyright (C) 2025 https://github.com/d3vil-st Ilya Kargapolov <d3vil.st@gmail.com> 
+ * Copyright (C) 2025 https://github.com/d3vil-st Ilya Kargapolov <d3vil.st@gmail.com>
  *
  */
 
@@ -55,6 +55,26 @@
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
 
+/* AV_PROFILE_* was removed in libavcodec 60.x (ffmpeg 7.0), replaced by AV_PROFILE_* */
+#if LIBAVCODEC_VERSION_MAJOR < 60
+#define AV_PROFILE_UNKNOWN                    AV_PROFILE_UNKNOWN
+#define AV_PROFILE_H264_BASELINE              AV_PROFILE_H264_BASELINE
+#define AV_PROFILE_H264_CONSTRAINED_BASELINE  AV_PROFILE_H264_CONSTRAINED_BASELINE
+#define AV_PROFILE_H264_MAIN                  AV_PROFILE_H264_MAIN
+#define AV_PROFILE_H264_EXTENDED              AV_PROFILE_H264_EXTENDED
+#define AV_PROFILE_H264_HIGH                  AV_PROFILE_H264_HIGH
+#define AV_PROFILE_H264_HIGH_10               AV_PROFILE_H264_HIGH_10
+#define AV_PROFILE_H264_HIGH_10_INTRA         AV_PROFILE_H264_HIGH_10_INTRA
+#define AV_PROFILE_H264_MULTIVIEW_HIGH        AV_PROFILE_H264_MULTIVIEW_HIGH
+#define AV_PROFILE_H264_HIGH_422              AV_PROFILE_H264_HIGH_422
+#define AV_PROFILE_H264_HIGH_422_INTRA        AV_PROFILE_H264_HIGH_422_INTRA
+#define AV_PROFILE_H264_STEREO_HIGH           AV_PROFILE_H264_STEREO_HIGH
+#define AV_PROFILE_H264_HIGH_444              AV_PROFILE_H264_HIGH_444
+#define AV_PROFILE_H264_HIGH_444_PREDICTIVE   AV_PROFILE_H264_HIGH_444_PREDICTIVE
+#define AV_PROFILE_H264_HIGH_444_INTRA        AV_PROFILE_H264_HIGH_444_INTRA
+#define AV_PROFILE_H264_CAVLC_444             AV_PROFILE_H264_CAVLC_444
+#endif
+
 #include "gpod-utils.h"
 
 
@@ -81,6 +101,13 @@ void  gpod_ff_media_info_free(struct gpod_ff_media_info*  obj_)
 {
     gpod_ff_meta_free(&obj_->meta);
     g_free(obj_->coverart.data);
+
+    for (unsigned i=0; i<obj_->num_chapters; ++i) {
+        g_free(obj_->chapters[i].title);
+    }
+    g_free(obj_->chapters);
+    obj_->chapters = NULL;
+    obj_->num_chapters = 0;
 }
 
 void  gpod_ff_media_info_init(struct gpod_ff_media_info*  obj_)
@@ -225,9 +252,14 @@ static const struct metadata_map   md_map_generic[] = {
     {"disc", 		1, meta_offsetof (disc), 		parse_disc},
     {"year", 		1, meta_offsetof (year), 		NULL },
     {"date", 		1, meta_offsetof (date_released),	parse_date},
-    {"title-sort", 	0, meta_offsetof (title_sort),		NULL },
-    {"artist-sort", 	0, meta_offsetof (artist_sort), 	NULL },
-    {"album-sort", 	0, meta_offsetof (album_sort), 		NULL },
+    {"title-sort", 	0, meta_offsetof (title_sort),		NULL },  /* MP3: TSOT */
+    {"sort_name",	0, meta_offsetof (title_sort),		NULL },  /* M4A: sonm */
+    {"artist-sort", 	0, meta_offsetof (artist_sort), 	NULL },  /* MP3: TSOP */
+    {"sort_artist",	0, meta_offsetof (artist_sort),		NULL },  /* M4A: soar */
+    {"album-sort", 	0, meta_offsetof (album_sort), 		NULL },  /* MP3: TSOA */
+    {"sort_album",	0, meta_offsetof (album_sort),		NULL },  /* M4A: soal */
+    {"sort_album_artist", 0, meta_offsetof (album_artist_sort),	NULL },  /* M4A: soaa */
+    {"sort_composer",	0, meta_offsetof (composer_sort),	NULL },  /* M4A: soco */
     {"compilation", 	1, meta_offsetof (compilation), 	NULL },
 
     {NULL, 0, 0, NULL}
@@ -366,7 +398,7 @@ static int encode_frame_to_jpeg(AVFrame *src, int out_w, int out_h,
 
     sws_ctx = sws_getContext(src->width, src->height, src->format,
                              out_w, out_h, AV_PIX_FMT_YUVJ420P,
-                             SWS_BILINEAR, NULL, NULL, NULL);
+                             SWS_AREA, NULL, NULL, NULL);
     if (!sws_ctx) goto fail;
 
     sws_scale(sws_ctx, (const uint8_t * const*)src->data, src->linesize,
@@ -382,9 +414,10 @@ static int encode_frame_to_jpeg(AVFrame *src, int out_w, int out_h,
     enc_ctx->height = out_h;
     enc_ctx->time_base = (AVRational){1, 25};
 
-#define TARGET_PCT_QUALITY 65
-    // quality 0..31 (lower is better)
-    enc_ctx->global_quality = FF_QP2LAMBDA * 1+(100-TARGET_PCT_QUALITY)*30/100;
+    /* near-lossless: JPEG is intermediate before libgpod converts to RGB565;
+     * q=2 avoids encoder edge cases at q=1 while preserving maximum detail */
+    enc_ctx->flags |= AV_CODEC_FLAG_QSCALE;
+    enc_ctx->global_quality = 2 * FF_QP2LAMBDA;
     dst->quality = enc_ctx->global_quality;
 
     if ((ret = avcodec_open2(enc_ctx, enc, NULL)) < 0) goto fail;
@@ -433,9 +466,31 @@ fail:
 }
 
 static
-void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
+void extract_chapters(AVFormatContext* ctx_, struct gpod_ff_media_info* info_)
+{
+    if (ctx_->nb_chapters == 0) {
+        return;
+    }
+
+    info_->chapters = g_new0(struct gpod_ff_chapter, ctx_->nb_chapters);
+    info_->num_chapters = ctx_->nb_chapters;
+
+    for (unsigned i=0; i<ctx_->nb_chapters; ++i) {
+        const AVChapter*  chapter = ctx_->chapters[i];
+        const AVDictionaryEntry*  title = av_dict_get(chapter->metadata, "title", NULL, 0);
+
+        info_->chapters[i].startpos = (uint32_t)av_rescale_q(chapter->start, chapter->time_base, (AVRational){1, 1000});
+        info_->chapters[i].title = title && title->value && *title->value
+            ? g_strdup(title->value)
+            : g_strdup_printf("Chapter %u", i+1);
+    }
+}
+
+static
+void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_, Itdb_IpodGeneration idevice_)
 {
     bool pic_found = false;
+    bool is_jpeg = false;
     AVFrame *frame = av_frame_alloc();
     AVCodecContext *codec_ctx = NULL;
     const AVCodec *codec = NULL;
@@ -473,9 +528,9 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
                 break;
             }
 
-            if (st->codecpar->codec_id == AV_CODEC_ID_MJPEGB || st->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
-                pic_found = true;
-            }
+            is_jpeg = (st->codecpar->codec_id == AV_CODEC_ID_MJPEG ||
+                       st->codecpar->codec_id == AV_CODEC_ID_MJPEGB);
+            pic_found = true;
             break;
         }
     }
@@ -485,16 +540,48 @@ void extract_coverart(AVFormatContext* ctx_, struct gpod_ff_coverart* coverart_)
 	goto out;
     }
 
-    if ((error = encode_frame_to_jpeg(frame, 300, 300, &coverart_->data, &coverart_->size)) != 0) {
-	g_debug("failed to scale encode embedded artwork, falling back to attach - %s\n", av_err2str(error));
+    /* per ipod_classic_1_cover_art_info: max 320x320; per ipod_video_cover_art_info: max 200x200 */
+    unsigned  art_dim = 300;
+    if (idevice_ == ITDB_IPOD_GENERATION_CLASSIC_1 ||
+        idevice_ == ITDB_IPOD_GENERATION_CLASSIC_2 ||
+        idevice_ == ITDB_IPOD_GENERATION_CLASSIC_3)
+        art_dim = 320;
+    else if (idevice_ == ITDB_IPOD_GENERATION_VIDEO_1 ||
+             idevice_ == ITDB_IPOD_GENERATION_VIDEO_2)
+        art_dim = 200;
+
+    int jpeg_size = 0;
+    const bool needs_scale = (frame->width > (int)art_dim || frame->height > (int)art_dim);
+    if (needs_scale) {
+        if ((error = encode_frame_to_jpeg(frame, art_dim, art_dim, &coverart_->data, &jpeg_size)) != 0) {
+            g_debug("failed to scale encode embedded artwork - %s\n", av_err2str(error));
+            /* original is oversized and encode failed - skip artwork */
+        }
+        else {
+            coverart_->size = (gsize)jpeg_size;
+        }
+    }
+    else if (is_jpeg) {
+        /* already JPEG and within target dimensions - use raw bytes as-is */
         coverart_->size = pkt.size;
         coverart_->data = g_malloc(coverart_->size);
         memcpy(coverart_->data, pkt.data, coverart_->size);
-      }
+    }
+    else {
+        /* non-JPEG but within target - convert to JPEG at original dimensions */
+        if ((error = encode_frame_to_jpeg(frame, frame->width, frame->height, &coverart_->data, &jpeg_size)) != 0) {
+            g_debug("failed to encode embedded artwork to jpeg - %s\n", av_err2str(error));
+        }
+        else {
+            coverart_->size = (gsize)jpeg_size;
+        }
+    }
 
 out:
     av_frame_free(&frame);
+#if LIBAVCODEC_VERSION_MAJOR < 60
     avcodec_close(codec_ctx);
+#endif
     avcodec_free_context(&codec_ctx);
 }
 
@@ -520,9 +607,9 @@ const struct gpod_video_support {
 	.sample_rate = 48000,
 
 	.profile = (int[]){
-	    FF_PROFILE_H264_BASELINE,
-	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
-	    FF_PROFILE_UNKNOWN
+	    AV_PROFILE_H264_BASELINE,
+	    AV_PROFILE_H264_CONSTRAINED_BASELINE,
+	    AV_PROFILE_UNKNOWN
 	},
 	.device = (Itdb_IpodGeneration[]){
 	    ITDB_IPOD_GENERATION_VIDEO_1,
@@ -541,10 +628,10 @@ const struct gpod_video_support {
 	.sample_rate = 48000,
 
 	.profile = (int[]){
-	    FF_PROFILE_H264_BASELINE,
-	    FF_PROFILE_H264_CONSTRAINED_BASELINE,
-	    FF_PROFILE_H264_MAIN,
-	    FF_PROFILE_UNKNOWN
+	    AV_PROFILE_H264_BASELINE,
+	    AV_PROFILE_H264_CONSTRAINED_BASELINE,
+	    AV_PROFILE_H264_MAIN,
+	    AV_PROFILE_UNKNOWN
 	},
 	.device = (Itdb_IpodGeneration[]){
 	    ITDB_IPOD_GENERATION_UNKNOWN
@@ -569,7 +656,7 @@ static bool  device_support_video(Itdb_IpodGeneration idevice_, const struct gpo
 	    mi_->audio.channels <= p->channels)
 	{
 	    int*  q = p->profile;
-	    while (*q != FF_PROFILE_UNKNOWN)
+	    while (*q != AV_PROFILE_UNKNOWN)
 	    {
 		if (*q == mi_->video.profile) {
 		    Itdb_IpodGeneration*  r = p->device;
@@ -671,21 +758,21 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
 		switch (ctx->streams[i]->codecpar->profile)
 		{
 		    // only believe in
-		    case FF_PROFILE_H264_BASELINE:
-		    case FF_PROFILE_H264_CONSTRAINED_BASELINE:
-		    case FF_PROFILE_H264_MAIN:
-		    case FF_PROFILE_H264_EXTENDED:
-		    case FF_PROFILE_H264_HIGH:
-		    case FF_PROFILE_H264_HIGH_10:
-		    case FF_PROFILE_H264_HIGH_10_INTRA:
-		    case FF_PROFILE_H264_MULTIVIEW_HIGH:
-		    case FF_PROFILE_H264_HIGH_422:
-		    case FF_PROFILE_H264_HIGH_422_INTRA:
-		    case FF_PROFILE_H264_STEREO_HIGH:
-		    case FF_PROFILE_H264_HIGH_444:
-		    case FF_PROFILE_H264_HIGH_444_PREDICTIVE:
-		    case FF_PROFILE_H264_HIGH_444_INTRA:
-		    case FF_PROFILE_H264_CAVLC_444:
+		    case AV_PROFILE_H264_BASELINE:
+		    case AV_PROFILE_H264_CONSTRAINED_BASELINE:
+		    case AV_PROFILE_H264_MAIN:
+		    case AV_PROFILE_H264_EXTENDED:
+		    case AV_PROFILE_H264_HIGH:
+		    case AV_PROFILE_H264_HIGH_10:
+		    case AV_PROFILE_H264_HIGH_10_INTRA:
+		    case AV_PROFILE_H264_MULTIVIEW_HIGH:
+		    case AV_PROFILE_H264_HIGH_422:
+		    case AV_PROFILE_H264_HIGH_422_INTRA:
+		    case AV_PROFILE_H264_STEREO_HIGH:
+		    case AV_PROFILE_H264_HIGH_444:
+		    case AV_PROFILE_H264_HIGH_444_PREDICTIVE:
+		    case AV_PROFILE_H264_HIGH_444_INTRA:
+		    case AV_PROFILE_H264_CAVLC_444:
 		    {
 			info_->has_video = true;
 			if (!video_stream)
@@ -759,7 +846,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
                 break;
 
             case AV_CODEC_ID_ALAC:
-                info_->supported_ipod_fmt = true;
+                info_->supported_ipod_fmt = (info_->audio.samplerate <= GPOD_MAX_SAMPLERATE &&
+                                             info_->audio.channels   <= 2);
                 break;
 
     // this block of types will needs transcoding to go onto iPod
@@ -822,7 +910,8 @@ int  gpod_ff_scan(struct gpod_ff_media_info *info_, const char *file_, Itdb_Ipod
         }
     }
 
-    extract_coverart(ctx, &info_->coverart);
+    extract_coverart(ctx, &info_->coverart, idevice_);
+    extract_chapters(ctx, info_);
 
     avformat_close_input(&ctx);
     return 0;
@@ -845,21 +934,41 @@ Itdb_Track*  gpod_ff_meta_to_track(const struct gpod_ff_media_info* meta_, time_
     track->size = meta_->file_size;
     track->tracklen = meta_->audio.song_length;
     track->bitrate = meta_->audio.bitrate;
-    track->samplerate = meta_->audio.samplerate;
+    track->samplerate = meta_->audio.samplerate <= 48000 ? meta_->audio.samplerate : 48000;
 
-    track->title = gpod_sanitize_text(gpod_trim(meta_->meta.title), sanitize_);
-    track->album = gpod_sanitize_text(gpod_trim(meta_->meta.album), sanitize_);
-    track->artist = gpod_sanitize_text(gpod_trim(meta_->meta.artist), sanitize_);
-    track->genre = gpod_sanitize_text(gpod_trim(meta_->meta.genre), sanitize_);
-    track->comment = gpod_sanitize_text(gpod_trim(meta_->meta.comment), sanitize_);
+    track->title       = gpod_sanitize_text(gpod_trim(meta_->meta.title),        sanitize_);
+    track->album       = gpod_sanitize_text(gpod_trim(meta_->meta.album),        sanitize_);
+    track->artist      = gpod_sanitize_text(gpod_trim(meta_->meta.artist),       sanitize_);
+    track->albumartist  = gpod_sanitize_text(gpod_trim(meta_->meta.album_artist), sanitize_);
+    track->compilation  = meta_->meta.compilation;
+    track->genre        = gpod_sanitize_text(gpod_trim(meta_->meta.genre),        sanitize_);
+    track->comment     = gpod_sanitize_text(gpod_trim(meta_->meta.comment),      sanitize_);
+    track->tracks = meta_->meta.total_tracks;
     track->track_nr = meta_->meta.track;
-    track->year = meta_->meta.year;
+    if (meta_->meta.year != 0) {
+        track->year = meta_->meta.year;
+    } else if (meta_->meta.date_released != 0) {
+        time_t t = (time_t)meta_->meta.date_released;
+        struct tm *tm = localtime(&t);
+        if (tm) {
+            track->year = (uint32_t)(tm->tm_year + 1900);
+        }
+    }
 
-    track->sort_artist      = gpod_sortname(track->artist);
-    track->sort_title       = gpod_sortname(track->title);
-    track->sort_album       = gpod_sortname(track->album);
-    track->sort_albumartist = gpod_sortname(track->albumartist);
-    track->sort_composer    = gpod_sortname(track->composer);
+    track->time_released = meta_->meta.date_released;
+
+    track->sort_artist      = meta_->meta.artist_sort       ? gpod_sanitize_text(gpod_trim(meta_->meta.artist_sort),       sanitize_) : gpod_sortname(track->artist);
+    track->sort_title       = meta_->meta.title_sort        ? gpod_sanitize_text(gpod_trim(meta_->meta.title_sort),        sanitize_) : gpod_sortname(track->title);
+    track->sort_album       = meta_->meta.album_sort        ? gpod_sanitize_text(gpod_trim(meta_->meta.album_sort),        sanitize_) : gpod_sortname(track->album);
+    track->sort_albumartist = meta_->meta.album_artist_sort ? gpod_sanitize_text(gpod_trim(meta_->meta.album_artist_sort), sanitize_) : gpod_sortname(track->albumartist);
+    track->sort_composer    = meta_->meta.composer_sort     ? gpod_sanitize_text(gpod_trim(meta_->meta.composer_sort),     sanitize_) : gpod_sortname(track->composer);
+
+    track->cds = meta_->meta.total_discs;
+    track->cd_nr = meta_->meta.disc;
+
+    for (unsigned i=0; i<meta_->num_chapters; ++i) {
+        itdb_chapterdata_add_chapter(track->chapterdata, meta_->chapters[i].startpos, meta_->chapters[i].title);
+    }
 
     return track;
 }
@@ -920,7 +1029,6 @@ void  gpod_ff_transcode_ctx_init(struct gpod_ff_transcode_ctx* obj_,
 	obj_->audio_opts.enc_name = "alac";
 	obj_->extn = ".m4a";
         obj_->audio_opts.quality_scale_factor = 0;
-	obj_->audio_opts.samplefmt = AV_SAMPLE_FMT_S16P;
         break;
 
       case GPOD_FF_ENC_MP3:

@@ -1,0 +1,29 @@
+Source: gpod-utils
+Section: universe/misc
+Priority: optional
+Maintainer: Ilya Kargapolov <d3vil.st@gmail.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ autotools-dev,
+ clang-tools,
+ autoconf,
+ libtool,
+ libgpod-dev,
+ libglib2.0-dev,
+ libavcodec-dev,
+ libavformat-dev,
+ libavfilter-dev,
+ libswscale-dev,
+ libavutil-dev,
+ libjson-c-dev,
+Standards-Version: 4.6.2
+Homepage: https://github.com/whatdoineed2do/gpod-utils/
+
+Package: gpod-utils
+Architecture: any
+Multi-Arch: same
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: Command line tools using 'libgpod' to access 'iPod' data.
