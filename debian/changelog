@@ -1,3 +1,9 @@
+gpod-utils (1.5.5) UNRELEASED; urgency=medium
+
+  * Fix compatibility with ffmpeg 9 due to deprecation of supported_samplerates
+
+ -- Stark2x <tomparr@protonmail.com>  Sat, 08 Aug 2026 18:31:35 +0200
+
 gpod-utils (1.5.4) UNRELEASED; urgency=medium
 
   * Preserve chapter markers when copying m4b audiobooks
